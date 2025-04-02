@@ -1,25 +1,71 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User, Organization } from '@prisma/client';
 import { ClerkVerificationResponse } from './interfaces/clerk-verification.interface';
+import { ConfigService } from '@nestjs/config';
+import { verifyToken, ClerkClient } from '@clerk/backend';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+    @Inject('ClerkClient') private clerkClient: ClerkClient,
+  ) {}
 
   async verifyToken(token: string): Promise<ClerkVerificationResponse | null> {
     try {
-      // In a real implementation, this would verify with Clerk API
-      // This is a simplified version for demonstration
-      const clerkVerification = {
-        userId: 'clerk_user_id_here',
-        organizationId: 'clerk_org_id_here',
-        email: 'user@example.com',
-        organizationName: 'Example Org',
-        role: 'admin',
-      };
+      // Verify token with Clerk API
+      const tokenPayload = await verifyToken(token, {
+        secretKey: this.configService.get('CLERK_SECRET_KEY'),
+      });
 
-      return clerkVerification;
+      if (!tokenPayload || !tokenPayload.sub) {
+        return null;
+      }
+
+      // Get user details from Clerk
+      const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
+
+      if (!clerkUser) {
+        return null;
+      }
+
+      // Extract organization info if available
+      let organizationId: string | undefined;
+      let organizationName: string | undefined;
+      let role: string | undefined;
+
+      if (tokenPayload.org_id) {
+        organizationId = tokenPayload.org_id;
+        
+        try {
+          const org = await this.clerkClient.organizations.getOrganization({
+            organizationId: tokenPayload.org_id,
+          });
+          organizationName = org.name;
+          
+          // Get the user's role in the organization
+          const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
+            organizationId: tokenPayload.org_id,
+          });
+          
+          const userMembership = membershipsResponse.data.find(
+            membership => membership.publicUserData?.userId === tokenPayload.sub
+          );
+          role = userMembership?.role;
+        } catch (error) {
+          console.error('Error fetching organization details:', error);
+        }
+      }
+
+      return {
+        userId: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress || '',
+        organizationId,
+        organizationName,
+        role,
+      };
     } catch (error) {
       console.error('Error verifying token:', error);
       return null;
