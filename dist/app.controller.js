@@ -12,23 +12,38 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppController = void 0;
 const common_1 = require("@nestjs/common");
 const app_service_1 = require("./app.service");
+const public_decorator_1 = require("./auth/decorators/public.decorator");
+const swagger_1 = require("@nestjs/swagger");
 let AppController = class AppController {
     appService;
     constructor(appService) {
         this.appService = appService;
     }
     getHello() {
-        return this.appService.getHello();
+        return { message: this.appService.getHello() };
     }
 };
 exports.AppController = AppController;
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Test endpoint to verify API is running' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Returns a test message',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string' }
+            }
+        }
+    }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
-    __metadata("design:returntype", String)
+    __metadata("design:returntype", void 0)
 ], AppController.prototype, "getHello", null);
 exports.AppController = AppController = __decorate([
+    (0, swagger_1.ApiTags)('app'),
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [app_service_1.AppService])
 ], AppController);

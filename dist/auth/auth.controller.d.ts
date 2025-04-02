@@ -22,4 +22,9 @@ export declare class AuthController {
         role: string | undefined;
         message?: undefined;
     }>;
+    getProfile(request: any): Promise<{
+        user: any;
+        organization: any;
+        message: string;
+    }>;
 }

@@ -10,10 +10,10 @@ export declare class SubscriptionsController {
         url: string | null;
     }>;
     getSubscription(organizationId: string, req: Request): Promise<{
+        organizationId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;

@@ -12,19 +12,29 @@ const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
 const core_1 = require("@nestjs/core");
 const auth_guard_1 = require("./guards/auth.guard");
+const passport_1 = require("@nestjs/passport");
+const clerk_strategy_1 = require("./strategies/clerk.strategy");
+const clerk_client_provider_1 = require("../providers/clerk-client.provider");
+const config_1 = require("@nestjs/config");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
-        controllers: [auth_controller_1.AuthController],
+        imports: [
+            passport_1.PassportModule,
+            config_1.ConfigModule,
+        ],
         providers: [
             auth_service_1.AuthService,
+            clerk_strategy_1.ClerkStrategy,
+            clerk_client_provider_1.ClerkClientProvider,
             {
                 provide: core_1.APP_GUARD,
                 useClass: auth_guard_1.AuthGuard,
             },
         ],
+        controllers: [auth_controller_1.AuthController],
         exports: [auth_service_1.AuthService],
     })
 ], AuthModule);
