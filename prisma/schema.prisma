@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Organization model for multi-tenancy
+model Organization {
+  id            String          @id @default(uuid())
+  name          String
+  clerkId       String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  products      Product[]
+  subscription  Subscription?
+  users         UserOrganization[]
+}
+
+// User model (linked to Clerk users)
+model User {
+  id            String          @id @default(uuid())
+  clerkId       String          @unique
+  email         String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  organizations UserOrganization[]
+}
+
+// Many-to-many relationship between users and organizations
+model UserOrganization {
+  id              String       @id @default(uuid())
+  userId          String
+  organizationId  String
+  role            Role         @default(MEMBER)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+// Product model
+model Product {
+  id              String       @id @default(uuid())
+  name            String
+  description     String?
+  price           Float
+  currency        String       @default("USD")
+  organizationId  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Subscription model for Stripe integration
+model Subscription {
+  id                String          @id @default(uuid())
+  stripeCustomerId  String?         @unique
+  stripeSubscriptionId String?      @unique
+  status            SubscriptionStatus @default(INACTIVE)
+  planType          PlanType        @default(FREE)
+  trialEndsAt       DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean         @default(false)
+  organizationId    String          @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Enums
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
