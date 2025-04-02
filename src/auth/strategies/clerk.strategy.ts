@@ -1,48 +1,79 @@
-import { User, verifyToken } from '@clerk/backend';
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-custom';
-import { ClerkClient } from '@clerk/backend';
+import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { verifyToken, createClerkClient } from '@clerk/backend';
 
 @Injectable()
 export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
+  // Clerk client for additional user and organization operations
+  private clerkClient: ReturnType<typeof createClerkClient>;
+
   constructor(
-    @Inject('ClerkClient')
-    private readonly clerkClient: ClerkClient,
+    // ConfigService to access environment-specific configurations
     private readonly configService: ConfigService,
   ) {
+    // Call the parent constructor with the strategy name
     super();
+
+    // Initialize Clerk client with the secret key from configuration
+    this.clerkClient = createClerkClient({
+      secretKey: configService.get<string>('CLERK_SECRET_KEY'),
+    });
   }
 
-  async validate(req: any): Promise<any> {
-    const token = req.headers.authorization?.split(' ').pop();
+  /**
+   * Validates the authentication request using Clerk
+   * 
+   * This method:
+   * 1. Extracts the Bearer token from the request
+   * 2. Verifies the token using Clerk's verification method
+   * 3. Retrieves detailed user information
+   * 4. Prepares user data for further processing
+   * 
+   * @param request The incoming HTTP request
+   * @returns Processed user information
+   * @throws UnauthorizedException for any authentication failures
+   */
+  async validate(request: Request): Promise<any> {
+    // Extract the Authorization header
+    const authHeader = request.headers.authorization;
 
-    if (!token) {
+    // Throw an error if no Authorization header is present
+    if (!authHeader) {
       throw new UnauthorizedException('No token provided');
     }
 
+    // Extract the token from the Authorization header
+    const token = authHeader.split(' ')[1];
+
     try {
-      const tokenPayload = await verifyToken(token, {
-        secretKey: this.configService.get('CLERK_SECRET_KEY'),
+      // Verify the token using Clerk's verification method
+      const claims = await verifyToken(token, {
+        secretKey: this.configService.get<string>('CLERK_SECRET_KEY'),
       });
 
-      // Get the user from Clerk
-      const user = await this.clerkClient.users.getUser(tokenPayload.sub);
-      
-      // Return a structured user object with essential data
+      // Retrieve detailed user information from Clerk
+      const user = await this.clerkClient.users.getUser(claims.sub);
+
+      // Prepare and return user information
       return {
+        // Unique user identifier
         id: user.id,
+        // Primary email address
         email: user.emailAddresses[0]?.emailAddress,
+        // User's first name
         firstName: user.firstName,
+        // User's last name
         lastName: user.lastName,
-        // Include organization data if available
-        organizationId: tokenPayload.org_id,
-        // Add any additional claims from the token that might be useful
-        claims: tokenPayload,
+        // Organization ID from token claims (if applicable)
+        organizationId: claims.org_id,
+        // Full token claims for additional context
+        claims,
       };
     } catch (error) {
-      console.error('Token verification failed:', error);
+      // Handle any errors during token verification or user retrieval
       throw new UnauthorizedException('Invalid token');
     }
   }

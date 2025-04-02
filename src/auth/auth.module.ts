@@ -7,22 +7,40 @@ import { PassportModule } from '@nestjs/passport';
 import { ClerkStrategy } from './strategies/clerk.strategy';
 import { ClerkClientProvider } from '../providers/clerk-client.provider';
 import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
+  // Import required modules for authentication
   imports: [
-    PassportModule,
+    // Passport module for authentication strategies
+    PassportModule.register({ defaultStrategy: 'clerk' }),
+    
+    // Configuration module to access environment variables
     ConfigModule,
+    
+    // Prisma module for database operations
+    PrismaModule,
   ],
+  
+  // Declare controllers for authentication routes
+  controllers: [AuthController],
+  
+  // Provide services and strategies for authentication
   providers: [
+    // Authentication service for token verification and user management
     AuthService,
+    
+    // Clerk authentication strategy
     ClerkStrategy,
-    ClerkClientProvider,
+    
+    // Global authentication guard
     {
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
   ],
-  controllers: [AuthController],
+  
+  // Export services if needed by other modules
   exports: [AuthService],
 })
 export class AuthModule {} 

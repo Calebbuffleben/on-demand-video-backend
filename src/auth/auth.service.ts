@@ -8,11 +8,25 @@ import { verifyToken, ClerkClient } from '@clerk/backend';
 @Injectable()
 export class AuthService {
   constructor(
+    // Prisma service for database operations
     private prisma: PrismaService,
+    // Configuration service to access environment variables
     private configService: ConfigService,
+    // Clerk client for authentication and user management
     @Inject('ClerkClient') private clerkClient: ClerkClient,
   ) {}
 
+  /**
+   * Verifies the authentication token using Clerk
+   * 
+   * This method:
+   * - Validates the token with Clerk's verification service
+   * - Retrieves user details
+   * - Extracts organization information if available
+   * 
+   * @param token Authentication token to verify
+   * @returns Verified user and organization information or null
+   */
   async verifyToken(token: string): Promise<ClerkVerificationResponse | null> {
     try {
       // Verify token with Clerk API
@@ -40,12 +54,13 @@ export class AuthService {
         organizationId = tokenPayload.org_id;
         
         try {
+          // Fetch organization details from Clerk
           const org = await this.clerkClient.organizations.getOrganization({
             organizationId: tokenPayload.org_id,
           });
           organizationName = org.name;
           
-          // Get the user's role in the organization
+          // Retrieve user's role in the organization
           const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
             organizationId: tokenPayload.org_id,
           });
@@ -59,6 +74,7 @@ export class AuthService {
         }
       }
 
+      // Return verified user and organization information
       return {
         userId: clerkUser.id,
         email: clerkUser.emailAddresses[0]?.emailAddress || '',
@@ -72,11 +88,24 @@ export class AuthService {
     }
   }
 
+  /**
+   * Retrieves an existing user or creates a new one in the database
+   * 
+   * This method:
+   * - Checks if a user exists by Clerk ID
+   * - Creates a new user if not found
+   * 
+   * @param clerkId Unique identifier from Clerk
+   * @param email User's email address
+   * @returns User entity from the database
+   */
   async getOrCreateUser(clerkId: string, email: string): Promise<User> {
+    // Find user by Clerk ID
     let user = await this.prisma.user.findUnique({
       where: { clerkId },
     });
 
+    // Create user if not exists
     if (!user) {
       user = await this.prisma.user.create({
         data: {
@@ -89,16 +118,32 @@ export class AuthService {
     return user;
   }
 
+  /**
+   * Retrieves an existing organization or creates a new one
+   * 
+   * This method:
+   * - Checks if an organization exists by Clerk ID
+   * - Creates a new organization if not found
+   * - Adds user to the organization with specified role
+   * 
+   * @param clerkOrgId Unique organization identifier from Clerk
+   * @param name Organization name
+   * @param userId User's database ID
+   * @param role User's role in the organization
+   * @returns Organization entity from the database
+   */
   async getOrCreateOrganization(
     clerkOrgId: string,
     name: string,
     userId: string,
     role: string,
   ): Promise<Organization> {
+    // Find organization by Clerk ID
     let organization = await this.prisma.organization.findUnique({
       where: { clerkId: clerkOrgId },
     });
 
+    // Create organization if not exists
     if (!organization) {
       organization = await this.prisma.organization.create({
         data: {
@@ -125,6 +170,7 @@ export class AuthService {
         },
       });
 
+      // Add user to organization if not already a member
       if (!userOrg) {
         await this.prisma.userOrganization.create({
           data: {
