@@ -17,6 +17,7 @@ A comprehensive NestJS backend API with multi-tenant architecture, integrated wi
 - [Frontend Integration](#frontend-integration)
 - [Security Considerations](#security-considerations)
 - [Known Issues and Limitations](#known-issues-and-limitations)
+- [Organization Syncing](#organization-syncing)
 
 ## Project Overview
 
@@ -866,6 +867,42 @@ export class ApiClient {
 4. **Testing**: The authentication system can be challenging to test. Consider using mock authentication for testing purposes.
 
 5. **Multiple Strategies**: If you need multiple authentication strategies, you'll need to implement a more complex guard system.
+
+## Organization Syncing
+
+This application supports syncing organizations from Clerk to the local database. This ensures that the organization data is available locally for features that require it, such as authorization and subscription management.
+
+### How it works
+
+1. When a user authenticates with a token containing an `organizationId`, the application verifies the token and extracts the `organizationId`.
+
+2. The application checks if an organization with the given `organizationId` already exists in the local database.
+
+3. If the organization doesn't exist, the application makes an API call to Clerk to fetch the complete organization data based on the `organizationId`.
+
+4. With the fetched organization data, the application creates a new record in the `Organization` table with the relevant fields (id, name, etc.).
+
+5. If the organization already exists in the local database, the application optionally updates its fields with the latest data from Clerk to keep it in sync.
+
+6. The fetched or synced organization is then attached to the request for use in other parts of the application.
+
+### Setup
+
+To enable organization syncing, make sure you have the following configured:
+
+1. Set up your Clerk API keys in the application configuration. You'll need the Clerk API key with sufficient permissions to fetch organization data.
+
+2. Ensure that the `OrganizationSyncService` is properly injected into the `AuthGuard` and any other services that need to sync organizations.
+
+3. Verify that your database schema includes an `Organization` table with the necessary fields to store the synced organization data.
+
+### Considerations
+
+- The organization syncing process relies on the Clerk API, so make sure to handle any rate limits or API errors gracefully.
+
+- If organizations are modified directly in the local database, they may become out of sync with the data in Clerk. Avoid modifying organization data directly in the database to prevent inconsistencies.
+
+- The syncing process is triggered whenever a user authenticates with a token containing an `organizationId`. If you have a high volume of authenticated requests, consider implementing caching or rate limiting to avoid excessive API calls to Clerk.
 
 ## License
 
