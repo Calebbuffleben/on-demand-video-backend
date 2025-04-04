@@ -51,13 +51,18 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
+      console.log('Verifying token...');
+      
       // Verify the token using AuthService
       const verificationResult = await this.authService.verifyToken(token);
       
       // Throw an error if token verification fails
       if (!verificationResult) {
+        console.log('Token verification failed');
         throw new UnauthorizedException('Invalid authentication token');
       }
+
+      console.log('Token verification successful:', JSON.stringify(verificationResult, null, 2));
 
       // Retrieve or create user in the database based on token information
       const user = await this.authService.getOrCreateUser(
@@ -65,27 +70,53 @@ export class AuthGuard implements CanActivate {
         verificationResult.email,
       );
 
-      // If organization information is present, retrieve or create organization
+      console.log('User from database:', JSON.stringify(user, null, 2));
+
+      // Attach the organizations array from the token if available
+      if (verificationResult.organizations) {
+        console.log('Attaching organizations array to request:', 
+          JSON.stringify(verificationResult.organizations, null, 2));
+        request['rawOrganizations'] = verificationResult.organizations;
+      }
+
+      // If specific organization info is present in token, use it
       if (verificationResult.organizationId && verificationResult.organizationName) {
+        console.log('Organization info from token:', 
+          verificationResult.organizationId, 
+          verificationResult.organizationName,
+          verificationResult.organizationRole || 'No role specified');
+        
+        // Create or retrieve organization in database
         const organization = await this.authService.getOrCreateOrganization(
           verificationResult.organizationId,
           verificationResult.organizationName,
           user.id,
-          // Use provided role or default to 'member'
-          verificationResult.role || 'member',
+          // Use organizationRole if available, fallback to role, or default to 'member'
+          verificationResult.organizationRole || verificationResult.role || 'member',
         );
+
+        console.log('Organization from database:', JSON.stringify(organization, null, 2));
 
         // Attach organization to the request for downstream use
         request['organization'] = organization;
+      } else {
+        console.log('No specific organization info in token');
       }
 
       // Attach user to the request for downstream use
       request['user'] = user;
       
+      console.log('Request user and organization attached:', {
+        user: !!request['user'],
+        organization: !!request['organization'],
+        rawOrganizations: !!request['rawOrganizations']
+      });
+      
       // Grant access to the route
       return true;
     } catch (error) {
       // Catch any unexpected errors during authentication process
+      console.error('Authentication error:', error);
       throw new UnauthorizedException('Authentication failed');
     }
   }

@@ -9,6 +9,14 @@ import { ClerkClientProvider } from '../providers/clerk-client.provider';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 
+/**
+ * Authentication Module
+ * 
+ * This module:
+ * - Manages authentication and authorization
+ * - Provides token verification
+ * - Handles user context for the application
+ */
 @Module({
   // Import required modules for authentication
   imports: [
@@ -32,6 +40,9 @@ import { PrismaModule } from '../prisma/prisma.module';
     
     // Clerk authentication strategy
     ClerkStrategy,
+    
+    // Clerk client provider for Clerk API access
+    ClerkClientProvider,
     
     // Global authentication guard
     {

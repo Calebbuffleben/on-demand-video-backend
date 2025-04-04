@@ -34,13 +34,21 @@ let AuthService = class AuthService {
             if (!tokenPayload || !tokenPayload.sub) {
                 return null;
             }
+            console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
             const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
             if (!clerkUser) {
                 return null;
             }
+            console.log('Clerk user details:', JSON.stringify({
+                id: clerkUser.id,
+                email: clerkUser.emailAddresses[0]?.emailAddress,
+                firstName: clerkUser.firstName,
+                lastName: clerkUser.lastName,
+            }, null, 2));
             let organizationId;
             let organizationName;
             let role;
+            let organizations;
             if (tokenPayload.org_id) {
                 organizationId = tokenPayload.org_id;
                 try {
@@ -58,12 +66,19 @@ let AuthService = class AuthService {
                     console.error('Error fetching organization details:', error);
                 }
             }
+            if (tokenPayload.organizations) {
+                console.log('Organizations found in token payload:', tokenPayload.organizations);
+                organizations = Array.isArray(tokenPayload.organizations)
+                    ? tokenPayload.organizations
+                    : [tokenPayload.organizations];
+            }
             return {
                 userId: clerkUser.id,
                 email: clerkUser.emailAddresses[0]?.emailAddress || '',
                 organizationId,
                 organizationName,
                 role,
+                organizations,
             };
         }
         catch (error) {

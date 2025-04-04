@@ -50,7 +50,7 @@ This application follows a modular, layered architecture based on NestJS best pr
 4. The request proceeds to the appropriate controller
 5. Controller delegates to services for business logic
 6. Service layer interacts with the database via Prisma
-7. Response is returned to the client
+7. Response is returned to the client 
 
 ## Authentication System
 

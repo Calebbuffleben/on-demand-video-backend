@@ -1,9 +1,14 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from './stripe.service';
+import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
+import { Subscription } from '@prisma/client';
 export declare class SubscriptionsService {
     private prisma;
     private stripeService;
-    constructor(prisma: PrismaService, stripeService: StripeService);
+    private configService;
+    private stripe;
+    constructor(prisma: PrismaService, stripeService: StripeService, configService: ConfigService);
     getSubscription(organizationId: string): Promise<{
         organizationId: string;
         id: string;
@@ -18,7 +23,7 @@ export declare class SubscriptionsService {
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
     }>;
-    createCheckoutSession(organizationId: string, planType: string, customerEmail: string, successUrl: string, cancelUrl: string): Promise<import("stripe").Stripe.Response<import("stripe").Stripe.Checkout.Session>>;
+    createCheckoutSession(organizationId: string, planType: string, customerEmail: string, successUrl: string, cancelUrl: string): Promise<Stripe.Response<Stripe.Checkout.Session>>;
     handleSubscriptionCreated(subscriptionId: string, customerId: string, organizationId: string, planType: string): Promise<{
         organizationId: string;
         id: string;
@@ -47,4 +52,5 @@ export declare class SubscriptionsService {
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
     }>;
+    getCurrentSubscription(user: any): Promise<Subscription | null>;
 }

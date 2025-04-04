@@ -38,6 +38,8 @@ export class AuthService {
         return null;
       }
 
+      console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
+
       // Get user details from Clerk
       const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
 
@@ -45,33 +47,65 @@ export class AuthService {
         return null;
       }
 
-      // Extract organization info if available
-      let organizationId: string | undefined;
-      let organizationName: string | undefined;
-      let role: string | undefined;
+      console.log('Clerk user details:', JSON.stringify({
+        id: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+      }, null, 2));
 
-      if (tokenPayload.org_id) {
+      // Extract organization info from token claims
+      // These fields now come directly from the token with the new structure
+      let organizationId: string | undefined = tokenPayload.organizationId as string | undefined;
+      let organizationName: string | undefined = tokenPayload.organizationName as string | undefined;
+      let organizationRole: string | undefined = tokenPayload.organizationRole as string | undefined;
+      let role: string | undefined;
+      let organizations: any[] | undefined;
+
+      // For backward compatibility, use org_id if organizationId is not present
+      if (!organizationId && tokenPayload.org_id) {
         organizationId = tokenPayload.org_id;
         
         try {
-          // Fetch organization details from Clerk
-          const org = await this.clerkClient.organizations.getOrganization({
-            organizationId: tokenPayload.org_id,
-          });
-          organizationName = org.name;
+          // Fetch organization details from Clerk if not in token
+          if (!organizationName) {
+            const org = await this.clerkClient.organizations.getOrganization({
+              organizationId: tokenPayload.org_id,
+            });
+            organizationName = org.name;
+          }
           
-          // Retrieve user's role in the organization
-          const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
-            organizationId: tokenPayload.org_id,
-          });
-          
-          const userMembership = membershipsResponse.data.find(
-            membership => membership.publicUserData?.userId === tokenPayload.sub
-          );
-          role = userMembership?.role;
+          // Get user's role if not provided
+          if (!organizationRole) {
+            const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
+              organizationId: tokenPayload.org_id,
+            });
+            
+            const userMembership = membershipsResponse.data.find(
+              membership => membership.publicUserData?.userId === tokenPayload.sub
+            );
+            organizationRole = userMembership?.role;
+          }
         } catch (error) {
           console.error('Error fetching organization details:', error);
         }
+      }
+      
+      // Assign role from organizationRole for backward compatibility
+      role = organizationRole || role;
+
+      // Extract organizations array if available in token
+      if (tokenPayload.organization) {
+        console.log('Organizations found in token payload:', tokenPayload.organization);
+        organizations = Array.isArray(tokenPayload.organization) 
+          ? tokenPayload.organization 
+          : [tokenPayload.organization];
+      } else if (tokenPayload.organizations) {
+        // Check old field name for backward compatibility
+        console.log('Organizations found in token payload (old field name):', tokenPayload.organizations);
+        organizations = Array.isArray(tokenPayload.organizations) 
+          ? tokenPayload.organizations 
+          : [tokenPayload.organizations];
       }
 
       // Return verified user and organization information
@@ -80,7 +114,9 @@ export class AuthService {
         email: clerkUser.emailAddresses[0]?.emailAddress || '',
         organizationId,
         organizationName,
-        role,
+        organizationRole,
+        role,          // Keep for backward compatibility
+        organizations,
       };
     } catch (error) {
       console.error('Error verifying token:', error);

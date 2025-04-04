@@ -16,15 +16,18 @@ const passport_1 = require("@nestjs/passport");
 const clerk_strategy_1 = require("./strategies/clerk.strategy");
 const clerk_client_provider_1 = require("../providers/clerk-client.provider");
 const config_1 = require("@nestjs/config");
+const prisma_module_1 = require("../prisma/prisma.module");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            passport_1.PassportModule,
+            passport_1.PassportModule.register({ defaultStrategy: 'clerk' }),
             config_1.ConfigModule,
+            prisma_module_1.PrismaModule,
         ],
+        controllers: [auth_controller_1.AuthController],
         providers: [
             auth_service_1.AuthService,
             clerk_strategy_1.ClerkStrategy,
@@ -34,7 +37,6 @@ exports.AuthModule = AuthModule = __decorate([
                 useClass: auth_guard_1.AuthGuard,
             },
         ],
-        controllers: [auth_controller_1.AuthController],
         exports: [auth_service_1.AuthService],
     })
 ], AuthModule);

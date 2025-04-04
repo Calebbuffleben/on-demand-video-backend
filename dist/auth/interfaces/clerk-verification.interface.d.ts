@@ -1,7 +1,8 @@
 export interface ClerkVerificationResponse {
     userId: string;
-    organizationId?: string;
     email: string;
+    organizationId?: string;
     organizationName?: string;
     role?: string;
+    organizations?: any[];
 }

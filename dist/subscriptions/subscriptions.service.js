@@ -13,6 +13,8 @@ exports.SubscriptionsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stripe_service_1 = require("./stripe.service");
+const config_1 = require("@nestjs/config");
+const stripe_1 = require("stripe");
 var PlanType;
 (function (PlanType) {
     PlanType["FREE"] = "FREE";
@@ -31,9 +33,19 @@ var SubscriptionStatus;
 let SubscriptionsService = class SubscriptionsService {
     prisma;
     stripeService;
-    constructor(prisma, stripeService) {
+    configService;
+    stripe;
+    constructor(prisma, stripeService, configService) {
         this.prisma = prisma;
         this.stripeService = stripeService;
+        this.configService = configService;
+        const stripeSecretKey = this.configService.get('STRIPE_SECRET_KEY');
+        if (!stripeSecretKey) {
+            throw new Error('Stripe secret key is missing');
+        }
+        this.stripe = new stripe_1.default(stripeSecretKey, {
+            apiVersion: '2025-03-31.basil',
+        });
     }
     async getSubscription(organizationId) {
         const subscription = await this.prisma.subscription.findUnique({
@@ -109,11 +121,42 @@ let SubscriptionsService = class SubscriptionsService {
             data: { status: dbStatus },
         });
     }
+    async getCurrentSubscription(user) {
+        console.log('Getting subscription for user:', JSON.stringify(user, null, 2));
+        if (!user || !user.organization) {
+            console.log('No organization data found for user');
+            return null;
+        }
+        let organizationId;
+        if (typeof user.organization === 'string') {
+            organizationId = user.organization;
+        }
+        else if (user.organization.id) {
+            organizationId = user.organization.id;
+        }
+        else if (Array.isArray(user.organization) && user.organization.length > 0) {
+            const firstOrg = user.organization[0];
+            organizationId = typeof firstOrg === 'string' ? firstOrg : firstOrg.id;
+        }
+        else {
+            console.log('Could not determine organization ID from data:', user.organization);
+            return null;
+        }
+        console.log('Querying subscription for organization ID:', organizationId);
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: 'ACTIVE',
+            },
+        });
+        return subscription;
+    }
 };
 exports.SubscriptionsService = SubscriptionsService;
 exports.SubscriptionsService = SubscriptionsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        stripe_service_1.StripeService])
+        stripe_service_1.StripeService,
+        config_1.ConfigService])
 ], SubscriptionsService);
 //# sourceMappingURL=subscriptions.service.js.map

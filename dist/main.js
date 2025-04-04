@@ -29,7 +29,7 @@ async function bootstrap() {
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, config);
     swagger_1.SwaggerModule.setup('api/docs', app, document);
-    const port = configService.get('PORT') || 3000;
+    const port = configService.get('PORT') || 4000;
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
 }

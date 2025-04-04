@@ -1,17 +1,20 @@
-import { ClerkClient, createClerkClient } from '@clerk/backend';
+import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createClerkClient } from '@clerk/backend';
 
-export const ClerkClientProvider = {
+/**
+ * Provider for Clerk Client
+ * 
+ * This factory:
+ * - Creates a Clerk client instance using the secret key from environment
+ * - Makes the client available throughout the application
+ * - Enables dependency injection for the client
+ */
+export const ClerkClientProvider: Provider = {
   provide: 'ClerkClient',
   useFactory: (configService: ConfigService) => {
-    const secretKey = configService.get<string>('CLERK_SECRET_KEY');
-    
-    if (!secretKey) {
-      throw new Error('CLERK_SECRET_KEY is not defined in environment variables');
-    }
-    
     return createClerkClient({
-      secretKey,
+      secretKey: configService.get<string>('CLERK_SECRET_KEY'),
     });
   },
   inject: [ConfigService],

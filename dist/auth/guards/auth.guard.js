@@ -35,19 +35,38 @@ let AuthGuard = class AuthGuard {
             throw new common_1.UnauthorizedException('Authentication token is missing');
         }
         try {
+            console.log('Verifying token...');
             const verificationResult = await this.authService.verifyToken(token);
             if (!verificationResult) {
+                console.log('Token verification failed');
                 throw new common_1.UnauthorizedException('Invalid authentication token');
             }
+            console.log('Token verification successful:', JSON.stringify(verificationResult, null, 2));
             const user = await this.authService.getOrCreateUser(verificationResult.userId, verificationResult.email);
+            console.log('User from database:', JSON.stringify(user, null, 2));
             if (verificationResult.organizationId && verificationResult.organizationName) {
+                console.log('Organization info from token:', verificationResult.organizationId, verificationResult.organizationName);
                 const organization = await this.authService.getOrCreateOrganization(verificationResult.organizationId, verificationResult.organizationName, user.id, verificationResult.role || 'member');
+                console.log('Organization from database:', JSON.stringify(organization, null, 2));
                 request['organization'] = organization;
             }
+            else {
+                console.log('No organization info in token');
+                if (verificationResult.organizations) {
+                    console.log('Found organizations array in token:', JSON.stringify(verificationResult.organizations, null, 2));
+                    request['rawOrganizations'] = verificationResult.organizations;
+                }
+            }
             request['user'] = user;
+            console.log('Request user and organization attached:', {
+                user: !!request['user'],
+                organization: !!request['organization'],
+                rawOrganizations: !!request['rawOrganizations']
+            });
             return true;
         }
         catch (error) {
+            console.error('Authentication error:', error);
             throw new common_1.UnauthorizedException('Authentication failed');
         }
     }
