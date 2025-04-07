@@ -17,6 +17,8 @@ const clerk_strategy_1 = require("./strategies/clerk.strategy");
 const clerk_client_provider_1 = require("../providers/clerk-client.provider");
 const config_1 = require("@nestjs/config");
 const prisma_module_1 = require("../prisma/prisma.module");
+const clerk_webhook_controller_1 = require("./controllers/clerk-webhook.controller");
+const clerk_service_1 = require("./services/clerk.service");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -27,9 +29,13 @@ exports.AuthModule = AuthModule = __decorate([
             config_1.ConfigModule,
             prisma_module_1.PrismaModule,
         ],
-        controllers: [auth_controller_1.AuthController],
+        controllers: [
+            auth_controller_1.AuthController,
+            clerk_webhook_controller_1.ClerkWebhookController,
+        ],
         providers: [
             auth_service_1.AuthService,
+            clerk_service_1.ClerkService,
             clerk_strategy_1.ClerkStrategy,
             clerk_client_provider_1.ClerkClientProvider,
             {
@@ -37,7 +43,10 @@ exports.AuthModule = AuthModule = __decorate([
                 useClass: auth_guard_1.AuthGuard,
             },
         ],
-        exports: [auth_service_1.AuthService],
+        exports: [
+            auth_service_1.AuthService,
+            clerk_service_1.ClerkService,
+        ],
     })
 ], AuthModule);
 //# sourceMappingURL=auth.module.js.map

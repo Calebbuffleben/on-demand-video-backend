@@ -45,29 +45,41 @@ let AuthService = class AuthService {
                 firstName: clerkUser.firstName,
                 lastName: clerkUser.lastName,
             }, null, 2));
-            let organizationId;
-            let organizationName;
+            let organizationId = tokenPayload.organizationId;
+            let organizationName = tokenPayload.organizationName;
+            let organizationRole = tokenPayload.organizationRole;
             let role;
             let organizations;
-            if (tokenPayload.org_id) {
+            if (!organizationId && tokenPayload.org_id) {
                 organizationId = tokenPayload.org_id;
                 try {
-                    const org = await this.clerkClient.organizations.getOrganization({
-                        organizationId: tokenPayload.org_id,
-                    });
-                    organizationName = org.name;
-                    const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
-                        organizationId: tokenPayload.org_id,
-                    });
-                    const userMembership = membershipsResponse.data.find(membership => membership.publicUserData?.userId === tokenPayload.sub);
-                    role = userMembership?.role;
+                    if (!organizationName) {
+                        const org = await this.clerkClient.organizations.getOrganization({
+                            organizationId: tokenPayload.org_id,
+                        });
+                        organizationName = org.name;
+                    }
+                    if (!organizationRole) {
+                        const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
+                            organizationId: tokenPayload.org_id,
+                        });
+                        const userMembership = membershipsResponse.data.find(membership => membership.publicUserData?.userId === tokenPayload.sub);
+                        organizationRole = userMembership?.role;
+                    }
                 }
                 catch (error) {
                     console.error('Error fetching organization details:', error);
                 }
             }
-            if (tokenPayload.organizations) {
-                console.log('Organizations found in token payload:', tokenPayload.organizations);
+            role = organizationRole || role;
+            if (tokenPayload.organization) {
+                console.log('Organizations found in token payload:', tokenPayload.organization);
+                organizations = Array.isArray(tokenPayload.organization)
+                    ? tokenPayload.organization
+                    : [tokenPayload.organization];
+            }
+            else if (tokenPayload.organizations) {
+                console.log('Organizations found in token payload (old field name):', tokenPayload.organizations);
                 organizations = Array.isArray(tokenPayload.organizations)
                     ? tokenPayload.organizations
                     : [tokenPayload.organizations];
@@ -77,6 +89,7 @@ let AuthService = class AuthService {
                 email: clerkUser.emailAddresses[0]?.emailAddress || '',
                 organizationId,
                 organizationName,
+                organizationRole,
                 role,
                 organizations,
             };

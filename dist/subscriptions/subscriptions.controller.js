@@ -41,44 +41,63 @@ let SubscriptionsController = class SubscriptionsController {
         console.log('GET subscription for organization ID:', organizationId);
         console.log('Request user data:', JSON.stringify(req.user, null, 2));
         console.log('Request organization data:', JSON.stringify(req.organization, null, 2));
+        console.log('Request raw organizations:', JSON.stringify(req.rawOrganizations, null, 2));
         const userData = req.user;
         if (!userData) {
             throw new common_1.BadRequestException('User information not found');
         }
-        const organizationData = req.organization || userData.organization;
-        console.log('Combined organization data:', JSON.stringify(organizationData, null, 2));
-        if (!organizationData) {
-            return {
-                status: 'NO_ORGANIZATION',
-                message: 'No organization found for the current user. Please create or join an organization first.'
-            };
+        let hasAccess = false;
+        if (req.organization && req.organization.id === organizationId) {
+            hasAccess = true;
         }
-        let userOrgId;
-        if (typeof organizationData === 'string') {
-            userOrgId = organizationData;
-            console.log('Organization is a string ID:', userOrgId);
-        }
-        else if (organizationData.id) {
-            userOrgId = organizationData.id;
-            console.log('Organization is an object with ID:', userOrgId);
-        }
-        else if (Array.isArray(organizationData) && organizationData.length > 0) {
-            const firstOrg = organizationData[0];
-            userOrgId = typeof firstOrg === 'string' ? firstOrg : firstOrg.id;
-            console.log('Organization is an array, using first item with ID:', userOrgId);
+        else if (req.rawOrganizations) {
+            const orgExists = req.rawOrganizations.some(org => {
+                if (typeof org === 'string') {
+                    return org === organizationId;
+                }
+                else if (org.id) {
+                    return org.id === organizationId;
+                }
+                return false;
+            });
+            if (orgExists) {
+                hasAccess = true;
+            }
         }
         else {
-            console.log('Invalid organization format:', typeof organizationData, organizationData);
-            return {
-                status: 'INVALID_ORGANIZATION_FORMAT',
-                message: 'The organization data format is invalid'
-            };
+            const userOrg = await this.prismaService.userOrganization.findUnique({
+                where: {
+                    userId_organizationId: {
+                        userId: userData.id,
+                        organizationId,
+                    },
+                },
+            });
+            if (userOrg) {
+                hasAccess = true;
+            }
         }
-        if (userOrgId !== organizationId) {
-            console.log('Access denied: User org ID', userOrgId, 'does not match requested org ID', organizationId);
+        if (!hasAccess) {
             throw new common_1.BadRequestException('You do not have access to this organization');
         }
-        return this.subscriptionsService.getSubscription(organizationId);
+        try {
+            const subscription = await this.subscriptionsService.getSubscription(organizationId);
+            return {
+                status: 'SUCCESS',
+                subscription,
+                organizationId
+            };
+        }
+        catch (error) {
+            if (error instanceof common_1.NotFoundException) {
+                return {
+                    status: 'NO_SUBSCRIPTION',
+                    message: 'No active subscription found for this organization',
+                    organizationId
+                };
+            }
+            throw error;
+        }
     }
     async handleWebhook(signature, req, res) {
         if (!signature) {
@@ -122,9 +141,16 @@ let SubscriptionsController = class SubscriptionsController {
             throw new common_1.BadRequestException('User information not found');
         }
         console.log('User data in request:', JSON.stringify(userData, null, 2));
-        const organizationData = req.organization || userData.organization;
+        const organizationData = req.organization;
         console.log('Organization data from request:', JSON.stringify(organizationData, null, 2));
         if (!organizationData) {
+            if (req.rawOrganizations && req.rawOrganizations.length > 0) {
+                return {
+                    status: 'ORGANIZATION_SELECTION_REQUIRED',
+                    message: 'Please select an organization to view subscription details.',
+                    availableOrganizations: req.rawOrganizations
+                };
+            }
             return {
                 status: 'NO_ORGANIZATION',
                 message: 'No organization found for the current user. Please create or join an organization first.'
@@ -138,9 +164,21 @@ let SubscriptionsController = class SubscriptionsController {
         console.log('User data for subscription:', JSON.stringify(user, null, 2));
         const subscription = await this.subscriptionsService.getCurrentSubscription(user);
         if (!subscription) {
-            return { status: 'NO_SUBSCRIPTION', message: 'No active subscription found' };
+            return {
+                status: 'NO_SUBSCRIPTION',
+                message: 'No active subscription found for this organization',
+                organizationId: organizationData.id,
+                organizationName: organizationData.name
+            };
         }
-        return subscription;
+        return {
+            status: 'SUCCESS',
+            subscription,
+            organization: {
+                id: organizationData.id,
+                name: organizationData.name
+            }
+        };
     }
     async getUserOrganizations(req) {
         const userData = req.user;

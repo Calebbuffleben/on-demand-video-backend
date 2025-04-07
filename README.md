@@ -870,7 +870,9 @@ export class ApiClient {
 
 ## Organization Syncing
 
-This application supports syncing organizations from Clerk to the local database. This ensures that the organization data is available locally for features that require it, such as authorization and subscription management.
+Currently, our application uses Clerk for authentication and organization management. When a user authenticates, their token contains an `organizationId` field that identifies the organization they belong to. However, our application also relies on a local database to store and retrieve organization data.
+
+To ensure that the organization data is available in our local database when needed, we need to implement a mechanism to sync organizations from Clerk to our database whenever a user authenticates with a token containing an `organizationId`.
 
 ### How it works
 
@@ -896,13 +898,19 @@ To enable organization syncing, make sure you have the following configured:
 
 3. Verify that your database schema includes an `Organization` table with the necessary fields to store the synced organization data.
 
-### Considerations
+### Additional Considerations
 
-- The organization syncing process relies on the Clerk API, so make sure to handle any rate limits or API errors gracefully.
+- The syncing process should be triggered whenever a user authenticates with a token containing an `organizationId`. This ensures that the organizations are always synced to our database when needed.
 
-- If organizations are modified directly in the local database, they may become out of sync with the data in Clerk. Avoid modifying organization data directly in the database to prevent inconsistencies.
+- When creating the `OrganizationSyncService`, make sure to handle any potential errors that may occur during the syncing process, such as network issues or invalid data from the Clerk API.
 
-- The syncing process is triggered whenever a user authenticates with a token containing an `organizationId`. If you have a high volume of authenticated requests, consider implementing caching or rate limiting to avoid excessive API calls to Clerk.
+- Consider adding logging or monitoring to track the syncing process and identify any issues that may arise.
+
+### Relevant Resources
+
+- [Clerk API Documentation](https://clerk.dev/docs/api)
+- [NestJS Services](https://docs.nestjs.com/providers)
+- [NestJS Guards](https://docs.nestjs.com/guards)
 
 ## License
 

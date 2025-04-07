@@ -44,18 +44,18 @@ let AuthGuard = class AuthGuard {
             console.log('Token verification successful:', JSON.stringify(verificationResult, null, 2));
             const user = await this.authService.getOrCreateUser(verificationResult.userId, verificationResult.email);
             console.log('User from database:', JSON.stringify(user, null, 2));
+            if (verificationResult.organizations) {
+                console.log('Attaching organizations array to request:', JSON.stringify(verificationResult.organizations, null, 2));
+                request['rawOrganizations'] = verificationResult.organizations;
+            }
             if (verificationResult.organizationId && verificationResult.organizationName) {
-                console.log('Organization info from token:', verificationResult.organizationId, verificationResult.organizationName);
-                const organization = await this.authService.getOrCreateOrganization(verificationResult.organizationId, verificationResult.organizationName, user.id, verificationResult.role || 'member');
+                console.log('Organization info from token:', verificationResult.organizationId, verificationResult.organizationName, verificationResult.organizationRole || 'No role specified');
+                const organization = await this.authService.getOrCreateOrganization(verificationResult.organizationId, verificationResult.organizationName, user.id, verificationResult.organizationRole || verificationResult.role || 'member');
                 console.log('Organization from database:', JSON.stringify(organization, null, 2));
                 request['organization'] = organization;
             }
             else {
-                console.log('No organization info in token');
-                if (verificationResult.organizations) {
-                    console.log('Found organizations array in token:', JSON.stringify(verificationResult.organizations, null, 2));
-                    request['rawOrganizations'] = verificationResult.organizations;
-                }
+                console.log('No specific organization info in token');
             }
             request['user'] = user;
             console.log('Request user and organization attached:', {

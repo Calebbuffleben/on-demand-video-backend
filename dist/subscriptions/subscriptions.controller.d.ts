@@ -17,39 +17,78 @@ export declare class SubscriptionsController {
         url: string | null;
     }>;
     getSubscription(organizationId: string, req: AuthenticatedRequest): Promise<{
+        status: string;
+        subscription: {
+            organizationId: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            planType: import(".prisma/client").$Enums.PlanType;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            status: import(".prisma/client").$Enums.SubscriptionStatus;
+            trialEndsAt: Date | null;
+            currentPeriodStart: Date | null;
+            currentPeriodEnd: Date | null;
+            cancelAtPeriodEnd: boolean;
+        };
         organizationId: string;
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        planType: import(".prisma/client").$Enums.PlanType;
-        stripeCustomerId: string | null;
-        stripeSubscriptionId: string | null;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        trialEndsAt: Date | null;
-        currentPeriodStart: Date | null;
-        currentPeriodEnd: Date | null;
-        cancelAtPeriodEnd: boolean;
+        message?: undefined;
     } | {
         status: string;
         message: string;
+        organizationId: string;
+        subscription?: undefined;
     }>;
     handleWebhook(signature: string, req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
     getCurrentSubscription(req: AuthenticatedRequest): Promise<{
-        organizationId: string;
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        planType: import(".prisma/client").$Enums.PlanType;
-        stripeCustomerId: string | null;
-        stripeSubscriptionId: string | null;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        trialEndsAt: Date | null;
-        currentPeriodStart: Date | null;
-        currentPeriodEnd: Date | null;
-        cancelAtPeriodEnd: boolean;
+        status: string;
+        message: string;
+        availableOrganizations: any[];
+        organizationId?: undefined;
+        organizationName?: undefined;
+        subscription?: undefined;
+        organization?: undefined;
     } | {
         status: string;
         message: string;
+        availableOrganizations?: undefined;
+        organizationId?: undefined;
+        organizationName?: undefined;
+        subscription?: undefined;
+        organization?: undefined;
+    } | {
+        status: string;
+        message: string;
+        organizationId: any;
+        organizationName: any;
+        availableOrganizations?: undefined;
+        subscription?: undefined;
+        organization?: undefined;
+    } | {
+        status: string;
+        subscription: {
+            organizationId: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            planType: import(".prisma/client").$Enums.PlanType;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            status: import(".prisma/client").$Enums.SubscriptionStatus;
+            trialEndsAt: Date | null;
+            currentPeriodStart: Date | null;
+            currentPeriodEnd: Date | null;
+            cancelAtPeriodEnd: boolean;
+        };
+        organization: {
+            id: any;
+            name: any;
+        };
+        message?: undefined;
+        availableOrganizations?: undefined;
+        organizationId?: undefined;
+        organizationName?: undefined;
     }>;
     getUserOrganizations(req: AuthenticatedRequest): Promise<{
         status: string;
