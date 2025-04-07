@@ -50,6 +50,35 @@ let AuthController = class AuthController {
             message: 'You are authenticated',
         };
     }
+    async testDebug() {
+        return {
+            message: 'Debug endpoint working',
+            timestamp: new Date().toISOString()
+        };
+    }
+    async debugAuth(req) {
+        const authHeader = req.headers.authorization;
+        const token = authHeader ? authHeader.split(' ')[1] : null;
+        let tokenInfo = null;
+        if (token) {
+            try {
+                tokenInfo = await this.authService.verifyToken(token);
+            }
+            catch (error) {
+                console.error('Token verification error:', error);
+            }
+        }
+        return {
+            auth: {
+                hasToken: !!token,
+                tokenValid: !!tokenInfo,
+                user: req.user || null,
+                currentOrganization: req.organization || null,
+                rawOrganizations: req.rawOrganizations || null,
+                tokenInfo: tokenInfo,
+            }
+        };
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -70,6 +99,23 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getProfile", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('test-debug'),
+    (0, swagger_1.ApiOperation)({ summary: 'Test debug endpoint' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "testDebug", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('debug'),
+    (0, swagger_1.ApiOperation)({ summary: 'Debug token and organization access' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "debugAuth", null);
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, common_1.Controller)('api/auth'),

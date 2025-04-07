@@ -38,54 +38,43 @@ let SubscriptionsController = class SubscriptionsController {
         return { url: session.url };
     }
     async getSubscription(organizationId, req) {
-        console.log('GET subscription for organization ID:', organizationId);
-        console.log('Request user data:', JSON.stringify(req.user, null, 2));
-        console.log('Request organization data:', JSON.stringify(req.organization, null, 2));
-        console.log('Request raw organizations:', JSON.stringify(req.rawOrganizations, null, 2));
+        console.log(`Getting subscription for organization ID: ${organizationId}`);
         const userData = req.user;
         if (!userData) {
             throw new common_1.BadRequestException('User information not found');
         }
-        let hasAccess = false;
-        if (req.organization && req.organization.id === organizationId) {
-            hasAccess = true;
-        }
-        else if (req.rawOrganizations) {
-            const orgExists = req.rawOrganizations.some(org => {
-                if (typeof org === 'string') {
-                    return org === organizationId;
-                }
-                else if (org.id) {
-                    return org.id === organizationId;
-                }
-                return false;
-            });
-            if (orgExists) {
-                hasAccess = true;
+        const userOrganizations = await this.prismaService.userOrganization.findMany({
+            where: {
+                userId: userData.id
+            },
+            include: {
+                organization: true
             }
-        }
-        else {
-            const userOrg = await this.prismaService.userOrganization.findUnique({
-                where: {
-                    userId_organizationId: {
-                        userId: userData.id,
-                        organizationId,
-                    },
-                },
-            });
-            if (userOrg) {
-                hasAccess = true;
-            }
-        }
-        if (!hasAccess) {
+        });
+        console.log(`User is a member of ${userOrganizations.length} organizations:`, userOrganizations.map(org => ({
+            id: org.organization.id,
+            name: org.organization.name,
+            clerkId: org.organization.clerkId,
+            role: org.role
+        })));
+        const matchingOrg = userOrganizations.find(org => org.organization.id === organizationId || org.organization.clerkId === organizationId);
+        if (!matchingOrg) {
+            console.error(`User has no access to organization ${organizationId}`);
+            console.error(`User's organizations: ${userOrganizations.map(o => o.organization.id).join(', ')}`);
             throw new common_1.BadRequestException('You do not have access to this organization');
         }
+        const organization = matchingOrg.organization;
+        console.log(`Found matching organization: ${organization.name} (${organization.id})`);
         try {
-            const subscription = await this.subscriptionsService.getSubscription(organizationId);
+            const subscription = await this.subscriptionsService.getSubscription(organization.id);
             return {
                 status: 'SUCCESS',
                 subscription,
-                organizationId
+                organization: {
+                    id: organization.id,
+                    name: organization.name,
+                    clerkId: organization.clerkId
+                }
             };
         }
         catch (error) {
@@ -93,7 +82,11 @@ let SubscriptionsController = class SubscriptionsController {
                 return {
                     status: 'NO_SUBSCRIPTION',
                     message: 'No active subscription found for this organization',
-                    organizationId
+                    organization: {
+                        id: organization.id,
+                        name: organization.name,
+                        clerkId: organization.clerkId
+                    }
                 };
             }
             throw error;

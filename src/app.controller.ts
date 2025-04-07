@@ -24,4 +24,13 @@ export class AppController {
   getHello() {
     return { message: this.appService.getHello() };
   }
+
+  @Public()
+  @Get('debug-test')
+  debugTest() {
+    return {
+      message: 'Debug test endpoint is working',
+      timestamp: new Date().toISOString()
+    };
+  }
 }

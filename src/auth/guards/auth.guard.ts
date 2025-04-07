@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -11,6 +12,7 @@ export class AuthGuard implements CanActivate {
     private authService: AuthService,
     // Reflector allows reading metadata from decorators
     private reflector: Reflector,
+    private prisma: PrismaService,
   ) {}
 
   /**
@@ -79,8 +81,37 @@ export class AuthGuard implements CanActivate {
         request['rawOrganizations'] = verificationResult.organizations;
       }
 
-      // If specific organization info is present in token, use it
-      if (verificationResult.organizationId && verificationResult.organizationName) {
+      // Check for X-Organization-Id header - it takes precedence if present
+      const requestedOrgId = request.headers['x-organization-id'] as string;
+      
+      if (requestedOrgId) {
+        console.log('X-Organization-Id header present:', requestedOrgId);
+        
+        // Verify user has access to the requested organization
+        const userOrg = await this.prisma.userOrganization.findFirst({
+          where: {
+            userId: user.id,
+            organization: {
+              clerkId: requestedOrgId
+            }
+          },
+          include: {
+            organization: true
+          }
+        });
+        
+        if (userOrg) {
+          console.log('User has access to requested organization:', 
+            JSON.stringify(userOrg.organization, null, 2));
+          request['organization'] = userOrg.organization;
+        } else {
+          console.log('User does not have access to requested organization');
+          // We don't throw here - we'll just not attach the organization
+          // Controllers that require organization context will handle this appropriately
+        }
+      }
+      // If no header but organization info in token, use that
+      else if (verificationResult.organizationId && verificationResult.organizationName) {
         console.log('Organization info from token:', 
           verificationResult.organizationId, 
           verificationResult.organizationName,
@@ -100,7 +131,7 @@ export class AuthGuard implements CanActivate {
         // Attach organization to the request for downstream use
         request['organization'] = organization;
       } else {
-        console.log('No specific organization info in token');
+        console.log('No specific organization info in token or headers');
       }
 
       // Attach user to the request for downstream use

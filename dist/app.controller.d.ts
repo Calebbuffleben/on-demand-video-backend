@@ -5,4 +5,8 @@ export declare class AppController {
     getHello(): {
         message: string;
     };
+    debugTest(): {
+        message: string;
+        timestamp: string;
+    };
 }

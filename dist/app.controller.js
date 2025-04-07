@@ -22,6 +22,12 @@ let AppController = class AppController {
     getHello() {
         return { message: this.appService.getHello() };
     }
+    debugTest() {
+        return {
+            message: 'Debug test endpoint is working',
+            timestamp: new Date().toISOString()
+        };
+    }
 };
 exports.AppController = AppController;
 __decorate([
@@ -42,6 +48,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getHello", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('debug-test'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "debugTest", null);
 exports.AppController = AppController = __decorate([
     (0, swagger_1.ApiTags)('app'),
     (0, common_1.Controller)(),

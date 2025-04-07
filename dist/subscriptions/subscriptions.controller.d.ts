@@ -32,12 +32,20 @@ export declare class SubscriptionsController {
             currentPeriodEnd: Date | null;
             cancelAtPeriodEnd: boolean;
         };
-        organizationId: string;
+        organization: {
+            id: string;
+            name: string;
+            clerkId: string;
+        };
         message?: undefined;
     } | {
         status: string;
         message: string;
-        organizationId: string;
+        organization: {
+            id: string;
+            name: string;
+            clerkId: string;
+        };
         subscription?: undefined;
     }>;
     handleWebhook(signature: string, req: Request, res: Response): Promise<Response<any, Record<string, any>>>;

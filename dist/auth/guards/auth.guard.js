@@ -14,12 +14,15 @@ const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const auth_service_1 = require("../auth.service");
 const public_decorator_1 = require("../decorators/public.decorator");
+const prisma_service_1 = require("../../prisma/prisma.service");
 let AuthGuard = class AuthGuard {
     authService;
     reflector;
-    constructor(authService, reflector) {
+    prisma;
+    constructor(authService, reflector, prisma) {
         this.authService = authService;
         this.reflector = reflector;
+        this.prisma = prisma;
     }
     async canActivate(context) {
         const isPublic = this.reflector.getAllAndOverride(public_decorator_1.IS_PUBLIC_KEY, [
@@ -48,14 +51,36 @@ let AuthGuard = class AuthGuard {
                 console.log('Attaching organizations array to request:', JSON.stringify(verificationResult.organizations, null, 2));
                 request['rawOrganizations'] = verificationResult.organizations;
             }
-            if (verificationResult.organizationId && verificationResult.organizationName) {
+            const requestedOrgId = request.headers['x-organization-id'];
+            if (requestedOrgId) {
+                console.log('X-Organization-Id header present:', requestedOrgId);
+                const userOrg = await this.prisma.userOrganization.findFirst({
+                    where: {
+                        userId: user.id,
+                        organization: {
+                            clerkId: requestedOrgId
+                        }
+                    },
+                    include: {
+                        organization: true
+                    }
+                });
+                if (userOrg) {
+                    console.log('User has access to requested organization:', JSON.stringify(userOrg.organization, null, 2));
+                    request['organization'] = userOrg.organization;
+                }
+                else {
+                    console.log('User does not have access to requested organization');
+                }
+            }
+            else if (verificationResult.organizationId && verificationResult.organizationName) {
                 console.log('Organization info from token:', verificationResult.organizationId, verificationResult.organizationName, verificationResult.organizationRole || 'No role specified');
                 const organization = await this.authService.getOrCreateOrganization(verificationResult.organizationId, verificationResult.organizationName, user.id, verificationResult.organizationRole || verificationResult.role || 'member');
                 console.log('Organization from database:', JSON.stringify(organization, null, 2));
                 request['organization'] = organization;
             }
             else {
-                console.log('No specific organization info in token');
+                console.log('No specific organization info in token or headers');
             }
             request['user'] = user;
             console.log('Request user and organization attached:', {
@@ -79,6 +104,7 @@ exports.AuthGuard = AuthGuard;
 exports.AuthGuard = AuthGuard = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [auth_service_1.AuthService,
-        core_1.Reflector])
+        core_1.Reflector,
+        prisma_service_1.PrismaService])
 ], AuthGuard);
 //# sourceMappingURL=auth.guard.js.map

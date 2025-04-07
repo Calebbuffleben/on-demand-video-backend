@@ -62,10 +62,7 @@ export class SubscriptionsController {
   @ApiResponse({ status: 200, description: 'Return the subscription details.' })
   @ApiResponse({ status: 404, description: 'Subscription not found.' })
   async getSubscription(@Param('organizationId') organizationId: string, @Req() req: AuthenticatedRequest) {
-    console.log('GET subscription for organization ID:', organizationId);
-    console.log('Request user data:', JSON.stringify(req.user, null, 2));
-    console.log('Request organization data:', JSON.stringify(req.organization, null, 2));
-    console.log('Request raw organizations:', JSON.stringify(req.rawOrganizations, null, 2));
+    console.log(`Getting subscription for organization ID: ${organizationId}`);
     
     // Extract user data
     const userData = req.user;
@@ -74,63 +71,64 @@ export class SubscriptionsController {
       throw new BadRequestException('User information not found');
     }
     
-    // Check if user has access to the requested organization
-    let hasAccess = false;
-    
-    // First check current organization
-    if (req.organization && req.organization.id === organizationId) {
-      hasAccess = true;
-    } 
-    // Then check raw organizations from token
-    else if (req.rawOrganizations) {
-      const orgExists = req.rawOrganizations.some(org => {
-        // Handle different potential formats
-        if (typeof org === 'string') {
-          return org === organizationId;
-        } else if (org.id) {
-          return org.id === organizationId;
-        }
-        return false;
-      });
-      
-      if (orgExists) {
-        hasAccess = true;
+    // Get all organizations the user is a member of
+    const userOrganizations = await this.prismaService.userOrganization.findMany({
+      where: { 
+        userId: userData.id 
+      },
+      include: {
+        organization: true
       }
-    }
-    // Finally check database for membership
-    else {
-      const userOrg = await this.prismaService.userOrganization.findUnique({
-        where: {
-          userId_organizationId: {
-            userId: userData.id,
-            organizationId,
-          },
-        },
-      });
-      
-      if (userOrg) {
-        hasAccess = true;
-      }
-    }
+    });
     
-    if (!hasAccess) {
+    // Log all user's organizations for debugging
+    console.log(`User is a member of ${userOrganizations.length} organizations:`, 
+      userOrganizations.map(org => ({
+        id: org.organization.id,
+        name: org.organization.name,
+        clerkId: org.organization.clerkId,
+        role: org.role
+      }))
+    );
+    
+    // Find the requested organization
+    const matchingOrg = userOrganizations.find(
+      org => org.organization.id === organizationId || org.organization.clerkId === organizationId
+    );
+    
+    if (!matchingOrg) {
+      // Provide more detailed error for debugging
+      console.error(`User has no access to organization ${organizationId}`);
+      console.error(`User's organizations: ${userOrganizations.map(o => o.organization.id).join(', ')}`);
       throw new BadRequestException('You do not have access to this organization');
     }
+    
+    // Use the matching organization for the subscription query
+    const organization = matchingOrg.organization;
+    console.log(`Found matching organization: ${organization.name} (${organization.id})`);
 
     try {
-      const subscription = await this.subscriptionsService.getSubscription(organizationId);
+      const subscription = await this.subscriptionsService.getSubscription(organization.id);
       
       return {
         status: 'SUCCESS',
         subscription,
-        organizationId
+        organization: {
+          id: organization.id,
+          name: organization.name,
+          clerkId: organization.clerkId
+        }
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
         return {
           status: 'NO_SUBSCRIPTION',
           message: 'No active subscription found for this organization',
-          organizationId
+          organization: {
+            id: organization.id,
+            name: organization.name,
+            clerkId: organization.clerkId
+          }
         };
       }
       throw error;

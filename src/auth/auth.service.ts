@@ -224,4 +224,19 @@ export class AuthService {
 
     return organization;
   }
+
+  /**
+   * Gets all organizations that a user is a member of
+   * 
+   * @param userId The user's ID in the database
+   * @returns Array of user-organization relationships with organization details
+   */
+  async getUserOrganizations(userId: string) {
+    return this.prisma.userOrganization.findMany({
+      where: { userId },
+      include: {
+        organization: true
+      }
+    });
+  }
 } 

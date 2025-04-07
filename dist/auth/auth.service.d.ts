@@ -11,4 +11,20 @@ export declare class AuthService {
     verifyToken(token: string): Promise<ClerkVerificationResponse | null>;
     getOrCreateUser(clerkId: string, email: string): Promise<User>;
     getOrCreateOrganization(clerkOrgId: string, name: string, userId: string, role: string): Promise<Organization>;
+    getUserOrganizations(userId: string): Promise<({
+        organization: {
+            name: string;
+            id: string;
+            clerkId: string;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    } & {
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
+        userId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    })[]>;
 }

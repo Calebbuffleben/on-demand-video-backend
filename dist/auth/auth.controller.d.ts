@@ -27,4 +27,18 @@ export declare class AuthController {
         organization: any;
         message: string;
     }>;
+    testDebug(): Promise<{
+        message: string;
+        timestamp: string;
+    }>;
+    debugAuth(req: any): Promise<{
+        auth: {
+            hasToken: boolean;
+            tokenValid: boolean;
+            user: any;
+            currentOrganization: any;
+            rawOrganizations: any;
+            tokenInfo: null;
+        };
+    }>;
 }

@@ -75,4 +75,44 @@ export class AuthController {
       message: 'You are authenticated',
     };
   }
+
+  @Public()
+  @Get('test-debug')
+  @ApiOperation({ summary: 'Test debug endpoint' })
+  async testDebug() {
+    return {
+      message: 'Debug endpoint working',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  @Public()
+  @Get('debug')
+  @ApiOperation({ summary: 'Debug token and organization access' })
+  async debugAuth(@Req() req: any) {
+    // Get the raw token to examine
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+    
+    // Extract decoded info if token exists
+    let tokenInfo: any = null;
+    if (token) {
+      try {
+        tokenInfo = await this.authService.verifyToken(token);
+      } catch (error) {
+        console.error('Token verification error:', error);
+      }
+    }
+    
+    return {
+      auth: {
+        hasToken: !!token,
+        tokenValid: !!tokenInfo,
+        user: req.user || null,
+        currentOrganization: req.organization || null,
+        rawOrganizations: req.rawOrganizations || null,
+        tokenInfo: tokenInfo,
+      }
+    };
+  }
 } 
