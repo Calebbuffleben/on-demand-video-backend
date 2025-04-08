@@ -38,7 +38,7 @@ export declare class AuthController {
             user: any;
             currentOrganization: any;
             rawOrganizations: any;
-            tokenInfo: null;
+            tokenInfo: any;
         };
     }>;
 }
