@@ -18,6 +18,7 @@ A comprehensive NestJS backend API with multi-tenant architecture, integrated wi
 - [Security Considerations](#security-considerations)
 - [Known Issues and Limitations](#known-issues-and-limitations)
 - [Organization Syncing](#organization-syncing)
+- [Cloudflare Stream Integration](#cloudflare-stream-integration)
 
 ## Project Overview
 
@@ -911,6 +912,64 @@ To enable organization syncing, make sure you have the following configured:
 - [Clerk API Documentation](https://clerk.dev/docs/api)
 - [NestJS Services](https://docs.nestjs.com/providers)
 - [NestJS Guards](https://docs.nestjs.com/guards)
+
+## Cloudflare Stream Integration
+
+This backend service integrates with Cloudflare Stream for video hosting and delivery. The integration allows for:
+
+- Secure video uploads
+- Direct creator uploads via one-time URLs
+- Video playback across multiple platforms
+- Webhook handling for video status updates
+
+### Setup for Cloudflare Stream
+
+1. Create a Cloudflare account and set up Stream
+2. Generate an API token with Stream permissions
+3. Add your Cloudflare credentials to the `.env` file:
+   ```
+   CLOUDFLARE_ACCOUNT_ID=your_account_id
+   CLOUDFLARE_API_TOKEN=your_api_token
+   ```
+
+### Using the Videos API
+
+#### Direct Upload Workflow
+
+1. Client requests a direct upload URL from the backend
+2. Backend creates a new video record and returns a Cloudflare direct upload URL
+3. Client uploads the video directly to Cloudflare using this URL
+4. Cloudflare processes the video and sends a webhook notification when complete
+5. Backend updates the video status based on webhook events
+
+#### API Endpoints
+
+- `POST /api/videos/upload-url` - Get a direct upload URL
+- `GET /api/videos` - List all videos for the organization
+- `GET /api/videos/:id` - Get a specific video
+- `PUT /api/videos/:id` - Update video metadata
+- `DELETE /api/videos/:id` - Delete a video
+- `POST /api/videos/:id/sync` - Sync video status with Cloudflare
+- `POST /api/videos/webhook` - Webhook endpoint for Cloudflare events
+
+#### Webhook Handler
+
+The webhook handler processes events from Cloudflare Stream to update the video status in the database:
+
+```typescript
+@Public()
+@Post('webhook')
+async webhook(@Body() payload: any) {
+  try {
+    await this.videosService.handleCloudflareWebhook(payload);
+    return { success: true };
+  } catch (error) {
+    throw new BadRequestException('Failed to process webhook');
+  }
+}
+```
+
+For production, configure the webhook URL in your Cloudflare Stream dashboard and ensure the `CLOUDFLARE_WEBHOOK_SECRET` is set for security.
 
 ## License
 

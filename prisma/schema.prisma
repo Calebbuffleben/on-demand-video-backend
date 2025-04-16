@@ -20,7 +20,7 @@ model Organization {
   clerkId       String          @unique
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
-  products      Product[]
+  videos        Video[]
   subscription  Subscription?
   users         UserOrganization[]
 }
@@ -50,16 +50,25 @@ model UserOrganization {
 }
 
 // Product model
-model Product {
-  id              String       @id @default(uuid())
-  name            String
-  description     String?
-  price           Float
-  currency        String       @default("USD")
-  organizationId  String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model Video {
+  id                String       @id @default(uuid())
+  name              String
+  description       String?
+  cloudflareId      String       @unique  // Cloudflare Stream video UID
+  organizationId    String
+  status            VideoStatus  @default(PROCESSING)
+  duration          Int?         // Duration in seconds
+  thumbnailUrl      String?      // Cloudflare-generated thumbnail
+  playbackUrl       String?      // URL for embedding/playing the video
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isLive            Boolean      @default(false)  // Distinguish between VOD and live streams
+  visibility        Visibility   @default(PUBLIC)
+  tags              String[]     // For categorization and search
+  // You can keep pricing fields if you plan to monetize videos
+  price             Float?
+  currency          String?      @default("USD")
 }
 
 // Subscription model for Stripe integration
@@ -99,4 +108,17 @@ enum PlanType {
   BASIC
   PRO
   ENTERPRISE
+}
+
+enum VideoStatus {
+  PROCESSING  // Video is being processed by Cloudflare
+  READY       // Video is ready to stream
+  ERROR       // Processing failed
+  DELETED     // Video has been deleted from Cloudflare
+}
+
+enum Visibility {
+  PUBLIC       // Anyone can view
+  PRIVATE      // Only with signed URLs
+  ORGANIZATION // Only members of the organization
 }

@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { ProductsModule } from './products/products.module';
+import { VideosModule } from './videos/videos.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
@@ -11,7 +11,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     AppConfigModule,
     PrismaModule,
     AuthModule,
-    ProductsModule,
+    VideosModule,
     SubscriptionsModule,
   ],
 })
