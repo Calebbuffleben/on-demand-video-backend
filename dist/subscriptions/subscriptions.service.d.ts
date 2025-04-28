@@ -14,10 +14,10 @@ export declare class SubscriptionsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
         planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
@@ -29,10 +29,10 @@ export declare class SubscriptionsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
         planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
@@ -43,10 +43,10 @@ export declare class SubscriptionsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
         planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;

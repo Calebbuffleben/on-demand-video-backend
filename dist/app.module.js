@@ -11,7 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_module_1 = require("./config/config.module");
 const prisma_module_1 = require("./prisma/prisma.module");
 const auth_module_1 = require("./auth/auth.module");
-const products_module_1 = require("./products/products.module");
+const videos_module_1 = require("./videos/videos.module");
 const subscriptions_module_1 = require("./subscriptions/subscriptions.module");
 let AppModule = class AppModule {
 };
@@ -22,7 +22,7 @@ exports.AppModule = AppModule = __decorate([
             config_module_1.AppConfigModule,
             prisma_module_1.PrismaModule,
             auth_module_1.AuthModule,
-            products_module_1.ProductsModule,
+            videos_module_1.VideosModule,
             subscriptions_module_1.SubscriptionsModule,
         ],
     })

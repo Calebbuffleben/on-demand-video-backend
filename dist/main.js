@@ -5,6 +5,9 @@ const app_module_1 = require("./app.module");
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const config_1 = require("@nestjs/config");
+const http_exception_filter_1 = require("./common/exceptions/http-exception.filter");
+const transform_interceptor_1 = require("./common/interceptors/transform.interceptor");
+const helmet_1 = require("helmet");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
@@ -13,18 +16,19 @@ async function bootstrap() {
         transform: true,
         forbidNonWhitelisted: true,
     }));
+    app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter(), new http_exception_filter_1.AllExceptionsFilter());
+    app.useGlobalInterceptors(new transform_interceptor_1.TransformInterceptor());
+    app.use((0, helmet_1.default)());
     app.enableCors({
-        origin: configService.get('FRONTEND_URL'),
+        origin: configService.get('CORS_ORIGIN') || 'http://localhost:3000',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
     const config = new swagger_1.DocumentBuilder()
-        .setTitle('Natural Products Management API')
-        .setDescription('API for managing natural products and subscriptions')
+        .setTitle('Cloudflare Stream Video API')
+        .setDescription('API for managing video uploads and status with Cloudflare Stream')
         .setVersion('1.0')
-        .addTag('products')
-        .addTag('subscriptions')
-        .addTag('auth')
+        .addTag('videos')
         .addBearerAuth()
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, config);
@@ -32,6 +36,7 @@ async function bootstrap() {
     const port = configService.get('PORT') || 4000;
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
+    console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map
