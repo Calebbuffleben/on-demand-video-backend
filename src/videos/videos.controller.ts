@@ -19,6 +19,7 @@ import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
+import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
 
 interface AuthenticatedRequest extends Request {
   organization: any;
@@ -156,5 +157,42 @@ export class VideosController {
   @Public()
   async getVideoByUid(@Param('uid') uid: string): Promise<SingleVideoResponseDto> {
     return this.videosService.getVideoByUid(uid);
+  }
+
+  /**
+   * Test Cloudflare connection for organization
+   */
+  @Post('organization/test-cloudflare')
+  @ApiOperation({ summary: 'Test Cloudflare API connection for the organization' })
+  @ApiResponse({ status: 200, description: 'Connection successful.' })
+  @ApiResponse({ status: 400, description: 'Connection failed.' })
+  async testOrgCloudflare(@Req() req: AuthenticatedRequest) {
+    const organizationId = req['organization'].id;
+    return this.videosService.testCloudflareConnection(organizationId);
+  }
+  
+  /**
+   * Update organization Cloudflare settings
+   */
+  @Post('organization/cloudflare-settings')
+  @ApiOperation({ summary: 'Update Cloudflare settings for the organization' })
+  @ApiResponse({ status: 200, description: 'Settings updated.' })
+  async updateOrgCloudflareSettings(
+    @Body() updateOrgCloudflareDto: UpdateOrgCloudflareDto,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const organizationId = req['organization'].id;
+    return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
+  }
+  
+  /**
+   * Get organization Cloudflare settings
+   */
+  @Get('organization/cloudflare-settings')
+  @ApiOperation({ summary: 'Get Cloudflare settings for the organization' })
+  @ApiResponse({ status: 200, description: 'Settings retrieved.' })
+  async getOrgCloudflareSettings(@Req() req: AuthenticatedRequest) {
+    const organizationId = req['organization'].id;
+    return this.videosService.getOrgCloudflareSettings(organizationId);
   }
 } 

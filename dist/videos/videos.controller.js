@@ -20,6 +20,7 @@ const update_video_dto_1 = require("./dto/update-video.dto");
 const swagger_1 = require("@nestjs/swagger");
 const public_decorator_1 = require("../auth/decorators/public.decorator");
 const get_upload_url_dto_1 = require("./dto/get-upload-url.dto");
+const update_org_cloudflare_dto_1 = require("./dto/update-org-cloudflare.dto");
 let VideosController = class VideosController {
     videosService;
     constructor(videosService) {
@@ -81,6 +82,18 @@ let VideosController = class VideosController {
     }
     async getVideoByUid(uid) {
         return this.videosService.getVideoByUid(uid);
+    }
+    async testOrgCloudflare(req) {
+        const organizationId = req['organization'].id;
+        return this.videosService.testCloudflareConnection(organizationId);
+    }
+    async updateOrgCloudflareSettings(updateOrgCloudflareDto, req) {
+        const organizationId = req['organization'].id;
+        return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
+    }
+    async getOrgCloudflareSettings(req) {
+        const organizationId = req['organization'].id;
+        return this.videosService.getOrgCloudflareSettings(organizationId);
     }
 };
 exports.VideosController = VideosController;
@@ -211,6 +224,35 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getVideoByUid", null);
+__decorate([
+    (0, common_1.Post)('organization/test-cloudflare'),
+    (0, swagger_1.ApiOperation)({ summary: 'Test Cloudflare API connection for the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Connection successful.' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Connection failed.' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "testOrgCloudflare", null);
+__decorate([
+    (0, common_1.Post)('organization/cloudflare-settings'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update Cloudflare settings for the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Settings updated.' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [update_org_cloudflare_dto_1.UpdateOrgCloudflareDto, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "updateOrgCloudflareSettings", null);
+__decorate([
+    (0, common_1.Get)('organization/cloudflare-settings'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get Cloudflare settings for the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Settings retrieved.' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getOrgCloudflareSettings", null);
 exports.VideosController = VideosController = __decorate([
     (0, swagger_1.ApiTags)('videos'),
     (0, swagger_1.ApiBearerAuth)(),

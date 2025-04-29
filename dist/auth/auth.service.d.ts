@@ -18,6 +18,8 @@ export declare class AuthService {
             clerkId: string;
             createdAt: Date;
             updatedAt: Date;
+            cloudflareAccountId: string | null;
+            cloudflareApiToken: string | null;
         };
     } & {
         organizationId: string;

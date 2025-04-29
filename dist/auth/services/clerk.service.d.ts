@@ -19,6 +19,8 @@ export declare class ClerkService {
         clerkId: string;
         createdAt: Date;
         updatedAt: Date;
+        cloudflareAccountId: string | null;
+        cloudflareApiToken: string | null;
     }>;
     handleOrganizationDeleted(orgData: any): Promise<void>;
     syncOrganizationMembership(membershipData: any): Promise<{

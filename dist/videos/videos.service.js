@@ -18,28 +18,56 @@ const node_fetch_1 = require("node-fetch");
 let VideosService = class VideosService {
     prisma;
     configService;
-    cloudflareAccountId;
-    cloudflareApiToken;
-    cloudflareBaseUrl;
+    defaultCloudflareAccountId;
+    defaultCloudflareApiToken;
     constructor(prisma, configService) {
         this.prisma = prisma;
         this.configService = configService;
-        this.cloudflareAccountId = this.configService.get('CLOUDFLARE_ACCOUNT_ID', '');
-        this.cloudflareApiToken = this.configService.get('CLOUDFLARE_API_TOKEN', '');
-        this.cloudflareBaseUrl = `https://api.cloudflare.com/client/v4/accounts/${this.cloudflareAccountId}/stream`;
+        this.defaultCloudflareAccountId = this.configService.get('CLOUDFLARE_ACCOUNT_ID', '');
+        this.defaultCloudflareApiToken = this.configService.get('CLOUDFLARE_API_TOKEN', '');
     }
-    async testCloudflareConnection() {
-        if (!this.cloudflareAccountId || !this.cloudflareApiToken) {
+    async getCloudflareCredentials(organizationId) {
+        const organization = await this.prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: {
+                cloudflareAccountId: true,
+                cloudflareApiToken: true,
+            },
+        });
+        const accountId = organization?.cloudflareAccountId || this.defaultCloudflareAccountId;
+        const apiToken = organization?.cloudflareApiToken || this.defaultCloudflareApiToken;
+        if (!accountId || !apiToken) {
             throw new common_1.BadRequestException('Cloudflare credentials are not configured');
         }
-        console.log(`Using Cloudflare Account ID: ${this.cloudflareAccountId.slice(0, 3)}...${this.cloudflareAccountId.slice(-3)}`);
-        console.log(`API Token configured: ${this.cloudflareApiToken ? 'Yes' : 'No'}`);
-        console.log(`Base URL: ${this.cloudflareBaseUrl}`);
+        const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream`;
+        return { accountId, apiToken, baseUrl };
+    }
+    async testCloudflareConnection(organizationId) {
         try {
-            const response = await (0, node_fetch_1.default)(this.cloudflareBaseUrl, {
+            let accountId;
+            let apiToken;
+            let baseUrl;
+            if (organizationId) {
+                const credentials = await this.getCloudflareCredentials(organizationId);
+                accountId = credentials.accountId;
+                apiToken = credentials.apiToken;
+                baseUrl = credentials.baseUrl;
+            }
+            else {
+                if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+                    throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
+                }
+                accountId = this.defaultCloudflareAccountId;
+                apiToken = this.defaultCloudflareApiToken;
+                baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream`;
+            }
+            console.log(`Using Cloudflare Account ID: ${accountId.slice(0, 3)}...${accountId.slice(-3)}`);
+            console.log(`API Token configured: ${apiToken ? 'Yes' : 'No'}`);
+            console.log(`Base URL: ${baseUrl}`);
+            const response = await (0, node_fetch_1.default)(baseUrl, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${apiToken}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -85,10 +113,11 @@ let VideosService = class VideosService {
     }
     async createDirectUploadUrl(createVideoDto, organizationId) {
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/direct_upload`, {
+            const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
+            const response = await (0, node_fetch_1.default)(`${baseUrl}/direct_upload`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${apiToken}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -138,11 +167,12 @@ let VideosService = class VideosService {
     }
     async remove(id, organizationId) {
         const video = await this.findOne(id, organizationId);
+        const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/${video.cloudflareId}`, {
+            const response = await (0, node_fetch_1.default)(`${baseUrl}/${video.cloudflareId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${apiToken}`,
                 },
             });
             if (!response.ok) {
@@ -159,11 +189,12 @@ let VideosService = class VideosService {
     }
     async syncVideoStatus(id, organizationId) {
         const video = await this.findOne(id, organizationId);
+        const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/${video.cloudflareId}`, {
+            const response = await (0, node_fetch_1.default)(`${baseUrl}/${video.cloudflareId}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${apiToken}`,
                 },
             });
             const data = await response.json();
@@ -219,14 +250,14 @@ let VideosService = class VideosService {
         }
     }
     async getUploadUrl(dto) {
-        if (!this.cloudflareAccountId || !this.cloudflareApiToken) {
-            throw new common_1.BadRequestException('Cloudflare credentials are not configured');
+        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
         }
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/direct_upload`, {
+            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/direct_upload`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -249,14 +280,14 @@ let VideosService = class VideosService {
         }
     }
     async getVideoStatus(videoId) {
-        if (!this.cloudflareAccountId || !this.cloudflareApiToken) {
-            throw new common_1.BadRequestException('Cloudflare credentials are not configured');
+        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
         }
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/${videoId}`, {
+            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/${videoId}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -303,14 +334,14 @@ let VideosService = class VideosService {
         }
     }
     async getAllVideos() {
-        if (!this.cloudflareAccountId || !this.cloudflareApiToken) {
-            throw new common_1.BadRequestException('Cloudflare credentials are not configured');
+        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
         }
         try {
-            const response = await (0, node_fetch_1.default)(this.cloudflareBaseUrl, {
+            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -353,14 +384,14 @@ let VideosService = class VideosService {
         }
     }
     async getVideoByUid(uid) {
-        if (!this.cloudflareAccountId || !this.cloudflareApiToken) {
-            throw new common_1.BadRequestException('Cloudflare credentials are not configured');
+        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
         }
         try {
-            const response = await (0, node_fetch_1.default)(`${this.cloudflareBaseUrl}/${uid}`, {
+            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/${uid}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.cloudflareApiToken}`,
+                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -407,6 +438,63 @@ let VideosService = class VideosService {
             }
             throw new common_1.BadRequestException(`Failed to get video: ${error.message}`);
         }
+    }
+    async updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId) {
+        try {
+            await this.prisma.organization.update({
+                where: { id: organizationId },
+                data: {
+                    cloudflareAccountId: updateOrgCloudflareDto.cloudflareAccountId,
+                    cloudflareApiToken: updateOrgCloudflareDto.cloudflareApiToken,
+                },
+            });
+            await this.testCloudflareConnection(organizationId);
+            return {
+                hasCredentials: true,
+                cloudflareAccountId: this.maskString(updateOrgCloudflareDto.cloudflareAccountId),
+            };
+        }
+        catch (error) {
+            console.error('Error updating organization Cloudflare settings:', error);
+            if (error.message.includes('Cloudflare')) {
+                await this.prisma.organization.update({
+                    where: { id: organizationId },
+                    data: {
+                        cloudflareAccountId: null,
+                        cloudflareApiToken: null,
+                    },
+                });
+            }
+            throw new common_1.BadRequestException(`Failed to update Cloudflare settings: ${error.message}`);
+        }
+    }
+    async getOrgCloudflareSettings(organizationId) {
+        try {
+            const organization = await this.prisma.organization.findUnique({
+                where: { id: organizationId },
+                select: {
+                    cloudflareAccountId: true,
+                    cloudflareApiToken: true,
+                },
+            });
+            const hasCredentials = !!(organization?.cloudflareAccountId && organization?.cloudflareApiToken);
+            return {
+                hasCredentials,
+                cloudflareAccountId: hasCredentials && organization?.cloudflareAccountId ? this.maskString(organization.cloudflareAccountId) : undefined,
+            };
+        }
+        catch (error) {
+            console.error('Error getting organization Cloudflare settings:', error);
+            throw new common_1.BadRequestException('Failed to get Cloudflare settings');
+        }
+    }
+    maskString(input) {
+        if (!input || input.length < 8)
+            return input;
+        const firstFour = input.substring(0, 4);
+        const lastFour = input.substring(input.length - 4);
+        const maskedPart = '*'.repeat(4);
+        return `${firstFour}${maskedPart}${lastFour}`;
     }
 };
 exports.VideosService = VideosService;

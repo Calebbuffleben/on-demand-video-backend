@@ -15,14 +15,16 @@ datasource db {
 
 // Organization model for multi-tenancy
 model Organization {
-  id            String          @id @default(uuid())
-  name          String
-  clerkId       String          @unique
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  videos        Video[]
-  subscription  Subscription?
-  users         UserOrganization[]
+  id                  String          @id @default(uuid())
+  name                String
+  clerkId             String          @unique
+  cloudflareAccountId String?         // Cloudflare account ID
+  cloudflareApiToken  String?         // Cloudflare API token
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  videos              Video[]
+  subscription        Subscription?
+  users               UserOrganization[]
 }
 
 // User model (linked to Clerk users)

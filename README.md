@@ -13,6 +13,7 @@ A NestJS backend application that provides an API for managing video uploads, pl
   - Checking the status of uploaded videos
   - Managing videos for organizations
   - Handling Cloudflare Stream webhooks
+  - **Organization-specific Cloudflare integration** - Each organization can use their own Cloudflare account
 
 - **Subscription Management**
   - Integration with Stripe for payment processing
@@ -120,6 +121,34 @@ DATABASE_URL=your_database_url
 3. **Payment Security**: Stripe integration with webhook signature verification
 4. **Rate Limiting**: Implementation includes rate limiting to prevent API abuse
 5. **CORS Configuration**: CORS is properly configured to allow only specific origins
+
+## Multi-tenant Cloudflare Integration
+
+This application supports multi-tenant Cloudflare Stream integration, allowing each organization to use their own Cloudflare account:
+
+### How It Works
+
+1. **Default Credentials**: The application uses the default Cloudflare credentials from environment variables if an organization hasn't set up their own.
+
+2. **Organization-specific Credentials**: Organizations can configure their own Cloudflare account ID and API token, which will be used for all their video operations.
+
+3. **Credential Management API**: The following endpoints are available for managing organization Cloudflare credentials:
+   - `POST /api/videos/organization/cloudflare-settings` - Update Cloudflare credentials
+   - `GET /api/videos/organization/cloudflare-settings` - Get current Cloudflare settings
+   - `POST /api/videos/organization/test-cloudflare` - Test Cloudflare connection
+
+### Setting Up Organization Credentials
+
+1. Create a Cloudflare account and obtain your Account ID
+2. Create an API token with Stream permissions
+3. Use the `/api/videos/organization/cloudflare-settings` endpoint to save your credentials
+4. Test the connection with the `/api/videos/organization/test-cloudflare` endpoint
+
+### Security Considerations
+
+- API tokens are stored in the database and should be properly secured
+- The API only returns masked account IDs to prevent sensitive information leaks
+- Failed credential tests automatically clear invalid credentials
 
 ## Next Steps and Future Improvements
 

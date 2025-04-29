@@ -7,6 +7,7 @@ import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
+import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
 interface CloudflareWebhookPayload {
     uid: string;
     status?: string;
@@ -18,11 +19,11 @@ interface CloudflareWebhookPayload {
 export declare class VideosService {
     private prisma;
     private configService;
-    private readonly cloudflareAccountId;
-    private readonly cloudflareApiToken;
-    private readonly cloudflareBaseUrl;
+    private readonly defaultCloudflareAccountId;
+    private readonly defaultCloudflareApiToken;
     constructor(prisma: PrismaService, configService: ConfigService);
-    testCloudflareConnection(): Promise<any>;
+    private getCloudflareCredentials;
+    testCloudflareConnection(organizationId?: string): Promise<any>;
     findAll(organizationId: string): Promise<Video[]>;
     findOne(id: string, organizationId: string): Promise<Video>;
     createDirectUploadUrl(createVideoDto: CreateVideoDto, organizationId: string): Promise<{
@@ -37,5 +38,8 @@ export declare class VideosService {
     getVideoStatus(videoId: string): Promise<VideoStatusResponseDto>;
     getAllVideos(): Promise<VideoListResponseDto>;
     getVideoByUid(uid: string): Promise<SingleVideoResponseDto>;
+    updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, organizationId: string): Promise<CloudflareSettingsResponseDto>;
+    getOrgCloudflareSettings(organizationId: string): Promise<CloudflareSettingsResponseDto>;
+    private maskString;
 }
 export {};
