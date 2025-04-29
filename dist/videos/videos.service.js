@@ -496,6 +496,106 @@ let VideosService = class VideosService {
         const maskedPart = '*'.repeat(4);
         return `${firstFour}${maskedPart}${lastFour}`;
     }
+    async getVideoForEmbed(uid, organizationId) {
+        try {
+            let baseUrl;
+            let apiToken;
+            if (organizationId) {
+                const credentials = await this.getCloudflareCredentials(organizationId);
+                baseUrl = credentials.baseUrl;
+                apiToken = credentials.apiToken;
+            }
+            else {
+                if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+                    throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
+                }
+                baseUrl = `https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream`;
+                apiToken = this.defaultCloudflareApiToken;
+            }
+            const response = await (0, node_fetch_1.default)(`${baseUrl}/${uid}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiToken}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return {
+                        success: false,
+                        status: 404,
+                        message: `Video with UID ${uid} not found`,
+                        data: {
+                            result: []
+                        }
+                    };
+                }
+                return {
+                    success: false,
+                    status: response.status,
+                    message: data.errors?.[0]?.message || 'Error fetching video',
+                    data: {
+                        result: []
+                    }
+                };
+            }
+            if (!data.result.readyToStream) {
+                return {
+                    success: false,
+                    status: 400,
+                    message: 'Video is not ready to stream',
+                    data: {
+                        result: [{
+                                uid: data.result.uid,
+                                readyToStream: false,
+                                status: {
+                                    state: data.result.status?.state || 'processing'
+                                },
+                                playback: {
+                                    hls: '',
+                                    dash: ''
+                                }
+                            }]
+                    }
+                };
+            }
+            const videoDto = {
+                uid: data.result.uid,
+                thumbnail: data.result.thumbnail,
+                preview: data.result.preview,
+                readyToStream: data.result.readyToStream,
+                status: {
+                    state: data.result.status?.state || 'ready',
+                },
+                meta: data.result.meta,
+                duration: data.result.duration,
+                playback: {
+                    hls: data.result.playback?.hls || '',
+                    dash: data.result.playback?.dash || ''
+                }
+            };
+            return {
+                success: true,
+                status: 200,
+                message: 'Video retrieved successfully',
+                data: {
+                    result: [videoDto]
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error getting video for embed:', error);
+            return {
+                success: false,
+                status: 500,
+                message: `Failed to get video: ${error.message}`,
+                data: {
+                    result: []
+                }
+            };
+        }
+    }
 };
 exports.VideosService = VideosService;
 exports.VideosService = VideosService = __decorate([

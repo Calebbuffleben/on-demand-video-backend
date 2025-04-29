@@ -6,6 +6,7 @@ import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
@@ -101,5 +102,6 @@ export declare class VideosController {
     testOrgCloudflare(req: AuthenticatedRequest): Promise<any>;
     updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
     getOrgCloudflareSettings(req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
+    getVideoForEmbed(uid: string, req: Request): Promise<EmbedVideoResponseDto>;
 }
 export {};

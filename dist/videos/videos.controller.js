@@ -95,6 +95,10 @@ let VideosController = class VideosController {
         const organizationId = req['organization'].id;
         return this.videosService.getOrgCloudflareSettings(organizationId);
     }
+    async getVideoForEmbed(uid, req) {
+        const organizationId = req['organization']?.id;
+        return this.videosService.getVideoForEmbed(uid, organizationId);
+    }
 };
 exports.VideosController = VideosController;
 __decorate([
@@ -253,6 +257,19 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getOrgCloudflareSettings", null);
+__decorate([
+    (0, common_1.Get)('embed/:uid'),
+    (0, public_decorator_1.Public)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get video details for embedding' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns the video with embed information.' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
+    (0, swagger_1.ApiParam)({ name: 'uid', description: 'The Cloudflare Stream video UID' }),
+    __param(0, (0, common_1.Param)('uid')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Request]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getVideoForEmbed", null);
 exports.VideosController = VideosController = __decorate([
     (0, swagger_1.ApiTags)('videos'),
     (0, swagger_1.ApiBearerAuth)(),

@@ -8,6 +8,7 @@ import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 interface CloudflareWebhookPayload {
     uid: string;
     status?: string;
@@ -41,5 +42,6 @@ export declare class VideosService {
     updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, organizationId: string): Promise<CloudflareSettingsResponseDto>;
     getOrgCloudflareSettings(organizationId: string): Promise<CloudflareSettingsResponseDto>;
     private maskString;
+    getVideoForEmbed(uid: string, organizationId?: string): Promise<EmbedVideoResponseDto>;
 }
 export {};

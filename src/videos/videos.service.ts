@@ -10,6 +10,7 @@ import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoDto, EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 
 interface CloudflareResponse {
   success: boolean;
@@ -676,5 +677,118 @@ export class VideosService {
     const maskedPart = '*'.repeat(4); // Fixed length for masking
     
     return `${firstFour}${maskedPart}${lastFour}`;
+  }
+
+  /**
+   * Get video details for embedding from Cloudflare Stream
+   */
+  async getVideoForEmbed(uid: string, organizationId?: string): Promise<EmbedVideoResponseDto> {
+    try {
+      // If organizationId is provided, use org-specific credentials
+      // Otherwise use default credentials
+      let baseUrl: string;
+      let apiToken: string;
+
+      if (organizationId) {
+        const credentials = await this.getCloudflareCredentials(organizationId);
+        baseUrl = credentials.baseUrl;
+        apiToken = credentials.apiToken;
+      } else {
+        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
+          throw new BadRequestException('Default Cloudflare credentials are not configured');
+        }
+        baseUrl = `https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream`;
+        apiToken = this.defaultCloudflareApiToken;
+      }
+
+      const response = await fetch(`${baseUrl}/${uid}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json() as CloudflareVideoStatusResponse;
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return {
+            success: false,
+            status: 404,
+            message: `Video with UID ${uid} not found`,
+            data: {
+              result: []
+            }
+          };
+        }
+        return {
+          success: false,
+          status: response.status,
+          message: data.errors?.[0]?.message || 'Error fetching video',
+          data: {
+            result: []
+          }
+        };
+      }
+
+      // Check if video is ready to stream
+      if (!data.result.readyToStream) {
+        return {
+          success: false,
+          status: 400,
+          message: 'Video is not ready to stream',
+          data: {
+            result: [{
+              uid: data.result.uid,
+              readyToStream: false,
+              status: {
+                state: data.result.status?.state || 'processing'
+              },
+              playback: {
+                hls: '',
+                dash: ''
+              }
+            }]
+          }
+        };
+      }
+
+      // Create EmbedVideoDto from Cloudflare response
+      const videoDto: EmbedVideoDto = {
+        uid: data.result.uid,
+        thumbnail: data.result.thumbnail,
+        preview: data.result.preview,
+        readyToStream: data.result.readyToStream,
+        status: {
+          state: data.result.status?.state || 'ready',
+        },
+        meta: data.result.meta,
+        duration: data.result.duration,
+        playback: {
+          hls: data.result.playback?.hls || '',
+          dash: data.result.playback?.dash || ''
+        }
+      };
+
+      return {
+        success: true,
+        status: 200,
+        message: 'Video retrieved successfully',
+        data: {
+          result: [videoDto]
+        }
+      };
+    } catch (error) {
+      console.error('Error getting video for embed:', error);
+      return {
+        success: false,
+        status: 500,
+        message: `Failed to get video: ${error.message}`,
+        data: {
+          result: []
+        }
+      };
+    }
   }
 } 

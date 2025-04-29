@@ -20,6 +20,7 @@ import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 
 interface AuthenticatedRequest extends Request {
   organization: any;
@@ -194,5 +195,23 @@ export class VideosController {
   async getOrgCloudflareSettings(@Req() req: AuthenticatedRequest) {
     const organizationId = req['organization'].id;
     return this.videosService.getOrgCloudflareSettings(organizationId);
+  }
+
+  /**
+   * Get video for embedding
+   */
+  @Get('embed/:uid')
+  @Public()
+  @ApiOperation({ summary: 'Get video details for embedding' })
+  @ApiResponse({ status: 200, description: 'Returns the video with embed information.' })
+  @ApiResponse({ status: 404, description: 'Video not found.' })
+  @ApiParam({ name: 'uid', description: 'The Cloudflare Stream video UID' })
+  async getVideoForEmbed(
+    @Param('uid') uid: string, 
+    @Req() req: Request
+  ): Promise<EmbedVideoResponseDto> {
+    // Extract organization ID from request if it exists
+    const organizationId = req['organization']?.id;
+    return this.videosService.getVideoForEmbed(uid, organizationId);
   }
 } 
