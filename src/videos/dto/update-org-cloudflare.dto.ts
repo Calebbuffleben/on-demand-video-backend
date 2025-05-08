@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsBoolean } from 'class-validator';
 
 /**
  * DTO for updating Cloudflare credentials for an organization
@@ -24,16 +24,27 @@ export class UpdateOrgCloudflareDto {
 
 export class CloudflareSettingsResponseDto {
   @ApiProperty({
-    description: 'Whether the organization has Cloudflare credentials configured',
+    description: 'Whether the operation was successful',
     example: true,
   })
-  hasCredentials: boolean;
+  @IsBoolean()
+  success: boolean;
 
   @ApiProperty({
     description: 'Cloudflare Account ID (masked for security)',
     example: '1a2b****9i0j',
     required: false,
   })
+  @IsString()
   @IsOptional()
   cloudflareAccountId?: string;
+
+  @ApiProperty({
+    description: 'Cloudflare API Token (masked for security)',
+    example: 'api-****-token',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  cloudflareApiToken?: string;
 } 

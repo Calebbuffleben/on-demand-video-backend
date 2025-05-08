@@ -9,6 +9,7 @@ import {
   Req,
   HttpCode,
   BadRequestException,
+  Headers,
 } from '@nestjs/common';
 import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
@@ -21,6 +22,7 @@ import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
+import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 
 interface AuthenticatedRequest extends Request {
   organization: any;
@@ -122,24 +124,41 @@ export class VideosController {
     }
   }
 
+  @Public()
+  @Post('mux-webhook')
+  @ApiOperation({ summary: 'Webhook endpoint for MUX events' })
+  @ApiResponse({ status: 200, description: 'Webhook processed successfully.' })
+  async muxWebhook(@Body() payload: any, @Headers('mux-signature') signature: string) {
+    // We will verify the signature in the service
+    try {
+      await this.videosService.handleMuxWebhook(payload, signature);
+      return { success: true };
+    } catch (error) {
+      throw new BadRequestException('Failed to process MUX webhook');
+    }
+  }
+
   // New public endpoints for direct Cloudflare integration
 
   @Post('get-upload-url')
-  @ApiOperation({ summary: 'Get a direct upload URL for Cloudflare Stream' })
+  @ApiOperation({ summary: 'Get a direct upload URL for MUX' })
   @ApiResponse({ status: 201, description: 'Returns an upload URL and video ID.' })
-  @Public()
-  async getCloudflareUploadUrl(@Body() dto: GetUploadUrlDto): Promise<UploadUrlResponseDto> {
-    return this.videosService.getUploadUrl(dto);
+  async getCloudflareUploadUrl(
+    @Body() dto: GetUploadUrlDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<GetUploadUrlResponseDto> {
+    const organizationId = req['organization'].id;
+    return this.videosService.getUploadUrl({ ...dto, organizationId });
   }
 
-  @Get('status/:videoId')
+  @Get(':uid/status')
   @ApiOperation({ summary: 'Check the status of an uploaded video' })
   @ApiResponse({ status: 200, description: 'Returns the video status.' })
   @ApiResponse({ status: 404, description: 'Video not found.' })
-  @ApiParam({ name: 'videoId', description: 'The Cloudflare Stream video ID' })
+  @ApiParam({ name: 'uid', description: 'The MUX upload ID' })
   @Public()
-  async getVideoStatus(@Param('videoId') videoId: string): Promise<VideoStatusResponseDto> {
-    return this.videosService.getVideoStatus(videoId);
+  async getVideoStatus(@Param('uid') uid: string): Promise<VideoStatusResponseDto> {
+    return this.videosService.getVideoStatus(uid);
   }
 
   @Get()

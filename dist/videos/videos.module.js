@@ -13,12 +13,13 @@ const videos_service_1 = require("./videos.service");
 const videos_controller_1 = require("./videos.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
 const transform_interceptor_1 = require("../common/interceptors/transform.interceptor");
+const mux_module_1 = require("../providers/mux/mux.module");
 let VideosModule = class VideosModule {
 };
 exports.VideosModule = VideosModule;
 exports.VideosModule = VideosModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule],
+        imports: [prisma_module_1.PrismaModule, mux_module_1.MuxModule],
         controllers: [videos_controller_1.VideosController],
         providers: [
             videos_service_1.VideosService,

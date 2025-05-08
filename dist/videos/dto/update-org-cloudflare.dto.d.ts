@@ -3,6 +3,7 @@ export declare class UpdateOrgCloudflareDto {
     cloudflareApiToken: string;
 }
 export declare class CloudflareSettingsResponseDto {
-    hasCredentials: boolean;
+    success: boolean;
     cloudflareAccountId?: string;
+    cloudflareApiToken?: string;
 }

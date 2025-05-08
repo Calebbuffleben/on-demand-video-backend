@@ -21,18 +21,29 @@ export declare class VideoInputDto {
 }
 export declare class VideoDto {
     uid: string;
-    thumbnail?: string;
-    preview?: string;
+    thumbnail: string;
     readyToStream: boolean;
-    readyToStreamAt?: string;
-    status: VideoStatusDto;
-    meta?: VideoMetaDto;
-    duration?: number;
+    status: {
+        state: string;
+    };
+    meta: {
+        name: string;
+    };
     created: string;
-    modified?: string;
-    size?: number;
-    input?: VideoInputDto;
-    playback: PlaybackDto;
+    modified: string;
+    duration: number;
+    size: number;
+    preview: string;
+    playback: {
+        hls: string;
+        dash: string;
+    };
+}
+export declare class ResultInfoDto {
+    total_count: number;
+    per_page: number;
+    page: number;
+    count: number;
 }
 export declare class VideoListResponseDto {
     success: boolean;
@@ -40,6 +51,12 @@ export declare class VideoListResponseDto {
     message: string;
     data: {
         result: VideoDto[];
+        result_info: {
+            count: number;
+            page: number;
+            per_page: number;
+            total_count: number;
+        };
     };
 }
 export declare class SingleVideoResponseDto {

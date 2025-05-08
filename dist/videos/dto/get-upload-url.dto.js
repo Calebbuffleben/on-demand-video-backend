@@ -14,6 +14,10 @@ const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class GetUploadUrlDto {
     maxDurationSeconds = 3600;
+    name;
+    description;
+    requireSignedURLs;
+    organizationId;
 }
 exports.GetUploadUrlDto = GetUploadUrlDto;
 __decorate([
@@ -30,4 +34,43 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], GetUploadUrlDto.prototype, "maxDurationSeconds", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Name of the video',
+        required: false,
+        example: 'My Video',
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], GetUploadUrlDto.prototype, "name", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Description of the video',
+        required: false,
+        example: 'This is a description of my video',
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], GetUploadUrlDto.prototype, "description", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Whether the video requires signed URLs for playback',
+        required: false,
+        default: false,
+    }),
+    (0, class_validator_1.IsBoolean)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Boolean)
+], GetUploadUrlDto.prototype, "requireSignedURLs", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Organization ID that the video belongs to (will be set from authenticated user)',
+        required: false,
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], GetUploadUrlDto.prototype, "organizationId", void 0);
 //# sourceMappingURL=get-upload-url.dto.js.map

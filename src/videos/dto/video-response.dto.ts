@@ -48,44 +48,59 @@ export class VideoInputDto {
 }
 
 export class VideoDto {
-  @ApiProperty({ description: 'Unique identifier for the video' })
+  @ApiProperty({ description: 'Video UID' })
   uid: string;
 
-  @ApiProperty({ description: 'Thumbnail URL', required: false })
-  thumbnail?: string;
-
-  @ApiProperty({ description: 'Preview URL', required: false })
-  preview?: string;
+  @ApiProperty({ description: 'Video thumbnail URL' })
+  thumbnail: string;
 
   @ApiProperty({ description: 'Whether the video is ready to stream' })
   readyToStream: boolean;
 
-  @ApiProperty({ description: 'When the video became ready to stream', required: false })
-  readyToStreamAt?: string;
+  @ApiProperty({ description: 'Video status' })
+  status: {
+    state: string;
+  };
 
-  @ApiProperty({ description: 'Video status details' })
-  status: VideoStatusDto;
+  @ApiProperty({ description: 'Video metadata' })
+  meta: {
+    name: string;
+  };
 
-  @ApiProperty({ description: 'Video metadata', required: false })
-  meta?: VideoMetaDto;
-
-  @ApiProperty({ description: 'Video duration in seconds', required: false })
-  duration?: number;
-
-  @ApiProperty({ description: 'When the video was created' })
+  @ApiProperty({ description: 'Creation timestamp' })
   created: string;
 
-  @ApiProperty({ description: 'When the video was last modified', required: false })
-  modified?: string;
+  @ApiProperty({ description: 'Last modification timestamp' })
+  modified: string;
 
-  @ApiProperty({ description: 'Video size in bytes', required: false })
-  size?: number;
+  @ApiProperty({ description: 'Video duration in seconds' })
+  duration: number;
 
-  @ApiProperty({ description: 'Input video dimensions', required: false })
-  input?: VideoInputDto;
+  @ApiProperty({ description: 'Video size in bytes' })
+  size: number;
 
-  @ApiProperty({ description: 'Playback URLs' })
-  playback: PlaybackDto;
+  @ApiProperty({ description: 'Video preview URL' })
+  preview: string;
+
+  @ApiProperty({ description: 'Video playback URLs' })
+  playback: {
+    hls: string;
+    dash: string;
+  };
+}
+
+export class ResultInfoDto {
+  @ApiProperty({ description: 'Total number of results' })
+  total_count: number;
+
+  @ApiProperty({ description: 'Number of results per page' })
+  per_page: number;
+
+  @ApiProperty({ description: 'Current page number' })
+  page: number;
+
+  @ApiProperty({ description: 'Number of results in the current page' })
+  count: number;
 }
 
 export class VideoListResponseDto {
@@ -98,9 +113,30 @@ export class VideoListResponseDto {
   @ApiProperty({ description: 'Response message' })
   message: string;
 
-  @ApiProperty({ description: 'Response data', type: Object })
+  @ApiProperty({
+    description: 'Response data',
+    type: 'object',
+    properties: {
+      result: { type: 'array', items: { $ref: '#/components/schemas/VideoDto' } },
+      result_info: {
+        type: 'object',
+        properties: {
+          count: { type: 'number' },
+          page: { type: 'number' },
+          per_page: { type: 'number' },
+          total_count: { type: 'number' },
+        },
+      },
+    },
+  })
   data: {
     result: VideoDto[];
+    result_info: {
+      count: number;
+      page: number;
+      per_page: number;
+      total_count: number;
+    };
   };
 }
 
@@ -114,7 +150,7 @@ export class SingleVideoResponseDto {
   @ApiProperty({ description: 'Response message' })
   message: string;
 
-  @ApiProperty({ description: 'Response data', type: Object })
+  @ApiProperty({ description: 'Response data containing the video' })
   data: {
     result: VideoDto;
   };

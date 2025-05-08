@@ -8,9 +8,9 @@ export interface PlatformStats {
 
 // Recent video upload
 export interface RecentUpload {
-  id: string;                // Video ID (Cloudflare UID)
+  id: string;                // Video ID (MUX Asset ID)
   title: string;             // Video title
-  thumbnailUrl: string;      // Thumbnail URL from Cloudflare
+  thumbnailUrl: string;      // Thumbnail URL from MUX
   uploadDate: string;        // Formatted upload date
   size: string;              // Formatted video size
   duration: string;          // Formatted duration (MM:SS)
@@ -18,9 +18,9 @@ export interface RecentUpload {
 
 // Popular video
 export interface PopularVideo {
-  id: string;                // Video ID (Cloudflare UID)
+  id: string;                // Video ID (MUX Asset ID)
   title: string;             // Video title
-  thumbnailUrl: string;      // Thumbnail URL from Cloudflare
+  thumbnailUrl: string;      // Thumbnail URL from MUX
   views: number;             // View count
   duration: string;          // Formatted duration (MM:SS)
 }
@@ -32,8 +32,8 @@ export interface DashboardResponse {
   popularVideos: PopularVideo[];
 }
 
-// Cloudflare Video API Response
-export interface CloudflareVideoResponse {
+// MUX Video API Response
+export interface MuxVideoResponse {
   uid: string;
   thumbnail: string;
   status: {
@@ -47,23 +47,19 @@ export interface CloudflareVideoResponse {
   size: number;
   preview: string;
   playback: {
-    hls: string;
-    dash: string;
+    hls: string | null;
+    dash: string | null;
   };
   duration: number;
   input: {
-    width: number;
-    height: number;
+    width: number | null;
+    height: number | null;
   };
   readyToStream: boolean;
-  requireSignedURLs: boolean;
-  uploaded: string;
-  watermark: any;
-  liveInput: any;
 }
 
-// Cloudflare Analytics Response
-export interface CloudflareAnalyticsResponse {
+// MUX Analytics Response
+export interface MuxAnalyticsResponse {
   success: boolean;
   result: {
     totals: {
@@ -74,10 +70,10 @@ export interface CloudflareAnalyticsResponse {
   };
 }
 
-// Cloudflare List Videos Response
-export interface CloudflareListVideosResponse {
+// MUX List Videos Response
+export interface MuxListVideosResponse {
   success: boolean;
-  result: CloudflareVideoResponse[];
+  result: MuxVideoResponse[];
   result_info: {
     page: number;
     per_page: number;

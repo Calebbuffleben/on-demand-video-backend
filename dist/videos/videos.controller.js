@@ -71,11 +71,21 @@ let VideosController = class VideosController {
             throw new common_1.BadRequestException('Failed to process webhook');
         }
     }
-    async getCloudflareUploadUrl(dto) {
-        return this.videosService.getUploadUrl(dto);
+    async muxWebhook(payload, signature) {
+        try {
+            await this.videosService.handleMuxWebhook(payload, signature);
+            return { success: true };
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Failed to process MUX webhook');
+        }
     }
-    async getVideoStatus(videoId) {
-        return this.videosService.getVideoStatus(videoId);
+    async getCloudflareUploadUrl(dto, req) {
+        const organizationId = req['organization'].id;
+        return this.videosService.getUploadUrl({ ...dto, organizationId });
+    }
+    async getVideoStatus(uid) {
+        return this.videosService.getVideoStatus(uid);
     }
     async getAllCloudflareVideos() {
         return this.videosService.getAllVideos();
@@ -186,23 +196,34 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "webhook", null);
 __decorate([
-    (0, common_1.Post)('get-upload-url'),
-    (0, swagger_1.ApiOperation)({ summary: 'Get a direct upload URL for Cloudflare Stream' }),
-    (0, swagger_1.ApiResponse)({ status: 201, description: 'Returns an upload URL and video ID.' }),
     (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('mux-webhook'),
+    (0, swagger_1.ApiOperation)({ summary: 'Webhook endpoint for MUX events' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Webhook processed successfully.' }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Headers)('mux-signature')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [get_upload_url_dto_1.GetUploadUrlDto]),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "muxWebhook", null);
+__decorate([
+    (0, common_1.Post)('get-upload-url'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get a direct upload URL for MUX' }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: 'Returns an upload URL and video ID.' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [get_upload_url_dto_1.GetUploadUrlDto, Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getCloudflareUploadUrl", null);
 __decorate([
-    (0, common_1.Get)('status/:videoId'),
+    (0, common_1.Get)(':uid/status'),
     (0, swagger_1.ApiOperation)({ summary: 'Check the status of an uploaded video' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns the video status.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
-    (0, swagger_1.ApiParam)({ name: 'videoId', description: 'The Cloudflare Stream video ID' }),
+    (0, swagger_1.ApiParam)({ name: 'uid', description: 'The MUX upload ID' }),
     (0, public_decorator_1.Public)(),
-    __param(0, (0, common_1.Param)('videoId')),
+    __param(0, (0, common_1.Param)('uid')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)

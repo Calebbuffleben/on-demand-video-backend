@@ -12,18 +12,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetUploadUrlResponseDto = exports.UploadUrlResponseDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 class UploadUrlResponseDto {
-    uploadURL;
-    uid;
+    success;
+    uploadUrl;
+    videoId;
 }
 exports.UploadUrlResponseDto = UploadUrlResponseDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'One-time upload URL from Cloudflare Stream' }),
-    __metadata("design:type", String)
-], UploadUrlResponseDto.prototype, "uploadURL", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Whether the operation was successful' }),
+    __metadata("design:type", Boolean)
+], UploadUrlResponseDto.prototype, "success", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Unique identifier for the video' }),
+    (0, swagger_1.ApiProperty)({ description: 'One-time upload URL' }),
     __metadata("design:type", String)
-], UploadUrlResponseDto.prototype, "uid", void 0);
+], UploadUrlResponseDto.prototype, "uploadUrl", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Unique identifier for the video in our system' }),
+    __metadata("design:type", String)
+], UploadUrlResponseDto.prototype, "videoId", void 0);
 class GetUploadUrlResponseDto {
     success;
     status;

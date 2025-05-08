@@ -4,11 +4,11 @@ export class EmbedVideoDto {
   @ApiProperty({ description: 'Unique identifier of the video' })
   uid: string;
 
-  @ApiProperty({ description: 'Thumbnail URL', required: false })
-  thumbnail?: string;
+  @ApiProperty({ description: 'Thumbnail URL', required: false, nullable: true })
+  thumbnail: string | null;
 
-  @ApiProperty({ description: 'Preview URL', required: false })
-  preview?: string;
+  @ApiProperty({ description: 'Preview URL', required: false, nullable: true })
+  preview: string | null;
 
   @ApiProperty({ description: 'Whether the video is ready to stream' })
   readyToStream: boolean;
@@ -19,18 +19,18 @@ export class EmbedVideoDto {
   };
 
   @ApiProperty({ description: 'Video metadata', required: false })
-  meta?: { 
+  meta: { 
     name: string;
     [key: string]: any;
   };
 
-  @ApiProperty({ description: 'Video duration in seconds', required: false })
-  duration?: number;
+  @ApiProperty({ description: 'Video duration in seconds', required: false, nullable: true })
+  duration: number | null;
 
   @ApiProperty({ description: 'Playback URLs for different streaming formats' })
   playback: {
-    hls: string;
-    dash: string;
+    hls: string | null;
+    dash: string | null;
   };
 }
 
@@ -38,14 +38,6 @@ export class EmbedVideoResponseDto {
   @ApiProperty({ description: 'Operation success status' })
   success: boolean;
 
-  @ApiProperty({ description: 'HTTP status code' })
-  status: number;
-
-  @ApiProperty({ description: 'Response message' })
-  message: string;
-
-  @ApiProperty({ description: 'Response data' })
-  data: {
-    result: EmbedVideoDto[];
-  };
+  @ApiProperty({ description: 'Video information' })
+  result: EmbedVideoDto;
 } 

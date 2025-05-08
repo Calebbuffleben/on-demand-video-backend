@@ -4,9 +4,10 @@ import { VideosService } from './videos.service';
 import { VideosController } from './videos.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TransformInterceptor } from '../common/interceptors/transform.interceptor';
+import { MuxModule } from '../providers/mux/mux.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, MuxModule],
   controllers: [VideosController],
   providers: [
     VideosService,

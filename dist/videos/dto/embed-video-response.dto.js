@@ -27,12 +27,12 @@ __decorate([
     __metadata("design:type", String)
 ], EmbedVideoDto.prototype, "uid", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Thumbnail URL', required: false }),
-    __metadata("design:type", String)
+    (0, swagger_1.ApiProperty)({ description: 'Thumbnail URL', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "thumbnail", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Preview URL', required: false }),
-    __metadata("design:type", String)
+    (0, swagger_1.ApiProperty)({ description: 'Preview URL', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "preview", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Whether the video is ready to stream' }),
@@ -47,8 +47,8 @@ __decorate([
     __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "meta", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video duration in seconds', required: false }),
-    __metadata("design:type", Number)
+    (0, swagger_1.ApiProperty)({ description: 'Video duration in seconds', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "duration", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Playback URLs for different streaming formats' }),
@@ -56,9 +56,7 @@ __decorate([
 ], EmbedVideoDto.prototype, "playback", void 0);
 class EmbedVideoResponseDto {
     success;
-    status;
-    message;
-    data;
+    result;
 }
 exports.EmbedVideoResponseDto = EmbedVideoResponseDto;
 __decorate([
@@ -66,15 +64,7 @@ __decorate([
     __metadata("design:type", Boolean)
 ], EmbedVideoResponseDto.prototype, "success", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'HTTP status code' }),
-    __metadata("design:type", Number)
-], EmbedVideoResponseDto.prototype, "status", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Response message' }),
-    __metadata("design:type", String)
-], EmbedVideoResponseDto.prototype, "message", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Response data' }),
-    __metadata("design:type", Object)
-], EmbedVideoResponseDto.prototype, "data", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Video information' }),
+    __metadata("design:type", EmbedVideoDto)
+], EmbedVideoResponseDto.prototype, "result", void 0);
 //# sourceMappingURL=embed-video-response.dto.js.map

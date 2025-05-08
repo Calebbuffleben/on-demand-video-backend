@@ -24,7 +24,7 @@ export interface DashboardResponse {
     recentUploads: RecentUpload[];
     popularVideos: PopularVideo[];
 }
-export interface CloudflareVideoResponse {
+export interface MuxVideoResponse {
     uid: string;
     thumbnail: string;
     status: {
@@ -38,21 +38,17 @@ export interface CloudflareVideoResponse {
     size: number;
     preview: string;
     playback: {
-        hls: string;
-        dash: string;
+        hls: string | null;
+        dash: string | null;
     };
     duration: number;
     input: {
-        width: number;
-        height: number;
+        width: number | null;
+        height: number | null;
     };
     readyToStream: boolean;
-    requireSignedURLs: boolean;
-    uploaded: string;
-    watermark: any;
-    liveInput: any;
 }
-export interface CloudflareAnalyticsResponse {
+export interface MuxAnalyticsResponse {
     success: boolean;
     result: {
         totals: {
@@ -62,9 +58,9 @@ export interface CloudflareAnalyticsResponse {
         };
     };
 }
-export interface CloudflareListVideosResponse {
+export interface MuxListVideosResponse {
     success: boolean;
-    result: CloudflareVideoResponse[];
+    result: MuxVideoResponse[];
     result_info: {
         page: number;
         per_page: number;

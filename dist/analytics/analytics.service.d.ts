@@ -1,11 +1,11 @@
-import { CloudflareService } from './cloudflare.service';
+import { MuxService } from './mux.service';
 import { Cache } from 'cache-manager';
 import { PlatformStats, RecentUpload, PopularVideo, DashboardResponse } from './interfaces/analytics.interfaces';
 export declare class AnalyticsService {
-    private cloudflareService;
+    private muxService;
     private cacheManager;
     private readonly logger;
-    constructor(cloudflareService: CloudflareService, cacheManager: Cache);
+    constructor(muxService: MuxService, cacheManager: Cache);
     private formatFileSize;
     private formatDuration;
     private formatDate;

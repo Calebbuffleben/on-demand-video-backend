@@ -36,24 +36,37 @@ __decorate([
     __metadata("design:type", String)
 ], UpdateOrgCloudflareDto.prototype, "cloudflareApiToken", void 0);
 class CloudflareSettingsResponseDto {
-    hasCredentials;
+    success;
     cloudflareAccountId;
+    cloudflareApiToken;
 }
 exports.CloudflareSettingsResponseDto = CloudflareSettingsResponseDto;
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: 'Whether the organization has Cloudflare credentials configured',
+        description: 'Whether the operation was successful',
         example: true,
     }),
+    (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
-], CloudflareSettingsResponseDto.prototype, "hasCredentials", void 0);
+], CloudflareSettingsResponseDto.prototype, "success", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Cloudflare Account ID (masked for security)',
         example: '1a2b****9i0j',
         required: false,
     }),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CloudflareSettingsResponseDto.prototype, "cloudflareAccountId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Cloudflare API Token (masked for security)',
+        example: 'api-****-token',
+        required: false,
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CloudflareSettingsResponseDto.prototype, "cloudflareApiToken", void 0);
 //# sourceMappingURL=update-org-cloudflare.dto.js.map

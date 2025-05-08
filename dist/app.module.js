@@ -14,6 +14,8 @@ const auth_module_1 = require("./auth/auth.module");
 const videos_module_1 = require("./videos/videos.module");
 const subscriptions_module_1 = require("./subscriptions/subscriptions.module");
 const analytics_module_1 = require("./analytics/analytics.module");
+const mux_module_1 = require("./providers/mux/mux.module");
+const mux_webhook_controller_1 = require("./providers/mux/mux-webhook.controller");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -26,6 +28,10 @@ exports.AppModule = AppModule = __decorate([
             videos_module_1.VideosModule,
             subscriptions_module_1.SubscriptionsModule,
             analytics_module_1.AnalyticsModule,
+            mux_module_1.MuxModule,
+        ],
+        controllers: [
+            mux_webhook_controller_1.MuxWebhookController
         ],
     })
 ], AppModule);

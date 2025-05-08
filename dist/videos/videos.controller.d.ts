@@ -2,11 +2,11 @@ import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
-import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
+import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
@@ -25,7 +25,9 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        cloudflareId: string;
+        muxAssetId: string | null;
+        muxPlaybackId: string | null;
+        muxUploadId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
@@ -44,7 +46,9 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        cloudflareId: string;
+        muxAssetId: string | null;
+        muxPlaybackId: string | null;
+        muxUploadId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
@@ -66,7 +70,9 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        cloudflareId: string;
+        muxAssetId: string | null;
+        muxPlaybackId: string | null;
+        muxUploadId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
@@ -85,7 +91,9 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        cloudflareId: string;
+        muxAssetId: string | null;
+        muxPlaybackId: string | null;
+        muxUploadId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
@@ -95,8 +103,11 @@ export declare class VideosController {
     webhook(payload: any): Promise<{
         success: boolean;
     }>;
-    getCloudflareUploadUrl(dto: GetUploadUrlDto): Promise<UploadUrlResponseDto>;
-    getVideoStatus(videoId: string): Promise<VideoStatusResponseDto>;
+    muxWebhook(payload: any, signature: string): Promise<{
+        success: boolean;
+    }>;
+    getCloudflareUploadUrl(dto: GetUploadUrlDto, req: AuthenticatedRequest): Promise<GetUploadUrlResponseDto>;
+    getVideoStatus(uid: string): Promise<VideoStatusResponseDto>;
     getAllCloudflareVideos(): Promise<VideoListResponseDto>;
     getVideoByUid(uid: string): Promise<SingleVideoResponseDto>;
     testOrgCloudflare(req: AuthenticatedRequest): Promise<any>;

@@ -15,15 +15,15 @@ var AnalyticsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnalyticsService = void 0;
 const common_1 = require("@nestjs/common");
-const cloudflare_service_1 = require("./cloudflare.service");
+const mux_service_1 = require("./mux.service");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const common_2 = require("@nestjs/common");
 let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
-    cloudflareService;
+    muxService;
     cacheManager;
     logger = new common_1.Logger(AnalyticsService_1.name);
-    constructor(cloudflareService, cacheManager) {
-        this.cloudflareService = cloudflareService;
+    constructor(muxService, cacheManager) {
+        this.muxService = muxService;
         this.cacheManager = cacheManager;
     }
     formatFileSize(bytes) {
@@ -54,8 +54,8 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             return cachedStats;
         }
         try {
-            const videos = await this.cloudflareService.getVideos(organizationId);
-            const analytics = await this.cloudflareService.getAnalytics(organizationId);
+            const videos = await this.muxService.getVideos(organizationId);
+            const analytics = await this.muxService.getAnalytics(organizationId);
             const totalVideos = videos.length;
             const totalViews = analytics.result.totals.totalVideoViews || 0;
             const totalStorage = this.formatFileSize(analytics.result.totals.storage || 0);
@@ -86,7 +86,7 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             return cachedUploads;
         }
         try {
-            const videos = await this.cloudflareService.getVideos(organizationId);
+            const videos = await this.muxService.getVideos(organizationId);
             const recentUploads = videos
                 .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
                 .slice(0, limit)
@@ -113,7 +113,7 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             return cachedVideos;
         }
         try {
-            const videos = await this.cloudflareService.getVideos(organizationId);
+            const videos = await this.muxService.getVideos(organizationId);
             const popularVideos = videos
                 .map(video => ({
                 id: video.uid,
@@ -171,6 +171,6 @@ exports.AnalyticsService = AnalyticsService;
 exports.AnalyticsService = AnalyticsService = AnalyticsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_2.Inject)(cache_manager_1.CACHE_MANAGER)),
-    __metadata("design:paramtypes", [cloudflare_service_1.CloudflareService, Object])
+    __metadata("design:paramtypes", [mux_service_1.MuxService, Object])
 ], AnalyticsService);
 //# sourceMappingURL=analytics.service.js.map

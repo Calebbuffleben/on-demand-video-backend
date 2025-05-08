@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CloudflareService } from './cloudflare.service';
+import { MuxService } from './mux.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
@@ -15,7 +15,7 @@ export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
   constructor(
-    private cloudflareService: CloudflareService,
+    private muxService: MuxService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) {}
 
@@ -66,8 +66,8 @@ export class AnalyticsService {
 
     try {
       // Get videos and analytics data
-      const videos = await this.cloudflareService.getVideos(organizationId);
-      const analytics = await this.cloudflareService.getAnalytics(organizationId);
+      const videos = await this.muxService.getVideos(organizationId);
+      const analytics = await this.muxService.getAnalytics(organizationId);
 
       // Calculate totals
       const totalVideos = videos.length;
@@ -111,7 +111,7 @@ export class AnalyticsService {
     }
 
     try {
-      const videos = await this.cloudflareService.getVideos(organizationId);
+      const videos = await this.muxService.getVideos(organizationId);
 
       // Sort by created date (newest first) and limit
       const recentUploads = videos
@@ -148,9 +148,9 @@ export class AnalyticsService {
     }
 
     try {
-      const videos = await this.cloudflareService.getVideos(organizationId);
+      const videos = await this.muxService.getVideos(organizationId);
 
-      // Mock view count since Cloudflare API doesn't directly provide view counts per video in the list endpoint
+      // Mock view count since MUX API doesn't directly provide view counts per video in the list endpoint
       // In a real implementation, you would fetch individual video analytics or use database tracking
       const popularVideos = videos
         .map(video => ({

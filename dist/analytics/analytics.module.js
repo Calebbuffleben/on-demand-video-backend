@@ -10,10 +10,8 @@ exports.AnalyticsModule = void 0;
 const common_1 = require("@nestjs/common");
 const analytics_controller_1 = require("./analytics.controller");
 const analytics_service_1 = require("./analytics.service");
-const cloudflare_service_1 = require("./cloudflare.service");
-const prisma_module_1 = require("../prisma/prisma.module");
-const core_1 = require("@nestjs/core");
-const transform_interceptor_1 = require("../common/interceptors/transform.interceptor");
+const mux_service_1 = require("./mux.service");
+const config_1 = require("@nestjs/config");
 const cache_manager_1 = require("@nestjs/cache-manager");
 let AnalyticsModule = class AnalyticsModule {
 };
@@ -21,22 +19,15 @@ exports.AnalyticsModule = AnalyticsModule;
 exports.AnalyticsModule = AnalyticsModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            prisma_module_1.PrismaModule,
+            config_1.ConfigModule,
             cache_manager_1.CacheModule.register({
                 ttl: 60 * 5,
                 max: 100,
             }),
         ],
         controllers: [analytics_controller_1.AnalyticsController],
-        providers: [
-            analytics_service_1.AnalyticsService,
-            cloudflare_service_1.CloudflareService,
-            {
-                provide: core_1.APP_INTERCEPTOR,
-                useClass: transform_interceptor_1.TransformInterceptor,
-            },
-        ],
-        exports: [analytics_service_1.AnalyticsService, cloudflare_service_1.CloudflareService],
+        providers: [analytics_service_1.AnalyticsService, mux_service_1.MuxService],
+        exports: [analytics_service_1.AnalyticsService],
     })
 ], AnalyticsModule);
 //# sourceMappingURL=analytics.module.js.map

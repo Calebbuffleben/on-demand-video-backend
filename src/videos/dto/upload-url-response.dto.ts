@@ -1,11 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UploadUrlResponseDto {
-  @ApiProperty({ description: 'One-time upload URL from Cloudflare Stream' })
-  uploadURL: string;
+  @ApiProperty({ description: 'Whether the operation was successful' })
+  success: boolean;
+  
+  @ApiProperty({ description: 'One-time upload URL' })
+  uploadUrl: string;
 
-  @ApiProperty({ description: 'Unique identifier for the video' })
-  uid: string;
+  @ApiProperty({ description: 'Unique identifier for the video in our system' })
+  videoId: string;
 }
 
 export class GetUploadUrlResponseDto {

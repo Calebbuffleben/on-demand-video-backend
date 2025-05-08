@@ -1,26 +1,22 @@
 export declare class EmbedVideoDto {
     uid: string;
-    thumbnail?: string;
-    preview?: string;
+    thumbnail: string | null;
+    preview: string | null;
     readyToStream: boolean;
     status: {
         state: string;
     };
-    meta?: {
+    meta: {
         name: string;
         [key: string]: any;
     };
-    duration?: number;
+    duration: number | null;
     playback: {
-        hls: string;
-        dash: string;
+        hls: string | null;
+        dash: string | null;
     };
 }
 export declare class EmbedVideoResponseDto {
     success: boolean;
-    status: number;
-    message: string;
-    data: {
-        result: EmbedVideoDto[];
-    };
+    result: EmbedVideoDto;
 }

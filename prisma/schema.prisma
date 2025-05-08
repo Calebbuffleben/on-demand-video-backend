@@ -18,8 +18,8 @@ model Organization {
   id                  String          @id @default(uuid())
   name                String
   clerkId             String          @unique
-  cloudflareAccountId String?         // Cloudflare account ID
-  cloudflareApiToken  String?         // Cloudflare API token
+  muxTokenId          String?         // MUX token ID
+  muxTokenSecret      String?         // MUX token secret
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   videos              Video[]
@@ -56,11 +56,13 @@ model Video {
   id                String       @id @default(uuid())
   name              String
   description       String?
-  cloudflareId      String       @unique  // Cloudflare Stream video UID
+  muxAssetId        String?      // MUX asset ID
+  muxPlaybackId     String?      // MUX playback ID
+  muxUploadId       String?      // MUX upload ID for tracking upload status
   organizationId    String
   status            VideoStatus  @default(PROCESSING)
   duration          Int?         // Duration in seconds
-  thumbnailUrl      String?      // Cloudflare-generated thumbnail
+  thumbnailUrl      String?      // Video thumbnail URL
   playbackUrl       String?      // URL for embedding/playing the video
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -68,7 +70,6 @@ model Video {
   isLive            Boolean      @default(false)  // Distinguish between VOD and live streams
   visibility        Visibility   @default(PUBLIC)
   tags              String[]     // For categorization and search
-  // You can keep pricing fields if you plan to monetize videos
   price             Float?
   currency          String?      @default("USD")
 }
@@ -113,10 +114,10 @@ enum PlanType {
 }
 
 enum VideoStatus {
-  PROCESSING  // Video is being processed by Cloudflare
+  PROCESSING  // Video is being processed
   READY       // Video is ready to stream
   ERROR       // Processing failed
-  DELETED     // Video has been deleted from Cloudflare
+  DELETED     // Video has been deleted
 }
 
 enum Visibility {

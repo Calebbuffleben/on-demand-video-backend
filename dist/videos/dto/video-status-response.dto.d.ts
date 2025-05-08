@@ -1,7 +1,18 @@
-import { VideoDto } from './video-response.dto';
+export declare class VideoPlaybackDto {
+    hls: string;
+    dash: string;
+}
+export declare class VideoMetaDto {
+    name: string;
+}
 export declare class VideoStatusResponseDto {
     success: boolean;
     readyToStream: boolean;
     status: string;
-    video: VideoDto;
+    thumbnail: string;
+    preview: string;
+    playback: VideoPlaybackDto;
+    meta: VideoMetaDto;
+    uid: string;
+    duration: number;
 }

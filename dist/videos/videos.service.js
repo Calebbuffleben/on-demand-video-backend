@@ -8,89 +8,46 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var VideosService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideosService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
-const node_fetch_1 = require("node-fetch");
-let VideosService = class VideosService {
+const mux_service_1 = require("../providers/mux/mux.service");
+const mux_node_1 = require("@mux/mux-node");
+let VideosService = VideosService_1 = class VideosService {
     prisma;
     configService;
-    defaultCloudflareAccountId;
-    defaultCloudflareApiToken;
-    constructor(prisma, configService) {
+    muxService;
+    logger = new common_1.Logger(VideosService_1.name);
+    constructor(prisma, configService, muxService) {
         this.prisma = prisma;
         this.configService = configService;
-        this.defaultCloudflareAccountId = this.configService.get('CLOUDFLARE_ACCOUNT_ID', '');
-        this.defaultCloudflareApiToken = this.configService.get('CLOUDFLARE_API_TOKEN', '');
-    }
-    async getCloudflareCredentials(organizationId) {
-        const organization = await this.prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: {
-                cloudflareAccountId: true,
-                cloudflareApiToken: true,
-            },
-        });
-        const accountId = organization?.cloudflareAccountId || this.defaultCloudflareAccountId;
-        const apiToken = organization?.cloudflareApiToken || this.defaultCloudflareApiToken;
-        if (!accountId || !apiToken) {
-            throw new common_1.BadRequestException('Cloudflare credentials are not configured');
-        }
-        const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream`;
-        return { accountId, apiToken, baseUrl };
+        this.muxService = muxService;
     }
     async testCloudflareConnection(organizationId) {
         try {
-            let accountId;
-            let apiToken;
-            let baseUrl;
-            if (organizationId) {
-                const credentials = await this.getCloudflareCredentials(organizationId);
-                accountId = credentials.accountId;
-                apiToken = credentials.apiToken;
-                baseUrl = credentials.baseUrl;
-            }
-            else {
-                if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-                    throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
-                }
-                accountId = this.defaultCloudflareAccountId;
-                apiToken = this.defaultCloudflareApiToken;
-                baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream`;
-            }
-            console.log(`Using Cloudflare Account ID: ${accountId.slice(0, 3)}...${accountId.slice(-3)}`);
-            console.log(`API Token configured: ${apiToken ? 'Yes' : 'No'}`);
-            console.log(`Base URL: ${baseUrl}`);
-            const response = await (0, node_fetch_1.default)(baseUrl, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            const data = await response.json();
-            console.log('Cloudflare API response status:', response.status);
-            console.log('Cloudflare API response success:', data.success);
-            if (!response.ok) {
-                console.error('Error response from Cloudflare:', data.errors);
-                throw new common_1.BadRequestException(`Failed to connect to Cloudflare: ${data.errors?.[0]?.message || 'Unknown error'}`);
-            }
+            const response = await this.muxService.testMuxConnection(organizationId);
             return {
-                success: data.success,
+                success: response.success,
                 status: response.status,
-                message: 'Successfully connected to Cloudflare Stream API',
+                message: 'Successfully connected to Video API',
                 data: {
-                    result: data.result,
-                    resultInfo: data.result_info,
+                    result: response.data.result,
+                    resultInfo: {
+                        count: response.data.result.length,
+                        page: 1,
+                        per_page: response.data.result.length,
+                        total_count: response.data.result.length,
+                    },
                 },
             };
         }
         catch (error) {
-            console.error('Error connecting to Cloudflare:', error);
-            throw new common_1.BadRequestException(`Failed to connect to Cloudflare: ${error.message}`);
+            console.error('Error connecting to Video API:', error);
+            throw new common_1.BadRequestException(`Failed to connect to Video API: ${error.message}`);
         }
     }
     async findAll(organizationId) {
@@ -113,45 +70,7 @@ let VideosService = class VideosService {
     }
     async createDirectUploadUrl(createVideoDto, organizationId) {
         try {
-            const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
-            const response = await (0, node_fetch_1.default)(`${baseUrl}/direct_upload`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    maxDurationSeconds: 3600,
-                    expiry: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
-                    requireSignedURLs: createVideoDto.visibility === client_1.Visibility.PRIVATE,
-                    creator: organizationId,
-                    meta: {
-                        name: createVideoDto.name,
-                        organizationId,
-                    },
-                }),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new common_1.BadRequestException(`Failed to create upload URL: ${data.errors?.[0]?.message || 'Unknown error'}`);
-            }
-            const video = await this.prisma.video.create({
-                data: {
-                    name: createVideoDto.name,
-                    description: createVideoDto.description,
-                    cloudflareId: data.result.uid,
-                    tags: createVideoDto.tags || [],
-                    visibility: createVideoDto.visibility || client_1.Visibility.PUBLIC,
-                    status: client_1.VideoStatus.PROCESSING,
-                    organizationId,
-                    thumbnailUrl: null,
-                    playbackUrl: null,
-                },
-            });
-            return {
-                uploadUrl: data.result.uploadURL,
-                videoId: video.id,
-            };
+            return await this.muxService.createDirectUploadUrl(createVideoDto.name, createVideoDto.description || '', createVideoDto.visibility || client_1.Visibility.PUBLIC, createVideoDto.tags || [], organizationId);
         }
         catch (error) {
             console.error('Error creating direct upload URL:', error);
@@ -159,283 +78,381 @@ let VideosService = class VideosService {
         }
     }
     async update(id, updateVideoDto, organizationId) {
-        await this.findOne(id, organizationId);
+        const video = await this.findOne(id, organizationId);
         return this.prisma.video.update({
             where: { id },
-            data: updateVideoDto,
+            data: {
+                name: updateVideoDto.name,
+                description: updateVideoDto.description,
+                tags: updateVideoDto.tags,
+                visibility: updateVideoDto.visibility,
+            },
         });
     }
     async remove(id, organizationId) {
         const video = await this.findOne(id, organizationId);
-        const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
         try {
-            const response = await (0, node_fetch_1.default)(`${baseUrl}/${video.cloudflareId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`,
-                },
-            });
-            if (!response.ok) {
-                const data = await response.json();
-                console.error('Error deleting video from Cloudflare:', data);
+            if (video.muxAssetId) {
+                const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
+                const muxClient = new mux_node_1.default({
+                    tokenId,
+                    tokenSecret,
+                });
+                await muxClient.video.assets.delete(video.muxAssetId);
             }
+            await this.prisma.video.delete({
+                where: { id },
+            });
         }
         catch (error) {
-            console.error('Error deleting video from Cloudflare:', error);
+            console.error('Error removing video:', error);
+            throw new common_1.BadRequestException(`Failed to remove video: ${error.message}`);
         }
-        await this.prisma.video.delete({
-            where: { id },
-        });
     }
     async syncVideoStatus(id, organizationId) {
         const video = await this.findOne(id, organizationId);
-        const { baseUrl, apiToken } = await this.getCloudflareCredentials(organizationId);
         try {
-            const response = await (0, node_fetch_1.default)(`${baseUrl}/${video.cloudflareId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`,
-                },
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new common_1.BadRequestException(`Failed to get video status: ${data.errors?.[0]?.message || 'Unknown error'}`);
+            if (video.muxUploadId) {
+                await this.muxService.checkUploadStatus(id, organizationId);
+                const updatedVideo = await this.prisma.video.findUnique({
+                    where: { id },
+                });
+                if (!updatedVideo) {
+                    throw new common_1.NotFoundException(`Video with ID ${id} not found`);
+                }
+                return updatedVideo;
             }
-            return this.prisma.video.update({
-                where: { id: video.id },
-                data: {
-                    status: data.result.readyToStream ? client_1.VideoStatus.READY : client_1.VideoStatus.PROCESSING,
-                    duration: data.result.duration,
-                    thumbnailUrl: data.result.thumbnail,
-                    playbackUrl: data.result.preview,
-                },
-            });
+            throw new common_1.BadRequestException('Video cannot be synced - no provider ID found');
         }
         catch (error) {
             console.error('Error syncing video status:', error);
-            throw new common_1.BadRequestException('Failed to sync video status');
+            throw new common_1.BadRequestException(`Failed to sync video status: ${error.message}`);
         }
     }
     async handleCloudflareWebhook(payload) {
-        if (!payload || !payload.uid) {
-            throw new common_1.BadRequestException('Invalid webhook payload');
+    }
+    async handleMuxWebhook(payload, signature) {
+        try {
+            const isValid = await this.muxService.verifyWebhookSignature(payload, signature);
+            if (!isValid) {
+                this.logger.error('Invalid MUX webhook signature');
+                throw new common_1.BadRequestException('Invalid webhook signature');
+            }
+            switch (payload.type) {
+                case 'video.asset.ready':
+                    await this.handleMuxAssetReady(payload);
+                    break;
+                case 'video.asset.deleted':
+                    await this.handleMuxAssetDeleted(payload);
+                    break;
+                case 'video.asset.errored':
+                    await this.handleMuxAssetError(payload);
+                    break;
+                default:
+                    this.logger.warn(`Unhandled MUX webhook event type: ${payload.type}`);
+            }
         }
-        const video = await this.prisma.video.findUnique({
-            where: { cloudflareId: payload.uid },
-        });
-        if (!video) {
-            console.log(`No video found with Cloudflare ID: ${payload.uid}`);
-            return;
-        }
-        switch (payload.status) {
-            case 'ready':
-                await this.prisma.video.update({
-                    where: { id: video.id },
-                    data: {
-                        status: client_1.VideoStatus.READY,
-                        duration: payload.duration || video.duration,
-                        thumbnailUrl: payload.thumbnail || video.thumbnailUrl,
-                        playbackUrl: payload.preview || video.playbackUrl,
-                    },
-                });
-                break;
-            case 'error':
-                await this.prisma.video.update({
-                    where: { id: video.id },
-                    data: {
-                        status: client_1.VideoStatus.ERROR,
-                    },
-                });
-                break;
+        catch (error) {
+            this.logger.error('Error handling MUX webhook:', error);
+            throw error;
         }
     }
-    async getUploadUrl(dto) {
-        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
+    mapVideoStatus(status) {
+        switch (status) {
+            case client_1.VideoStatus.PROCESSING:
+                return 'processing';
+            case client_1.VideoStatus.READY:
+                return 'ready';
+            case client_1.VideoStatus.ERROR:
+                return 'error';
+            case client_1.VideoStatus.DELETED:
+                return 'deleted';
+            default:
+                return 'unknown';
         }
+    }
+    isVideo(value) {
+        return value !== null && typeof value === 'object' && 'id' in value;
+    }
+    async getVideoForEmbed(videoId, organizationId) {
+        const video = await this.prisma.video.findFirst({
+            where: {
+                OR: [
+                    { id: videoId },
+                    { muxAssetId: videoId },
+                    { muxPlaybackId: videoId },
+                ],
+            },
+        });
+        if (!this.isVideo(video)) {
+            throw new common_1.NotFoundException('Video not found');
+        }
+        if (video.visibility === client_1.Visibility.PRIVATE) {
+            throw new common_1.ForbiddenException('This video is private');
+        }
+        if (video.visibility === client_1.Visibility.ORGANIZATION && (!organizationId || video.organizationId !== organizationId)) {
+            throw new common_1.ForbiddenException('This video is only accessible to organization members');
+        }
+        const embedVideo = {
+            uid: video.id,
+            thumbnail: video.thumbnailUrl,
+            preview: video.thumbnailUrl,
+            readyToStream: video.status === client_1.VideoStatus.READY,
+            status: {
+                state: this.mapVideoStatus(video.status),
+            },
+            meta: {
+                name: video.name,
+            },
+            duration: video.duration,
+            playback: {
+                hls: video.playbackUrl,
+                dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
+            },
+        };
+        return {
+            success: true,
+            result: embedVideo,
+        };
+    }
+    async handleMuxAssetReady(payload) {
+        const { data } = payload;
+        const video = await this.prisma.video.findFirst({
+            where: { muxAssetId: data.id },
+        });
+        if (!this.isVideo(video)) {
+            this.logger.warn(`Video not found for MUX Asset ID: ${data.id}`);
+            return;
+        }
+        const updatedVideo = await this.prisma.video.update({
+            where: { id: video.id },
+            data: {
+                status: client_1.VideoStatus.READY,
+                thumbnailUrl: data.thumbnail_url || null,
+                playbackUrl: data.playback_url || null,
+                duration: Math.round(data.duration || 0),
+            },
+        });
+        if (!this.isVideo(updatedVideo)) {
+            this.logger.error('Failed to update video');
+            return;
+        }
+        this.logger.log(`Video ${updatedVideo.id} is now ready for playback`);
+    }
+    async handleMuxAssetDeleted(payload) {
+        const { data } = payload;
+        const video = await this.prisma.video.findFirst({
+            where: { muxAssetId: data.id },
+        });
+        if (!this.isVideo(video)) {
+            this.logger.warn(`Video not found for MUX Asset ID: ${data.id}`);
+            return;
+        }
+        const updatedVideo = await this.prisma.video.update({
+            where: { id: video.id },
+            data: {
+                status: client_1.VideoStatus.DELETED,
+            },
+        });
+        if (!this.isVideo(updatedVideo)) {
+            this.logger.error('Failed to update video');
+            return;
+        }
+        this.logger.log(`Video ${updatedVideo.id} has been deleted`);
+    }
+    async handleMuxAssetError(payload) {
+        const { data } = payload;
+        const video = await this.prisma.video.findFirst({
+            where: { muxAssetId: data.id },
+        });
+        if (!this.isVideo(video)) {
+            this.logger.warn(`Video not found for MUX Asset ID: ${data.id}`);
+            return;
+        }
+        const updatedVideo = await this.prisma.video.update({
+            where: { id: video.id },
+            data: {
+                status: client_1.VideoStatus.ERROR,
+            },
+        });
+        if (!this.isVideo(updatedVideo)) {
+            this.logger.error('Failed to update video');
+            return;
+        }
+        this.logger.error(`Video ${updatedVideo.id} encountered an error: ${data.errors?.messages?.join(', ')}`);
+    }
+    async getUploadUrl(dto) {
         try {
-            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/direct_upload`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    maxDurationSeconds: dto.maxDurationSeconds,
-                    expiry: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
-                }),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new common_1.BadRequestException(`Failed to create upload URL: ${data.errors?.[0]?.message || 'Unknown error'}`);
+            if (!dto.organizationId) {
+                throw new common_1.BadRequestException('Organization ID is required');
             }
+            const result = await this.muxService.createDirectUploadUrl(dto.name || 'Untitled', dto.description || '', dto.requireSignedURLs ? client_1.Visibility.PRIVATE : client_1.Visibility.PUBLIC, [], dto.organizationId);
             return {
-                uploadURL: data.result.uploadURL,
-                uid: data.result.uid,
+                success: true,
+                status: 200,
+                message: 'Upload URL created successfully',
+                data: {
+                    success: true,
+                    uploadURL: result.uploadUrl,
+                    uid: result.videoId,
+                },
             };
         }
         catch (error) {
-            console.error('Error creating direct upload URL:', error);
-            throw new common_1.BadRequestException(`Failed to create upload URL: ${error.message}`);
+            console.error('Error getting upload URL:', error);
+            throw new common_1.BadRequestException(`Failed to get upload URL: ${error.message}`);
         }
     }
     async getVideoStatus(videoId) {
-        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
-        }
         try {
-            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/${videoId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
-                    'Content-Type': 'application/json',
+            const video = await this.prisma.video.findFirst({
+                where: {
+                    OR: [
+                        { id: videoId },
+                        { muxAssetId: videoId },
+                        { muxPlaybackId: videoId },
+                        { muxUploadId: videoId },
+                    ],
                 },
             });
-            const data = await response.json();
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new common_1.NotFoundException(`Video with ID ${videoId} not found`);
-                }
-                throw new common_1.BadRequestException(`Failed to get video status: ${data.errors?.[0]?.message || 'Unknown error'}`);
+            if (!video) {
+                throw new common_1.NotFoundException(`Video with ID ${videoId} not found`);
             }
-            const videoDto = {
-                uid: data.result.uid,
-                thumbnail: data.result.thumbnail,
-                preview: data.result.preview,
-                readyToStream: data.result.readyToStream,
-                readyToStreamAt: data.result.readyToStreamAt,
-                status: {
-                    state: data.result.status?.state || 'unknown',
-                    pctComplete: data.result.status?.pctComplete,
-                    errorReasonCode: data.result.status?.errorReasonCode,
-                    errorReasonText: data.result.status?.errorReasonText,
-                },
-                meta: data.result.meta,
-                duration: data.result.duration,
-                created: data.result.created,
-                modified: data.result.modified,
-                size: data.result.size,
-                input: data.result.input,
-                playback: data.result.playback,
-            };
+            if (video.muxUploadId) {
+                const uploadStatus = await this.muxService.checkUploadStatus(video.id, video.organizationId);
+                if (uploadStatus.status === 'ready') {
+                    await this.prisma.video.update({
+                        where: { id: video.id },
+                        data: {
+                            status: client_1.VideoStatus.READY,
+                            thumbnailUrl: uploadStatus.thumbnailUrl,
+                            playbackUrl: uploadStatus.playbackUrl,
+                            duration: uploadStatus.duration,
+                        },
+                    });
+                    video.status = client_1.VideoStatus.READY;
+                    video.thumbnailUrl = uploadStatus.thumbnailUrl;
+                    video.playbackUrl = uploadStatus.playbackUrl;
+                    video.duration = uploadStatus.duration;
+                }
+            }
             return {
                 success: true,
-                readyToStream: data.result.readyToStream,
-                status: data.result.status?.state || 'unknown',
-                video: videoDto,
+                readyToStream: video.status === client_1.VideoStatus.READY,
+                status: this.mapVideoStatus(video.status),
+                thumbnail: video.thumbnailUrl || '',
+                preview: video.thumbnailUrl || '',
+                playback: {
+                    hls: video.playbackUrl || '',
+                    dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                },
+                meta: {
+                    name: video.name,
+                },
+                uid: video.muxAssetId || video.id,
+                duration: video.duration || 0,
             };
         }
         catch (error) {
             console.error('Error getting video status:', error);
-            if (error instanceof common_1.NotFoundException) {
-                throw error;
-            }
             throw new common_1.BadRequestException(`Failed to get video status: ${error.message}`);
         }
     }
     async getAllVideos() {
-        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
-        }
         try {
-            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
-                    'Content-Type': 'application/json',
+            const videos = await this.prisma.video.findMany({
+                where: {
+                    status: client_1.VideoStatus.READY,
+                },
+                orderBy: {
+                    createdAt: 'desc',
                 },
             });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new common_1.BadRequestException(`Failed to get videos: ${data.errors?.[0]?.message || 'Unknown error'}`);
-            }
-            const videos = data.result.map(item => ({
-                uid: item.uid,
-                thumbnail: item.thumbnail,
-                preview: item.preview,
-                readyToStream: item.readyToStream,
-                readyToStreamAt: item.readyToStreamAt,
+            const result = videos.map(video => ({
+                uid: video.muxAssetId || video.id,
+                thumbnail: video.thumbnailUrl || '',
+                readyToStream: video.status === client_1.VideoStatus.READY,
                 status: {
-                    state: item.status?.state || 'unknown',
-                    pctComplete: item.status?.pctComplete,
-                    errorReasonCode: item.status?.errorReasonCode,
-                    errorReasonText: item.status?.errorReasonText,
+                    state: this.mapVideoStatus(video.status),
                 },
-                meta: item.meta,
-                duration: item.duration,
-                created: item.created,
-                modified: item.modified,
-                size: item.size,
-                input: item.input,
-                playback: item.playback,
+                meta: {
+                    name: video.name,
+                },
+                created: video.createdAt.toISOString(),
+                modified: video.updatedAt.toISOString(),
+                duration: video.duration || 0,
+                size: 0,
+                preview: video.thumbnailUrl || '',
+                playback: {
+                    hls: video.playbackUrl || '',
+                    dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                },
             }));
             return {
                 success: true,
                 status: 200,
                 message: 'Videos retrieved successfully',
                 data: {
-                    result: videos,
+                    result,
+                    result_info: {
+                        count: result.length,
+                        page: 1,
+                        per_page: result.length,
+                        total_count: result.length,
+                    },
                 },
             };
         }
         catch (error) {
-            console.error('Error getting videos:', error);
+            console.error('Error getting all videos:', error);
             throw new common_1.BadRequestException(`Failed to get videos: ${error.message}`);
         }
     }
     async getVideoByUid(uid) {
-        if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-            throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
-        }
         try {
-            const response = await (0, node_fetch_1.default)(`https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream/${uid}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.defaultCloudflareApiToken}`,
-                    'Content-Type': 'application/json',
+            const video = await this.prisma.video.findFirst({
+                where: {
+                    OR: [
+                        { id: uid },
+                        { muxAssetId: uid },
+                        { muxPlaybackId: uid },
+                    ],
                 },
             });
-            const data = await response.json();
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new common_1.NotFoundException(`Video with UID ${uid} not found`);
-                }
-                throw new common_1.BadRequestException(`Failed to get video: ${data.errors?.[0]?.message || 'Unknown error'}`);
+            if (!video) {
+                throw new common_1.NotFoundException(`Video with UID ${uid} not found`);
             }
-            const videoDto = {
-                uid: data.result.uid,
-                thumbnail: data.result.thumbnail,
-                preview: data.result.preview,
-                readyToStream: data.result.readyToStream,
-                readyToStreamAt: data.result.readyToStreamAt,
+            const result = {
+                uid: video.muxAssetId || video.id,
+                thumbnail: video.thumbnailUrl || '',
+                readyToStream: video.status === client_1.VideoStatus.READY,
                 status: {
-                    state: data.result.status?.state || 'unknown',
-                    pctComplete: data.result.status?.pctComplete,
-                    errorReasonCode: data.result.status?.errorReasonCode,
-                    errorReasonText: data.result.status?.errorReasonText,
+                    state: this.mapVideoStatus(video.status),
                 },
-                meta: data.result.meta,
-                duration: data.result.duration,
-                created: data.result.created,
-                modified: data.result.modified,
-                size: data.result.size,
-                input: data.result.input,
-                playback: data.result.playback,
+                meta: {
+                    name: video.name,
+                },
+                created: video.createdAt.toISOString(),
+                modified: video.updatedAt.toISOString(),
+                duration: video.duration || 0,
+                size: 0,
+                preview: video.thumbnailUrl || '',
+                playback: {
+                    hls: video.playbackUrl || '',
+                    dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                },
             };
             return {
                 success: true,
                 status: 200,
                 message: 'Video retrieved successfully',
                 data: {
-                    result: videoDto,
+                    result,
                 },
             };
         }
         catch (error) {
-            console.error('Error getting video:', error);
-            if (error instanceof common_1.NotFoundException) {
-                throw error;
-            }
+            console.error('Error getting video by UID:', error);
             throw new common_1.BadRequestException(`Failed to get video: ${error.message}`);
         }
     }
@@ -444,28 +461,19 @@ let VideosService = class VideosService {
             await this.prisma.organization.update({
                 where: { id: organizationId },
                 data: {
-                    cloudflareAccountId: updateOrgCloudflareDto.cloudflareAccountId,
-                    cloudflareApiToken: updateOrgCloudflareDto.cloudflareApiToken,
+                    muxTokenId: updateOrgCloudflareDto.cloudflareAccountId,
+                    muxTokenSecret: updateOrgCloudflareDto.cloudflareApiToken,
                 },
             });
-            await this.testCloudflareConnection(organizationId);
             return {
-                hasCredentials: true,
+                success: true,
                 cloudflareAccountId: this.maskString(updateOrgCloudflareDto.cloudflareAccountId),
+                cloudflareApiToken: this.maskString(updateOrgCloudflareDto.cloudflareApiToken),
             };
         }
         catch (error) {
-            console.error('Error updating organization Cloudflare settings:', error);
-            if (error.message.includes('Cloudflare')) {
-                await this.prisma.organization.update({
-                    where: { id: organizationId },
-                    data: {
-                        cloudflareAccountId: null,
-                        cloudflareApiToken: null,
-                    },
-                });
-            }
-            throw new common_1.BadRequestException(`Failed to update Cloudflare settings: ${error.message}`);
+            console.error('Error updating organization settings:', error);
+            throw new common_1.BadRequestException(`Failed to update settings: ${error.message}`);
         }
     }
     async getOrgCloudflareSettings(organizationId) {
@@ -473,134 +481,40 @@ let VideosService = class VideosService {
             const organization = await this.prisma.organization.findUnique({
                 where: { id: organizationId },
                 select: {
-                    cloudflareAccountId: true,
-                    cloudflareApiToken: true,
+                    muxTokenId: true,
+                    muxTokenSecret: true,
                 },
             });
-            const hasCredentials = !!(organization?.cloudflareAccountId && organization?.cloudflareApiToken);
+            if (!organization) {
+                throw new common_1.NotFoundException(`Organization not found`);
+            }
             return {
-                hasCredentials,
-                cloudflareAccountId: hasCredentials && organization?.cloudflareAccountId ? this.maskString(organization.cloudflareAccountId) : undefined,
+                success: true,
+                cloudflareAccountId: this.maskString(organization.muxTokenId || ''),
+                cloudflareApiToken: this.maskString(organization.muxTokenSecret || ''),
             };
         }
         catch (error) {
-            console.error('Error getting organization Cloudflare settings:', error);
-            throw new common_1.BadRequestException('Failed to get Cloudflare settings');
+            console.error('Error getting organization settings:', error);
+            throw new common_1.BadRequestException(`Failed to get settings: ${error.message}`);
         }
     }
     maskString(input) {
-        if (!input || input.length < 8)
+        if (!input || input.length < 4) {
             return input;
-        const firstFour = input.substring(0, 4);
-        const lastFour = input.substring(input.length - 4);
-        const maskedPart = '*'.repeat(4);
-        return `${firstFour}${maskedPart}${lastFour}`;
-    }
-    async getVideoForEmbed(uid, organizationId) {
-        try {
-            let baseUrl;
-            let apiToken;
-            if (organizationId) {
-                const credentials = await this.getCloudflareCredentials(organizationId);
-                baseUrl = credentials.baseUrl;
-                apiToken = credentials.apiToken;
-            }
-            else {
-                if (!this.defaultCloudflareAccountId || !this.defaultCloudflareApiToken) {
-                    throw new common_1.BadRequestException('Default Cloudflare credentials are not configured');
-                }
-                baseUrl = `https://api.cloudflare.com/client/v4/accounts/${this.defaultCloudflareAccountId}/stream`;
-                apiToken = this.defaultCloudflareApiToken;
-            }
-            const response = await (0, node_fetch_1.default)(`${baseUrl}/${uid}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                if (response.status === 404) {
-                    return {
-                        success: false,
-                        status: 404,
-                        message: `Video with UID ${uid} not found`,
-                        data: {
-                            result: []
-                        }
-                    };
-                }
-                return {
-                    success: false,
-                    status: response.status,
-                    message: data.errors?.[0]?.message || 'Error fetching video',
-                    data: {
-                        result: []
-                    }
-                };
-            }
-            if (!data.result.readyToStream) {
-                return {
-                    success: false,
-                    status: 400,
-                    message: 'Video is not ready to stream',
-                    data: {
-                        result: [{
-                                uid: data.result.uid,
-                                readyToStream: false,
-                                status: {
-                                    state: data.result.status?.state || 'processing'
-                                },
-                                playback: {
-                                    hls: '',
-                                    dash: ''
-                                }
-                            }]
-                    }
-                };
-            }
-            const videoDto = {
-                uid: data.result.uid,
-                thumbnail: data.result.thumbnail,
-                preview: data.result.preview,
-                readyToStream: data.result.readyToStream,
-                status: {
-                    state: data.result.status?.state || 'ready',
-                },
-                meta: data.result.meta,
-                duration: data.result.duration,
-                playback: {
-                    hls: data.result.playback?.hls || '',
-                    dash: data.result.playback?.dash || ''
-                }
-            };
-            return {
-                success: true,
-                status: 200,
-                message: 'Video retrieved successfully',
-                data: {
-                    result: [videoDto]
-                }
-            };
         }
-        catch (error) {
-            console.error('Error getting video for embed:', error);
-            return {
-                success: false,
-                status: 500,
-                message: `Failed to get video: ${error.message}`,
-                data: {
-                    result: []
-                }
-            };
-        }
+        const visiblePrefixLength = Math.min(3, Math.floor(input.length / 4));
+        const visibleSuffixLength = Math.min(3, Math.floor(input.length / 4));
+        return (input.substring(0, visiblePrefixLength) +
+            '*'.repeat(input.length - visiblePrefixLength - visibleSuffixLength) +
+            input.substring(input.length - visibleSuffixLength));
     }
 };
 exports.VideosService = VideosService;
-exports.VideosService = VideosService = __decorate([
+exports.VideosService = VideosService = VideosService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        mux_service_1.MuxService])
 ], VideosService);
 //# sourceMappingURL=videos.service.js.map

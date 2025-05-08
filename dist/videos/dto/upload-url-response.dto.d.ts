@@ -1,6 +1,7 @@
 export declare class UploadUrlResponseDto {
-    uploadURL: string;
-    uid: string;
+    success: boolean;
+    uploadUrl: string;
+    videoId: string;
 }
 export declare class GetUploadUrlResponseDto {
     success: boolean;
