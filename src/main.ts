@@ -6,10 +6,21 @@ import { ConfigService } from '@nestjs/config';
 import { HttpExceptionFilter, AllExceptionsFilter } from './common/exceptions/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import helmet from 'helmet';
+import { json } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  
+  // Configure raw body parser for webhooks
+  app.use(json({
+    verify: (req: any, res, buf) => {
+      // Store the raw body for webhook verification
+      if (req.url.includes('/api/webhooks/mux')) {
+        req.rawBody = buf;
+      }
+    }
+  }));
   
   // Add global validation pipe
   app.useGlobalPipes(

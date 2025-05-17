@@ -8,9 +8,17 @@ const config_1 = require("@nestjs/config");
 const http_exception_filter_1 = require("./common/exceptions/http-exception.filter");
 const transform_interceptor_1 = require("./common/interceptors/transform.interceptor");
 const helmet_1 = require("helmet");
+const express_1 = require("express");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
+    app.use((0, express_1.json)({
+        verify: (req, res, buf) => {
+            if (req.url.includes('/api/webhooks/mux')) {
+                req.rawBody = buf;
+            }
+        }
+    }));
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         transform: true,

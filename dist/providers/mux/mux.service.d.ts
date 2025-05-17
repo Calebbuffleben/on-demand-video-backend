@@ -20,5 +20,5 @@ export declare class MuxService {
         uploadUrl: string;
         videoId: string;
     }>;
-    checkUploadStatus(videoId: string, organizationId: string): Promise<any>;
+    checkUploadStatus(pendingVideoId: string, organizationId: string): Promise<any>;
 }

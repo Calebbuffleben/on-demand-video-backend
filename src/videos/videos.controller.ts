@@ -10,6 +10,7 @@ import {
   HttpCode,
   BadRequestException,
   Headers,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
@@ -20,9 +21,14 @@ import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
-import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
-import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
+import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoDto, EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
+import { Visibility } from '@prisma/client';
+import { Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { randomUUID } from 'crypto';
+import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 
 interface AuthenticatedRequest extends Request {
   organization: any;
@@ -33,7 +39,13 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth()
 @Controller('api/videos')
 export class VideosController {
-  constructor(private readonly videosService: VideosService) {}
+  private readonly logger = new Logger(VideosController.name);
+
+  constructor(
+    private readonly videosService: VideosService,
+    private readonly prismaService: PrismaService,
+    private readonly muxWebhookController: MuxWebhookController
+  ) {}
 
   @Get('organization')
   @ApiOperation({ summary: 'Get all videos for an organization' })
@@ -110,31 +122,19 @@ export class VideosController {
 
   @Public()
   @Post('webhook')
-  @ApiOperation({ summary: 'Webhook endpoint for Cloudflare Stream events' })
+  @ApiOperation({ summary: 'Webhook endpoint for Mux Stream events' })
   @ApiResponse({ status: 200, description: 'Webhook processed successfully.' })
-  async webhook(@Body() payload: any) {
+  async webhook(
+    @Body() payload: any, 
+    @Headers('mux-signature') signature: string
+  ) {
     // Here you would typically verify the webhook signature
-    // For production, implement signature verification using Cloudflare's webhook signing
     
-    try {
-      await this.videosService.handleCloudflareWebhook(payload);
-      return { success: true };
-    } catch (error) {
-      throw new BadRequestException('Failed to process webhook');
-    }
-  }
-
-  @Public()
-  @Post('mux-webhook')
-  @ApiOperation({ summary: 'Webhook endpoint for MUX events' })
-  @ApiResponse({ status: 200, description: 'Webhook processed successfully.' })
-  async muxWebhook(@Body() payload: any, @Headers('mux-signature') signature: string) {
-    // We will verify the signature in the service
     try {
       await this.videosService.handleMuxWebhook(payload, signature);
       return { success: true };
     } catch (error) {
-      throw new BadRequestException('Failed to process MUX webhook');
+      throw new BadRequestException('Failed to process webhook');
     }
   }
 
@@ -147,7 +147,10 @@ export class VideosController {
     @Body() dto: GetUploadUrlDto,
     @Req() req: AuthenticatedRequest
   ): Promise<GetUploadUrlResponseDto> {
-    const organizationId = req['organization'].id;
+    const organizationId = req['organization']?.id || dto.organizationId;
+    if (!organizationId) {
+      throw new BadRequestException('Organization ID is required');
+    }
     return this.videosService.getUploadUrl({ ...dto, organizationId });
   }
 
@@ -232,5 +235,224 @@ export class VideosController {
     // Extract organization ID from request if it exists
     const organizationId = req['organization']?.id;
     return this.videosService.getVideoForEmbed(uid, organizationId);
+  }
+
+  @Public()
+  @Post('test-upload')
+  @ApiOperation({ summary: 'Test endpoint to create a pending video and test the upload flow' })
+  @ApiResponse({ status: 201, description: 'Test upload created successfully.' })
+  async testUpload(@Body() dto: GetUploadUrlDto) {
+    this.logger.log(`Received test upload request with data: ${JSON.stringify(dto)}`);
+    
+    try {
+      // Ensure we have an organization ID
+      if (!dto.organizationId) {
+        throw new BadRequestException('Organization ID is required');
+      }
+      
+      // Create direct upload URL and PendingVideo
+      const result = await this.videosService.createDirectUploadUrl(
+        {
+          name: dto.name || 'Test Upload',
+          description: dto.description || 'Created by test endpoint',
+          visibility: dto.requireSignedURLs ? Visibility.PRIVATE : Visibility.PUBLIC,
+          tags: [],
+        },
+        dto.organizationId
+      );
+      
+      // Log for debugging
+      this.logger.log(`Test upload created successfully. PendingVideo ID: ${result.videoId}`);
+      
+      // Check if the PendingVideo exists
+      const pendingVideo = await this.prismaService.pendingVideo.findUnique({
+        where: { id: result.videoId },
+      });
+      
+      if (!pendingVideo) {
+        this.logger.error(`Failed to find PendingVideo with ID: ${result.videoId}`);
+        throw new InternalServerErrorException('Failed to create pending video');
+      }
+      
+      this.logger.log(`PendingVideo verified in database: ${JSON.stringify(pendingVideo)}`);
+      
+      // Format response
+      return {
+        success: true,
+        pendingVideoId: result.videoId,
+        uploadUrl: result.uploadUrl,
+        message: 'Test upload created successfully',
+      };
+    } catch (error) {
+      this.logger.error(`Error in test upload: ${error.message}`, error.stack);
+      throw new BadRequestException(`Test upload failed: ${error.message}`);
+    }
+  }
+
+  @Public()
+  @Post('test-pending-video')
+  @ApiOperation({ summary: 'Test endpoint for creating a pending video' })
+  @ApiResponse({ status: 201, description: 'Test pending video created.' })
+  async testPendingVideo(@Body() body: any) {
+    try {
+      this.logger.log(`Received request to create test pending video: ${JSON.stringify(body)}`);
+      
+      // Check for organization ID
+      if (!body.organizationId) {
+        throw new BadRequestException('Organization ID is required');
+      }
+      
+      // Verify organization exists
+      const organization = await this.prismaService.organization.findUnique({
+        where: { id: body.organizationId },
+      });
+      
+      if (!organization) {
+        this.logger.error(`Organization with ID ${body.organizationId} not found`);
+        throw new BadRequestException(`Organization not found`);
+      }
+      
+      // Generate ID for the pending video
+      const id = body.id || randomUUID();
+      const name = body.name || 'Test Video';
+      const muxUploadId = `test-upload-${Date.now()}`;
+      
+      // Create a pending video record with READY status
+      try {
+        this.logger.log(`Creating pending video with ID: ${id}`);
+        
+        const pendingVideo = await this.prismaService.pendingVideo.create({
+          data: {
+            id,
+            name,
+            description: '',
+            organizationId: body.organizationId,
+            muxUploadId,
+            muxAssetId: null,
+            tags: [],
+            visibility: 'PUBLIC',
+            status: 'READY', // Mark as READY to simulate an already processed upload
+          },
+        });
+        
+        this.logger.log(`Created pending video: ${pendingVideo.id}`);
+        
+        // Simulate webhook for processing the video
+        try {
+          this.logger.log(`Simulating webhook for test video ${pendingVideo.id}`);
+          
+          // Create a simulated webhook payload
+          const webhookPayload = {
+            type: 'video.asset.ready',
+            data: {
+              id: `test-asset-${Date.now()}`,
+              upload_id: muxUploadId,
+              playback_ids: [{ id: `test-playback-${Date.now()}` }],
+              passthrough: JSON.stringify({
+                organizationId: body.organizationId,
+                name: name,
+                id: id
+              }),
+            },
+          };
+          
+          // Send the webhook payload to the MUX webhook endpoint
+          await this.muxWebhookController.handleSimulatedWebhook(webhookPayload);
+          
+          this.logger.log(`Webhook simulation completed for test video ${pendingVideo.id}`);
+        } catch (webhookError) {
+          this.logger.error(`Error simulating webhook: ${webhookError.message}`, webhookError.stack);
+        }
+        
+        return {
+          success: true,
+          pendingVideoId: pendingVideo.id,
+          message: 'Test pending video created successfully',
+        };
+      } catch (error) {
+        this.logger.error(`Error creating test pending video: ${error.message}`, error.stack);
+        throw new BadRequestException(`Failed to create test pending video: ${error.message}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error in test-pending-video endpoint: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Public()
+  @Post('test-create-video')
+  @ApiOperation({ summary: 'Test endpoint for manually creating a video' })
+  @ApiResponse({ status: 201, description: 'Test video created.' })
+  async testCreateVideo(@Body() body: any) {
+    try {
+      this.logger.log(`Received request to manually create video: ${JSON.stringify(body)}`);
+      
+      // Check for required fields
+      if (!body.organizationId) {
+        throw new BadRequestException('Organization ID is required');
+      }
+      
+      // Verify organization exists
+      const organization = await this.prismaService.organization.findUnique({
+        where: { id: body.organizationId },
+      });
+      
+      if (!organization) {
+        this.logger.error(`Organization with ID ${body.organizationId} not found`);
+        throw new BadRequestException(`Organization not found`);
+      }
+      
+      // Create a Video record
+      try {
+        const videoData = {
+          id: body.id || randomUUID(),
+          name: body.name || 'Test Video',
+          description: body.description || '',
+          organizationId: body.organizationId,
+          status: body.status || 'READY',
+          muxAssetId: body.muxAssetId || `test-asset-${Date.now()}`,
+          muxPlaybackId: body.muxPlaybackId || `test-playback-${Date.now()}`,
+          muxUploadId: body.muxUploadId || `test-upload-${Date.now()}`,
+          thumbnailUrl: body.thumbnailUrl || `https://image.mux.com/${body.muxPlaybackId || `test-playback-${Date.now()}`}/thumbnail.jpg`,
+          playbackUrl: body.playbackUrl || `https://stream.mux.com/${body.muxPlaybackId || `test-playback-${Date.now()}`}.m3u8`,
+          tags: body.tags || [],
+          visibility: body.visibility || 'PUBLIC',
+          duration: body.duration || 0,
+        };
+        
+        this.logger.log(`Creating video with data: ${JSON.stringify(videoData)}`);
+        
+        // Delete existing PendingVideo with same ID if it exists
+        if (body.id) {
+          try {
+            await this.prismaService.pendingVideo.delete({
+              where: { id: body.id },
+            });
+            this.logger.log(`Deleted existing PendingVideo with ID ${body.id}`);
+          } catch (error) {
+            this.logger.log(`No existing PendingVideo with ID ${body.id} found to delete`);
+          }
+        }
+        
+        // Create the Video
+        const video = await this.prismaService.video.create({
+          data: videoData,
+        });
+        
+        this.logger.log(`Created video with ID: ${video.id}`);
+        
+        return {
+          success: true,
+          message: 'Video created successfully',
+          video,
+        };
+      } catch (error) {
+        this.logger.error(`Error creating video: ${error.message}`, error.stack);
+        throw new BadRequestException(`Failed to create video: ${error.message}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error in test-create-video endpoint: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 } 

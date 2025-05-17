@@ -4,16 +4,21 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
 import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
-import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
+import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
 }
 export declare class VideosController {
     private readonly videosService;
-    constructor(videosService: VideosService);
+    private readonly prismaService;
+    private readonly muxWebhookController;
+    private readonly logger;
+    constructor(videosService: VideosService, prismaService: PrismaService, muxWebhookController: MuxWebhookController);
     findAllOrganizationVideos(req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
@@ -25,14 +30,14 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        muxAssetId: string | null;
-        muxPlaybackId: string | null;
         muxUploadId: string | null;
+        muxAssetId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
         price: number | null;
         currency: string | null;
+        muxPlaybackId: string | null;
     }[]>;
     testCloudflareConnection(): Promise<any>;
     findOrgVideo(id: string, req: AuthenticatedRequest): Promise<{
@@ -46,14 +51,14 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        muxAssetId: string | null;
-        muxPlaybackId: string | null;
         muxUploadId: string | null;
+        muxAssetId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
         price: number | null;
         currency: string | null;
+        muxPlaybackId: string | null;
     }>;
     createOrgUploadUrl(createVideoDto: CreateVideoDto, req: AuthenticatedRequest): Promise<{
         uploadUrl: string;
@@ -70,14 +75,14 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        muxAssetId: string | null;
-        muxPlaybackId: string | null;
         muxUploadId: string | null;
+        muxAssetId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
         price: number | null;
         currency: string | null;
+        muxPlaybackId: string | null;
     }>;
     removeOrgVideo(id: string, req: AuthenticatedRequest): Promise<void>;
     syncOrgVideoStatus(id: string, req: AuthenticatedRequest): Promise<{
@@ -91,19 +96,16 @@ export declare class VideosController {
         visibility: import(".prisma/client").$Enums.Visibility;
         status: import(".prisma/client").$Enums.VideoStatus;
         duration: number | null;
-        muxAssetId: string | null;
-        muxPlaybackId: string | null;
         muxUploadId: string | null;
+        muxAssetId: string | null;
         thumbnailUrl: string | null;
         playbackUrl: string | null;
         isLive: boolean;
         price: number | null;
         currency: string | null;
+        muxPlaybackId: string | null;
     }>;
-    webhook(payload: any): Promise<{
-        success: boolean;
-    }>;
-    muxWebhook(payload: any, signature: string): Promise<{
+    webhook(payload: any, signature: string): Promise<{
         success: boolean;
     }>;
     getCloudflareUploadUrl(dto: GetUploadUrlDto, req: AuthenticatedRequest): Promise<GetUploadUrlResponseDto>;
@@ -111,8 +113,43 @@ export declare class VideosController {
     getAllCloudflareVideos(): Promise<VideoListResponseDto>;
     getVideoByUid(uid: string): Promise<SingleVideoResponseDto>;
     testOrgCloudflare(req: AuthenticatedRequest): Promise<any>;
-    updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
-    getOrgCloudflareSettings(req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
+    updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, req: AuthenticatedRequest): Promise<CloudflareSettingsResponseDto>;
+    getOrgCloudflareSettings(req: AuthenticatedRequest): Promise<CloudflareSettingsResponseDto>;
     getVideoForEmbed(uid: string, req: Request): Promise<EmbedVideoResponseDto>;
+    testUpload(dto: GetUploadUrlDto): Promise<{
+        success: boolean;
+        pendingVideoId: string;
+        uploadUrl: string;
+        message: string;
+    }>;
+    testPendingVideo(body: any): Promise<{
+        success: boolean;
+        pendingVideoId: string;
+        message: string;
+    }>;
+    testCreateVideo(body: any): Promise<{
+        success: boolean;
+        message: string;
+        video: {
+            tags: string[];
+            description: string | null;
+            organizationId: string;
+            name: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            visibility: import(".prisma/client").$Enums.Visibility;
+            status: import(".prisma/client").$Enums.VideoStatus;
+            duration: number | null;
+            muxUploadId: string | null;
+            muxAssetId: string | null;
+            thumbnailUrl: string | null;
+            playbackUrl: string | null;
+            isLive: boolean;
+            price: number | null;
+            currency: string | null;
+            muxPlaybackId: string | null;
+        };
+    }>;
 }
 export {};

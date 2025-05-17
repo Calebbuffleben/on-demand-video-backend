@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.VideoStatusResponseDto = exports.VideoMetaDto = exports.VideoPlaybackDto = void 0;
+exports.VideoStatusResponseDto = exports.VideoDetailsDto = exports.VideoStatusDto = exports.VideoMetaDto = exports.VideoPlaybackDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 class VideoPlaybackDto {
     hls;
@@ -32,16 +32,60 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Video name' }),
     __metadata("design:type", String)
 ], VideoMetaDto.prototype, "name", void 0);
-class VideoStatusResponseDto {
-    success;
+class VideoStatusDto {
+    state;
+}
+exports.VideoStatusDto = VideoStatusDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Current state of the video (processing, ready, error, etc)' }),
+    __metadata("design:type", String)
+], VideoStatusDto.prototype, "state", void 0);
+class VideoDetailsDto {
+    uid;
     readyToStream;
     status;
     thumbnail;
     preview;
     playback;
     meta;
-    uid;
     duration;
+}
+exports.VideoDetailsDto = VideoDetailsDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video unique identifier' }),
+    __metadata("design:type", String)
+], VideoDetailsDto.prototype, "uid", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Whether the video is ready to stream' }),
+    __metadata("design:type", Boolean)
+], VideoDetailsDto.prototype, "readyToStream", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video status details', type: VideoStatusDto }),
+    __metadata("design:type", VideoStatusDto)
+], VideoDetailsDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video thumbnail URL' }),
+    __metadata("design:type", String)
+], VideoDetailsDto.prototype, "thumbnail", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video preview URL' }),
+    __metadata("design:type", String)
+], VideoDetailsDto.prototype, "preview", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video playback URLs', type: VideoPlaybackDto }),
+    __metadata("design:type", VideoPlaybackDto)
+], VideoDetailsDto.prototype, "playback", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video metadata', type: VideoMetaDto }),
+    __metadata("design:type", VideoMetaDto)
+], VideoDetailsDto.prototype, "meta", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video duration in seconds' }),
+    __metadata("design:type", Number)
+], VideoDetailsDto.prototype, "duration", void 0);
+class VideoStatusResponseDto {
+    success;
+    video;
 }
 exports.VideoStatusResponseDto = VideoStatusResponseDto;
 __decorate([
@@ -49,35 +93,7 @@ __decorate([
     __metadata("design:type", Boolean)
 ], VideoStatusResponseDto.prototype, "success", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Whether the video is ready to stream' }),
-    __metadata("design:type", Boolean)
-], VideoStatusResponseDto.prototype, "readyToStream", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Current status of the video' }),
-    __metadata("design:type", String)
-], VideoStatusResponseDto.prototype, "status", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video thumbnail URL' }),
-    __metadata("design:type", String)
-], VideoStatusResponseDto.prototype, "thumbnail", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video preview URL' }),
-    __metadata("design:type", String)
-], VideoStatusResponseDto.prototype, "preview", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video playback URLs', type: VideoPlaybackDto }),
-    __metadata("design:type", VideoPlaybackDto)
-], VideoStatusResponseDto.prototype, "playback", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video metadata', type: VideoMetaDto }),
-    __metadata("design:type", VideoMetaDto)
-], VideoStatusResponseDto.prototype, "meta", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video unique identifier' }),
-    __metadata("design:type", String)
-], VideoStatusResponseDto.prototype, "uid", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video duration in seconds' }),
-    __metadata("design:type", Number)
-], VideoStatusResponseDto.prototype, "duration", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Video details', type: VideoDetailsDto }),
+    __metadata("design:type", VideoDetailsDto)
+], VideoStatusResponseDto.prototype, "video", void 0);
 //# sourceMappingURL=video-status-response.dto.js.map

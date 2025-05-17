@@ -5,14 +5,20 @@ export declare class VideoPlaybackDto {
 export declare class VideoMetaDto {
     name: string;
 }
-export declare class VideoStatusResponseDto {
-    success: boolean;
+export declare class VideoStatusDto {
+    state: string;
+}
+export declare class VideoDetailsDto {
+    uid: string;
     readyToStream: boolean;
-    status: string;
+    status: VideoStatusDto;
     thumbnail: string;
     preview: string;
     playback: VideoPlaybackDto;
     meta: VideoMetaDto;
-    uid: string;
     duration: number;
+}
+export declare class VideoStatusResponseDto {
+    success: boolean;
+    video: VideoDetailsDto;
 }

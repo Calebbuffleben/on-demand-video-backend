@@ -10,6 +10,7 @@ exports.MuxModule = void 0;
 const common_1 = require("@nestjs/common");
 const mux_service_1 = require("./mux.service");
 const mux_controller_1 = require("./mux.controller");
+const mux_webhook_controller_1 = require("./mux-webhook.controller");
 const prisma_module_1 = require("../../prisma/prisma.module");
 let MuxModule = class MuxModule {
 };
@@ -17,9 +18,9 @@ exports.MuxModule = MuxModule;
 exports.MuxModule = MuxModule = __decorate([
     (0, common_1.Module)({
         imports: [prisma_module_1.PrismaModule],
-        controllers: [mux_controller_1.MuxController],
-        providers: [mux_service_1.MuxService],
-        exports: [mux_service_1.MuxService],
+        controllers: [mux_controller_1.MuxController, mux_webhook_controller_1.MuxWebhookController],
+        providers: [mux_service_1.MuxService, mux_webhook_controller_1.MuxWebhookController],
+        exports: [mux_service_1.MuxService, mux_webhook_controller_1.MuxWebhookController],
     })
 ], MuxModule);
 //# sourceMappingURL=mux.module.js.map

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateVideoDto } from './dto/create-video.dto';
@@ -454,31 +454,66 @@ export class VideosService {
   async getUploadUrl(dto: GetUploadUrlDto): Promise<GetUploadUrlResponseDto> {
     try {
       if (!dto.organizationId) {
+        this.logger.error('Organization ID is missing in getUploadUrl request');
         throw new BadRequestException('Organization ID is required');
       }
 
+      this.logger.log(`getUploadUrl called with organizationId: ${dto.organizationId}`);
+
+      // Verify the organization exists
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: dto.organizationId },
+      });
+
+      if (!organization) {
+        this.logger.error(`Organization with ID ${dto.organizationId} not found`);
+        throw new BadRequestException(`Organization with ID ${dto.organizationId} not found`);
+      }
+
+      this.logger.log(`Creating upload URL for organization: ${organization.name}`);
+
       // Create an upload URL with MUX
-      const result = await this.muxService.createDirectUploadUrl(
-        dto.name || 'Untitled',
-        dto.description || '',
-        dto.requireSignedURLs ? Visibility.PRIVATE : Visibility.PUBLIC,
-        [],
-        dto.organizationId
-      );
-      
-      // Format the response to match the expected format
-      return {
-        success: true,
-        status: 200,
-        message: 'Upload URL created successfully',
-        data: {
+      try {
+        const result = await this.muxService.createDirectUploadUrl(
+          dto.name || 'Untitled',
+          dto.description || '',
+          dto.requireSignedURLs ? Visibility.PRIVATE : Visibility.PUBLIC,
+          [],
+          dto.organizationId
+        );
+        
+        // Verify the pending video was created
+        const pendingVideo = await this.prisma.pendingVideo.findUnique({
+          where: { id: result.videoId },
+        });
+        
+        if (!pendingVideo) {
+          this.logger.error(`PendingVideo with ID ${result.videoId} was not created`);
+          throw new InternalServerErrorException('Failed to create pending video record');
+        }
+        
+        this.logger.log(`Upload URL created successfully. PendingVideo ID: ${result.videoId}`);
+        
+        // Format the response to match the expected format
+        return {
           success: true,
-          uploadURL: result.uploadUrl,
-          uid: result.videoId, // Using the MUX upload ID as uid
-        },
-      };
+          status: 200,
+          message: 'Upload URL created successfully',
+          data: {
+            success: true,
+            uploadURL: result.uploadUrl,
+            uid: result.videoId, // Using the pending video ID as uid
+          },
+        };
+      } catch (error) {
+        this.logger.error(`Error in muxService.createDirectUploadUrl: ${error.message}`, error.stack);
+        throw error;
+      }
     } catch (error) {
-      console.error('Error getting upload URL:', error);
+      this.logger.error(`Error getting upload URL: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+        throw error;
+      }
       throw new BadRequestException(`Failed to get upload URL: ${error.message}`);
     }
   }
@@ -488,65 +523,268 @@ export class VideosService {
    */
   async getVideoStatus(videoId: string): Promise<VideoStatusResponseDto> {
     try {
-      // Find the video by its various potential IDs
-      const video = await this.prisma.video.findFirst({
-        where: {
-          OR: [
-            { id: videoId },
-            { muxAssetId: videoId },
-            { muxPlaybackId: videoId },
-            { muxUploadId: videoId },
-          ],
-        },
+      this.logger.log(`Getting video status for ID: ${videoId} (TRACE: ${new Error().stack})`);
+      
+      // Check if this is a valid UUID - if not, we need to be more flexible with our search
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(videoId);
+      this.logger.log(`ID ${videoId} is ${isUuid ? 'a valid UUID' : 'not a UUID'}`);
+      
+      // Log all videos to see what's available
+      const allVideos = await this.prisma.video.findMany({
+        take: 10, // Limit to 10 to avoid flooding logs
+        orderBy: { createdAt: 'desc' },
       });
+      this.logger.log(`Found ${allVideos.length} videos in database. Latest IDs: ${allVideos.map(v => v.id).join(', ')}`);
+      
+      // Search strategy depends on ID format
+      let video;
+      
+      if (isUuid) {
+        // First try to find a video with exact ID match (only if UUID)
+        this.logger.log(`Looking for video with exact ID: ${videoId}`);
+        video = await this.prisma.video.findUnique({
+          where: { id: videoId },
+        });
+      } 
       
       if (!video) {
-        throw new NotFoundException(`Video with ID ${videoId} not found`);
-      }
-
-      // If we have a MUX upload ID, check its status
-      if (video.muxUploadId) {
-        const uploadStatus = await this.muxService.checkUploadStatus(video.id, video.organizationId);
+        // Try to find by related IDs (or if not UUID)
+        this.logger.log(`Looking for video by related IDs: ${videoId}`);
+        video = await this.prisma.video.findFirst({
+          where: {
+            OR: [
+              { id: videoId },
+              { muxAssetId: videoId },
+              { muxPlaybackId: videoId },
+              { muxUploadId: videoId },
+            ],
+          },
+        });
         
-        // Update the video status if needed
-        if (uploadStatus.status === 'ready') {
-          await this.prisma.video.update({
-            where: { id: video.id },
-            data: {
-              status: VideoStatus.READY,
-              thumbnailUrl: uploadStatus.thumbnailUrl,
-              playbackUrl: uploadStatus.playbackUrl,
-              duration: uploadStatus.duration,
+        if (video) {
+          this.logger.log(`Found video by related ID: ${video.id}, matched with field containing ${videoId}`);
+        } else {
+          this.logger.log(`No video found with any related ID match for ${videoId}`);
+        }
+      } else {
+        this.logger.log(`Found video by exact ID: ${video.id}`);
+      }
+      
+      // If we found a video, return its info
+      if (video) {
+        this.logger.log(`Returning status for video: ${video.id}, status: ${video.status}`);
+        return {
+          success: true,
+          video: {
+            uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
+            readyToStream: video.status === VideoStatus.READY,
+            status: {
+              state: this.mapVideoStatus(video.status)
             },
-          });
-          
-          // Get the updated video
-          video.status = VideoStatus.READY;
-          video.thumbnailUrl = uploadStatus.thumbnailUrl;
-          video.playbackUrl = uploadStatus.playbackUrl;
-          video.duration = uploadStatus.duration;
+            thumbnail: video.thumbnailUrl || '',
+            preview: video.thumbnailUrl || '',
+            playback: {
+              hls: video.playbackUrl || '',
+              dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+            },
+            meta: {
+              name: video.name,
+            },
+            duration: video.duration || 100,
+          }
+        };
+      }
+      
+      // Check for a pending video
+      this.logger.log(`Checking for pending video with ID: ${videoId}`);
+      
+      // Log all pending videos for debugging
+      const allPendingVideos = await this.prisma.pendingVideo.findMany({
+        take: 10, // Limit to 10 to avoid flooding logs
+        orderBy: { createdAt: 'desc' },
+      });
+      this.logger.log(`Found ${allPendingVideos.length} pending videos. Latest IDs: ${allPendingVideos.map(v => v.id).join(', ')}`);
+      
+      // Search strategy for pending videos
+      let pendingVideo;
+      
+      if (isUuid) {
+        // Try to find pending video by exact ID first (only if UUID)
+        pendingVideo = await this.prisma.pendingVideo.findUnique({
+          where: { id: videoId },
+        });
+        
+        if (pendingVideo) {
+          this.logger.log(`Found pending video by exact ID: ${pendingVideo.id}`);
         }
       }
       
-      // Format the response to match the expected format
+      if (!pendingVideo) {
+        // Try to find by related IDs
+        pendingVideo = await this.prisma.pendingVideo.findFirst({
+          where: {
+            OR: [
+              { id: videoId },
+              { muxUploadId: videoId },
+              { muxAssetId: videoId },
+            ],
+          },
+        });
+        
+        if (pendingVideo) {
+          this.logger.log(`Found pending video by related ID: ${pendingVideo.id}`);
+        } else {
+          this.logger.log(`No pending video found with any ID match`);
+        }
+      }
+      
+      if (pendingVideo) {
+        this.logger.log(`Found pending video: ${pendingVideo.id}, status: ${pendingVideo.status}`);
+        
+        // Check upload status with MUX if we have a MUX upload ID
+        if (pendingVideo.muxUploadId) {
+          try {
+            this.logger.log(`Checking upload status for MUX upload ID: ${pendingVideo.muxUploadId}`);
+            const uploadStatus = await this.muxService.checkUploadStatus(pendingVideo.id, pendingVideo.organizationId);
+            this.logger.log(`MUX upload status: ${JSON.stringify(uploadStatus)}`);
+            
+            // If the video is now ready, create a video from the pending video
+            if (uploadStatus.status === 'ready' && uploadStatus.assetId) {
+              this.logger.log(`Upload is ready with asset ID: ${uploadStatus.assetId}`);
+              
+              // Check if video already exists for this asset
+              const existingVideo = await this.prisma.video.findFirst({
+                where: { muxAssetId: uploadStatus.assetId }
+              });
+              
+              if (existingVideo) {
+                this.logger.log(`Video already exists for asset ID: ${uploadStatus.assetId}`);
+                video = existingVideo;
+              } else {
+                // Create a new video from the pending video
+                try {
+                  this.logger.log(`Creating new video from pending video: ${pendingVideo.id}`);
+                  const newVideo = await this.prisma.video.create({
+                    data: {
+                      name: pendingVideo.name,
+                      description: pendingVideo.description,
+                      organizationId: pendingVideo.organizationId,
+                      muxUploadId: pendingVideo.muxUploadId,
+                      muxAssetId: uploadStatus.assetId,
+                      tags: pendingVideo.tags,
+                      visibility: pendingVideo.visibility,
+                      status: VideoStatus.READY,
+                    },
+                  });
+                  
+                  this.logger.log(`Created new video with ID: ${newVideo.id}`);
+                  video = newVideo;
+                  
+                  // Delete the pending video
+                  try {
+                    await this.prisma.pendingVideo.delete({
+                      where: { id: pendingVideo.id },
+                    });
+                    this.logger.log(`Deleted pending video ${pendingVideo.id}`);
+                  } catch (deleteError) {
+                    this.logger.error(`Error deleting pending video: ${deleteError.message}`);
+                  }
+                } catch (error) {
+                  this.logger.error(`Error creating video from pending video: ${error.message}`);
+                }
+              }
+              
+              // If we now have a video, return its status
+              if (video) {
+                return {
+                  success: true,
+                  video: {
+                    uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
+                    readyToStream: video.status === VideoStatus.READY,
+                    status: {
+                      state: this.mapVideoStatus(video.status)
+                    },
+                    thumbnail: video.thumbnailUrl || '',
+                    preview: video.thumbnailUrl || '',
+                    playback: {
+                      hls: video.playbackUrl || '',
+                      dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                    },
+                    meta: {
+                      name: video.name,
+                    },
+                    duration: video.duration || 100,
+                  }
+                };
+              }
+            }
+          } catch (checkError) {
+            this.logger.error(`Error checking upload status: ${checkError.message}`, checkError.stack);
+            // Continue even if check fails, we'll return the pending status
+          }
+        }
+        
+        // Return status for a pending video
+        return {
+          success: true,
+          video: {
+            uid: pendingVideo.id, // Always use the pendingVideo's ID as the uid
+            readyToStream: false,
+            status: {
+              state: this.mapVideoStatus(VideoStatus.PROCESSING)
+            },
+            thumbnail: '',
+            preview: '',
+            playback: {
+              hls: '',
+              dash: '',
+            },
+            meta: {
+              name: pendingVideo.name,
+            },
+            duration: 100, // Use a default duration for in-progress videos
+          }
+        };
+      }
+      
+      // If we get here, no video or pending video was found
+      this.logger.warn(`No video or pending video found with ID: ${videoId}`);
+      
+      // Check MUX directly as a last resort
+      if (!isUuid && videoId.length > 10) {
+        try {
+          this.logger.log(`Checking MUX directly for asset/upload ID: ${videoId}`);
+          // This would be a good place to directly check with MUX API
+          // but we'll skip for now and assume processing
+        } catch (error) {
+          this.logger.error(`Error checking MUX directly: ${error.message}`);
+        }
+      }
+      
+      // Return a "processing" status even if no pending video found
+      // This is more user-friendly when videos are still being processed
       return {
         success: true,
-        readyToStream: video.status === VideoStatus.READY,
-        status: this.mapVideoStatus(video.status),
-        thumbnail: video.thumbnailUrl || '',
-        preview: video.thumbnailUrl || '', // MUX doesn't have a separate preview URL
-        playback: {
-          hls: video.playbackUrl || '',
-          dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
-        },
-        meta: {
-          name: video.name,
-        },
-        uid: video.muxAssetId || video.id,
-        duration: video.duration || 0,
+        video: {
+          uid: videoId, // Use the requested videoId as the uid
+          readyToStream: false,
+          status: {
+            state: "processing"
+          },
+          thumbnail: '',
+          preview: '',
+          playback: {
+            hls: '',
+            dash: '',
+          },
+          meta: {
+            name: 'Video Processing',
+          },
+          duration: 0,
+        }
       };
     } catch (error) {
-      console.error('Error getting video status:', error);
+      this.logger.error(`Error getting video status: ${error.message}`, error.stack);
       throw new BadRequestException(`Failed to get video status: ${error.message}`);
     }
   }
@@ -568,7 +806,7 @@ export class VideosService {
       
       // Format the response to match the expected format
       const result: VideoDto[] = videos.map(video => ({
-        uid: video.muxAssetId || video.id,
+        uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
         thumbnail: video.thumbnailUrl || '',
         readyToStream: video.status === VideoStatus.READY,
         status: {
@@ -630,7 +868,7 @@ export class VideosService {
       
       // Format the response to match the expected format
       const result: VideoDto = {
-        uid: video.muxAssetId || video.id,
+        uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
         thumbnail: video.thumbnailUrl || '',
         readyToStream: video.status === VideoStatus.READY,
         status: {

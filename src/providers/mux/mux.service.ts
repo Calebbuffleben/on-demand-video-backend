@@ -150,78 +150,144 @@ export class MuxService {
    */
   async createDirectUploadUrl(name: string, description: string, visibility: Visibility, tags: string[], organizationId: string): Promise<{ uploadUrl: string; videoId: string }> {
     try {
+      this.logger.log(`Creating direct upload URL for organization ${organizationId} with name "${name}"`);
+      
       // Verify organization exists
+      this.logger.log(`Checking if organization ${organizationId} exists...`);
       const organization = await this.prismaService.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
+        this.logger.error(`Organization with ID ${organizationId} not found`);
         throw new BadRequestException(`Organization with ID ${organizationId} not found`);
       }
+      this.logger.log(`Organization found: ${organization.name}`);
 
       // Get MUX credentials
+      this.logger.log(`Getting MUX credentials for organization ${organizationId}...`);
       const { tokenId, tokenSecret } = await this.getMuxCredentials(organizationId);
       
+      this.logger.log(`Using MUX credentials for organization ${organizationId} - Token ID: ${tokenId.substring(0, 5)}...`);
+      
       // Initialize MUX client with credentials
+      this.logger.log(`Initializing MUX client...`);
       const muxClient = new Mux({
         tokenId,
         tokenSecret,
       });
       
       // Create a direct upload with MUX
-      const upload = await muxClient.video.uploads.create({
-        cors_origin: 'https://*',
-        new_asset_settings: {
-          playback_policy: visibility === Visibility.PRIVATE ? ['signed'] : ['public'],
-          passthrough: JSON.stringify({
-            name,
-            description,
-            tags,
-            organizationId,
-          })
-        }
-      });
+      this.logger.log('Creating direct upload with MUX...');
+      let upload;
+      try {
+        upload = await muxClient.video.uploads.create({
+          cors_origin: '*', // Allow any origin for testing
+          new_asset_settings: {
+            playback_policy: visibility === Visibility.PRIVATE ? ['signed'] : ['public'],
+            passthrough: JSON.stringify({
+              name,
+              description,
+              tags,
+              organizationId,
+            })
+          }
+        });
+        
+        this.logger.log(`MUX upload created with ID: ${upload.id}`);
+      } catch (muxError) {
+        this.logger.error(`Error creating MUX upload: ${muxError.message}`, muxError.stack);
+        throw new BadRequestException(`Failed to create MUX upload: ${muxError.message}`);
+      }
 
-      // Create a record in our database
-      const video = await this.prismaService.video.create({
-        data: {
-          name,
-          description,
-          muxUploadId: upload.id,
-          tags: tags || [],
-          visibility: visibility || Visibility.PUBLIC,
-          status: VideoStatus.PROCESSING,
-          organizationId,
-          thumbnailUrl: null,
-          playbackUrl: null,
-        },
+      // Use a transaction to ensure data consistency - either both operations succeed or both fail
+      this.logger.log(`Creating pending video record in database using transaction...`);
+      let pendingVideo;
+      try {
+        pendingVideo = await this.prismaService.$transaction(async (prisma) => {
+          // First check if a pending video already exists with this upload ID
+          const existing = await prisma.pendingVideo.findFirst({
+            where: { muxUploadId: upload.id }
+          });
+          
+          if (existing) {
+            this.logger.log(`Found existing pending video with upload ID ${upload.id}: ${existing.id}`);
+            return existing;
+          }
+          
+          // Create the pending video
+          const newPendingVideo = await prisma.pendingVideo.create({
+            data: {
+              name,
+              description,
+              muxUploadId: upload.id,
+              tags: tags || [],
+              visibility: visibility || Visibility.PUBLIC,
+              status: VideoStatus.PROCESSING,
+              organizationId,
+            },
+          });
+          
+          this.logger.log(`Created new pending video with ID: ${newPendingVideo.id}`);
+          return newPendingVideo;
+        });
+      } catch (dbError) {
+        this.logger.error(`Transaction failed when creating pending video: ${dbError.message}`, dbError.stack);
+        throw new BadRequestException(`Failed to create pending video record: ${dbError.message}`);
+      }
+      
+      // Verify the pending video was created
+      if (!pendingVideo || !pendingVideo.id) {
+        this.logger.error(`PendingVideo creation failed for upload ID: ${upload.id}`);
+        throw new BadRequestException('Failed to create pending video record');
+      }
+      
+      this.logger.log(`Pending video created with ID: ${pendingVideo.id} for MUX upload ID: ${upload.id}`);
+      
+      // Double-check that it exists in the database
+      const checkPendingVideo = await this.prismaService.pendingVideo.findUnique({
+        where: { id: pendingVideo.id }
       });
+      
+      if (!checkPendingVideo) {
+        this.logger.error(`PendingVideo with ID ${pendingVideo.id} not found in database verification check!`);
+      } else {
+        this.logger.log(`PendingVideo verified in database: ${checkPendingVideo.id}`);
+      }
 
       return {
         uploadUrl: upload.url,
-        videoId: upload.id,
+        videoId: pendingVideo.id, // Return the pending video ID
       };
     } catch (error) {
-      this.logger.error('Error creating direct upload URL:', error);
-      throw new BadRequestException('Failed to create upload URL');
+      this.logger.error(`Error creating direct upload URL: ${error.message}`, error.stack);
+      if (error.message.includes('organization')) {
+        throw new BadRequestException(`Failed to create upload URL: Organization issue - ${error.message}`);
+      } else if (error.message.includes('credentials')) {
+        throw new BadRequestException(`Failed to create upload URL: Credential issue - ${error.message}`);
+      } else if (error instanceof Error) {
+        throw new BadRequestException(`Failed to create upload URL: ${error.message}`);
+      } else {
+        throw new BadRequestException('Failed to create upload URL: Unknown error');
+      }
     }
   }
 
   /**
    * Check the status of a MUX upload and update the video record
    */
-  async checkUploadStatus(videoId: string, organizationId: string): Promise<any> {
+  async checkUploadStatus(pendingVideoId: string, organizationId: string): Promise<any> {
     try {
-      // Find the video
-      const video = await this.prismaService.video.findUnique({
-        where: { id: videoId },
+      // Find the pending video
+      const pendingVideo = await this.prismaService.pendingVideo.findUnique({
+        where: { id: pendingVideoId },
       });
 
-      if (!video) {
-        throw new BadRequestException(`Video with ID ${videoId} not found`);
+      if (!pendingVideo) {
+        throw new BadRequestException(`Pending video with ID ${pendingVideoId} not found`);
       }
 
-      if (video.organizationId !== organizationId) {
+      if (pendingVideo.organizationId !== organizationId) {
         throw new BadRequestException('You do not have access to this video');
       }
 
@@ -235,40 +301,25 @@ export class MuxService {
       });
 
       // Check upload status
-      if (video.muxUploadId) {
-        const upload = await muxClient.video.uploads.retrieve(video.muxUploadId);
+      if (pendingVideo.muxUploadId) {
+        const upload = await muxClient.video.uploads.retrieve(pendingVideo.muxUploadId);
         
-        // If the upload has an asset ID, update the video record
+        // If the upload has an asset ID, update the pending video record
         if (upload.asset_id) {
           const asset = await muxClient.video.assets.retrieve(upload.asset_id);
           
-          // Create a playback ID if the asset doesn't have one
-          let playbackId = asset.playback_ids?.[0]?.id;
-          
-          if (!playbackId) {
-            const playbackResponse = await muxClient.video.assets.createPlaybackId(asset.id, {
-              policy: video.visibility === Visibility.PRIVATE ? 'signed' : 'public',
-            });
-            playbackId = playbackResponse.id;
-          }
-          
-          // Update the video record
-          await this.prismaService.video.update({
-            where: { id: video.id },
+          // Update the pending video with asset ID
+          await this.prismaService.pendingVideo.update({
+            where: { id: pendingVideo.id },
             data: {
               muxAssetId: asset.id,
-              muxPlaybackId: playbackId,
-              status: asset.status === 'ready' ? VideoStatus.READY : VideoStatus.PROCESSING,
-              thumbnailUrl: asset.status === 'ready' ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : null,
-              playbackUrl: asset.status === 'ready' ? `https://stream.mux.com/${playbackId}.m3u8` : null,
-              duration: Math.round(asset.duration || 0),
             },
           });
           
+          // We only return status information, the webhook will handle creating the actual video
           return {
             status: asset.status,
             assetId: asset.id,
-            playbackId: playbackId,
             ready: asset.status === 'ready',
           };
         }

@@ -14,15 +14,20 @@ export class VideoMetaDto {
   name: string;
 }
 
-export class VideoStatusResponseDto {
-  @ApiProperty({ description: 'Whether the operation was successful' })
-  success: boolean;
+export class VideoStatusDto {
+  @ApiProperty({ description: 'Current state of the video (processing, ready, error, etc)' })
+  state: string;
+}
+
+export class VideoDetailsDto {
+  @ApiProperty({ description: 'Video unique identifier' })
+  uid: string;
 
   @ApiProperty({ description: 'Whether the video is ready to stream' })
   readyToStream: boolean;
 
-  @ApiProperty({ description: 'Current status of the video' })
-  status: string;
+  @ApiProperty({ description: 'Video status details', type: VideoStatusDto })
+  status: VideoStatusDto;
 
   @ApiProperty({ description: 'Video thumbnail URL' })
   thumbnail: string;
@@ -36,9 +41,14 @@ export class VideoStatusResponseDto {
   @ApiProperty({ description: 'Video metadata', type: VideoMetaDto })
   meta: VideoMetaDto;
 
-  @ApiProperty({ description: 'Video unique identifier' })
-  uid: string;
-
   @ApiProperty({ description: 'Video duration in seconds' })
   duration: number;
+}
+
+export class VideoStatusResponseDto {
+  @ApiProperty({ description: 'Whether the operation was successful' })
+  success: boolean;
+
+  @ApiProperty({ description: 'Video details', type: VideoDetailsDto })
+  video: VideoDetailsDto;
 } 
