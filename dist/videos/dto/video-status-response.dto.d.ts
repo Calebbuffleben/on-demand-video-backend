@@ -1,9 +1,13 @@
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
 export declare class VideoPlaybackDto {
     hls: string;
     dash: string;
 }
 export declare class VideoMetaDto {
     name: string;
+    displayOptions?: VideoDisplayOptionsDto;
+    embedOptions?: VideoEmbedOptionsDto;
 }
 export declare class VideoStatusDto {
     state: string;

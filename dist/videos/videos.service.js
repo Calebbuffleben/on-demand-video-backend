@@ -79,14 +79,30 @@ let VideosService = VideosService_1 = class VideosService {
     }
     async update(id, updateVideoDto, organizationId) {
         const video = await this.findOne(id, organizationId);
+        const { displayOptions, embedOptions, ...basicData } = updateVideoDto;
+        const updateData = {
+            ...basicData,
+        };
+        if (displayOptions) {
+            updateData.showProgressBar = displayOptions.showProgressBar;
+            updateData.showTitle = displayOptions.showTitle;
+            updateData.showPlaybackControls = displayOptions.showPlaybackControls;
+            updateData.autoPlay = displayOptions.autoPlay;
+            updateData.muted = displayOptions.muted;
+            updateData.loop = displayOptions.loop;
+        }
+        if (embedOptions) {
+            updateData.showVideoTitle = embedOptions.showVideoTitle;
+            updateData.showUploadDate = embedOptions.showUploadDate;
+            updateData.showMetadata = embedOptions.showMetadata;
+            updateData.allowFullscreen = embedOptions.allowFullscreen;
+            updateData.responsive = embedOptions.responsive;
+            updateData.showBranding = embedOptions.showBranding;
+            updateData.showTechnicalInfo = embedOptions.showTechnicalInfo;
+        }
         return this.prisma.video.update({
             where: { id },
-            data: {
-                name: updateVideoDto.name,
-                description: updateVideoDto.description,
-                tags: updateVideoDto.tags,
-                visibility: updateVideoDto.visibility,
-            },
+            data: updateData,
         });
     }
     async remove(id, organizationId) {
@@ -193,6 +209,23 @@ let VideosService = VideosService_1 = class VideosService {
         if (video.visibility === client_1.Visibility.ORGANIZATION && (!organizationId || video.organizationId !== organizationId)) {
             throw new common_1.ForbiddenException('This video is only accessible to organization members');
         }
+        const displayOptions = {
+            showProgressBar: video.showProgressBar === false ? false : true,
+            showTitle: video.showTitle === false ? false : true,
+            showPlaybackControls: video.showPlaybackControls === false ? false : true,
+            autoPlay: video.autoPlay === true ? true : false,
+            muted: video.muted === true ? true : false,
+            loop: video.loop === true ? true : false,
+        };
+        const embedOptions = {
+            showVideoTitle: video.showVideoTitle === false ? false : true,
+            showUploadDate: video.showUploadDate === false ? false : true,
+            showMetadata: video.showMetadata === false ? false : true,
+            allowFullscreen: video.allowFullscreen === false ? false : true,
+            responsive: video.responsive === false ? false : true,
+            showBranding: video.showBranding === false ? false : true,
+            showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+        };
         const embedVideo = {
             uid: video.id,
             thumbnail: video.thumbnailUrl,
@@ -203,6 +236,8 @@ let VideosService = VideosService_1 = class VideosService {
             },
             meta: {
                 name: video.name,
+                displayOptions,
+                embedOptions,
             },
             duration: video.duration,
             playback: {
@@ -371,6 +406,23 @@ let VideosService = VideosService_1 = class VideosService {
             }
             if (video) {
                 this.logger.log(`Returning status for video: ${video.id}, status: ${video.status}`);
+                const displayOptions = {
+                    showProgressBar: video.showProgressBar === false ? false : true,
+                    showTitle: video.showTitle === false ? false : true,
+                    showPlaybackControls: video.showPlaybackControls === false ? false : true,
+                    autoPlay: video.autoPlay === true ? true : false,
+                    muted: video.muted === true ? true : false,
+                    loop: video.loop === true ? true : false,
+                };
+                const embedOptions = {
+                    showVideoTitle: video.showVideoTitle === false ? false : true,
+                    showUploadDate: video.showUploadDate === false ? false : true,
+                    showMetadata: video.showMetadata === false ? false : true,
+                    allowFullscreen: video.allowFullscreen === false ? false : true,
+                    responsive: video.responsive === false ? false : true,
+                    showBranding: video.showBranding === false ? false : true,
+                    showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+                };
                 return {
                     success: true,
                     video: {
@@ -387,6 +439,8 @@ let VideosService = VideosService_1 = class VideosService {
                         },
                         meta: {
                             name: video.name,
+                            displayOptions,
+                            embedOptions,
                         },
                         duration: video.duration || 100,
                     }
@@ -565,26 +619,7 @@ let VideosService = VideosService_1 = class VideosService {
                     createdAt: 'desc',
                 },
             });
-            const result = videos.map(video => ({
-                uid: video.id,
-                thumbnail: video.thumbnailUrl || '',
-                readyToStream: video.status === client_1.VideoStatus.READY,
-                status: {
-                    state: this.mapVideoStatus(video.status),
-                },
-                meta: {
-                    name: video.name,
-                },
-                created: video.createdAt.toISOString(),
-                modified: video.updatedAt.toISOString(),
-                duration: video.duration || 0,
-                size: 0,
-                preview: video.thumbnailUrl || '',
-                playback: {
-                    hls: video.playbackUrl || '',
-                    dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
-                },
-            }));
+            const result = videos.map(video => this.mapVideoToDto(video));
             return {
                 success: true,
                 status: 200,
@@ -619,26 +654,7 @@ let VideosService = VideosService_1 = class VideosService {
             if (!video) {
                 throw new common_1.NotFoundException(`Video with UID ${uid} not found`);
             }
-            const result = {
-                uid: video.id,
-                thumbnail: video.thumbnailUrl || '',
-                readyToStream: video.status === client_1.VideoStatus.READY,
-                status: {
-                    state: this.mapVideoStatus(video.status),
-                },
-                meta: {
-                    name: video.name,
-                },
-                created: video.createdAt.toISOString(),
-                modified: video.updatedAt.toISOString(),
-                duration: video.duration || 0,
-                size: 0,
-                preview: video.thumbnailUrl || '',
-                playback: {
-                    hls: video.playbackUrl || '',
-                    dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
-                },
-            };
+            const result = this.mapVideoToDto(video);
             return {
                 success: true,
                 status: 200,
@@ -705,6 +721,47 @@ let VideosService = VideosService_1 = class VideosService {
         return (input.substring(0, visiblePrefixLength) +
             '*'.repeat(input.length - visiblePrefixLength - visibleSuffixLength) +
             input.substring(input.length - visibleSuffixLength));
+    }
+    mapVideoToDto(video) {
+        const displayOptions = {
+            showProgressBar: video.showProgressBar === false ? false : true,
+            showTitle: video.showTitle === false ? false : true,
+            showPlaybackControls: video.showPlaybackControls === false ? false : true,
+            autoPlay: video.autoPlay === true ? true : false,
+            muted: video.muted === true ? true : false,
+            loop: video.loop === true ? true : false,
+        };
+        const embedOptions = {
+            showVideoTitle: video.showVideoTitle === false ? false : true,
+            showUploadDate: video.showUploadDate === false ? false : true,
+            showMetadata: video.showMetadata === false ? false : true,
+            allowFullscreen: video.allowFullscreen === false ? false : true,
+            responsive: video.responsive === false ? false : true,
+            showBranding: video.showBranding === false ? false : true,
+            showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+        };
+        return {
+            uid: video.id,
+            thumbnail: video.thumbnailUrl || '',
+            readyToStream: video.status === client_1.VideoStatus.READY,
+            status: {
+                state: this.mapVideoStatus(video.status),
+            },
+            meta: {
+                name: video.name,
+                displayOptions,
+                embedOptions,
+            },
+            created: video.createdAt.toISOString(),
+            modified: video.updatedAt.toISOString(),
+            duration: video.duration || 0,
+            size: 0,
+            preview: video.thumbnailUrl || '',
+            playback: {
+                hls: video.playbackUrl || '',
+                dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+            },
+        };
     }
 };
 exports.VideosService = VideosService;

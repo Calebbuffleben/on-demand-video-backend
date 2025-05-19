@@ -1,4 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
+import { Type } from 'class-transformer';
 
 export class PlaybackDto {
   @ApiProperty({ description: 'HLS manifest URL' })
@@ -37,6 +40,22 @@ export class VideoMetaDto {
 
   @ApiProperty({ description: 'Content type', required: false })
   type?: string;
+
+  @ApiProperty({ 
+    description: 'Display options for the video player', 
+    required: false,
+    type: () => VideoDisplayOptionsDto 
+  })
+  @Type(() => VideoDisplayOptionsDto)
+  displayOptions?: VideoDisplayOptionsDto;
+
+  @ApiProperty({ 
+    description: 'Embed options for the video', 
+    required: false,
+    type: () => VideoEmbedOptionsDto 
+  })
+  @Type(() => VideoEmbedOptionsDto)
+  embedOptions?: VideoEmbedOptionsDto;
 }
 
 export class VideoInputDto {
@@ -65,6 +84,8 @@ export class VideoDto {
   @ApiProperty({ description: 'Video metadata' })
   meta: {
     name: string;
+    displayOptions?: VideoDisplayOptionsDto;
+    embedOptions?: VideoEmbedOptionsDto;
   };
 
   @ApiProperty({ description: 'Creation timestamp' })

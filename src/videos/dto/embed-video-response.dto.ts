@@ -1,4 +1,28 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
+import { Type } from 'class-transformer';
+
+export class EmbedVideoMetaDto {
+  @ApiProperty({ description: 'Video name' })
+  name: string;
+
+  @ApiProperty({ 
+    description: 'Display options for the video player',
+    type: () => VideoDisplayOptionsDto,
+    required: false
+  })
+  @Type(() => VideoDisplayOptionsDto)
+  displayOptions?: VideoDisplayOptionsDto;
+
+  @ApiProperty({ 
+    description: 'Embed options for the video',
+    type: () => VideoEmbedOptionsDto,
+    required: false
+  })
+  @Type(() => VideoEmbedOptionsDto)
+  embedOptions?: VideoEmbedOptionsDto;
+}
 
 export class EmbedVideoDto {
   @ApiProperty({ description: 'Unique identifier of the video' })
@@ -18,11 +42,8 @@ export class EmbedVideoDto {
     state: string;
   };
 
-  @ApiProperty({ description: 'Video metadata', required: false })
-  meta: { 
-    name: string;
-    [key: string]: any;
-  };
+  @ApiProperty({ description: 'Video metadata', type: () => EmbedVideoMetaDto })
+  meta: EmbedVideoMetaDto;
 
   @ApiProperty({ description: 'Video duration in seconds', required: false, nullable: true })
   duration: number | null;
@@ -35,9 +56,9 @@ export class EmbedVideoDto {
 }
 
 export class EmbedVideoResponseDto {
-  @ApiProperty({ description: 'Operation success status' })
+  @ApiProperty({ description: 'Whether the operation was successful' })
   success: boolean;
 
-  @ApiProperty({ description: 'Video information' })
+  @ApiProperty({ description: 'Video details', type: () => EmbedVideoDto })
   result: EmbedVideoDto;
 } 

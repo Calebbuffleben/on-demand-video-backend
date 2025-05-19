@@ -11,6 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoStatusResponseDto = exports.VideoDetailsDto = exports.VideoStatusDto = exports.VideoMetaDto = exports.VideoPlaybackDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
+const video_display_options_dto_1 = require("./video-display-options.dto");
+const video_embed_options_dto_1 = require("./video-embed-options.dto");
+const class_transformer_1 = require("class-transformer");
 class VideoPlaybackDto {
     hls;
     dash;
@@ -26,12 +29,32 @@ __decorate([
 ], VideoPlaybackDto.prototype, "dash", void 0);
 class VideoMetaDto {
     name;
+    displayOptions;
+    embedOptions;
 }
 exports.VideoMetaDto = VideoMetaDto;
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Video name' }),
     __metadata("design:type", String)
 ], VideoMetaDto.prototype, "name", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Display options for the video player',
+        type: () => video_display_options_dto_1.VideoDisplayOptionsDto,
+        required: false
+    }),
+    (0, class_transformer_1.Type)(() => video_display_options_dto_1.VideoDisplayOptionsDto),
+    __metadata("design:type", video_display_options_dto_1.VideoDisplayOptionsDto)
+], VideoMetaDto.prototype, "displayOptions", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Embed options for the video',
+        type: () => video_embed_options_dto_1.VideoEmbedOptionsDto,
+        required: false
+    }),
+    (0, class_transformer_1.Type)(() => video_embed_options_dto_1.VideoEmbedOptionsDto),
+    __metadata("design:type", video_embed_options_dto_1.VideoEmbedOptionsDto)
+], VideoMetaDto.prototype, "embedOptions", void 0);
 class VideoStatusDto {
     state;
 }

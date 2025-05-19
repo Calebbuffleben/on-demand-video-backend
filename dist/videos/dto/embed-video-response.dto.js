@@ -9,8 +9,39 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EmbedVideoResponseDto = exports.EmbedVideoDto = void 0;
+exports.EmbedVideoResponseDto = exports.EmbedVideoDto = exports.EmbedVideoMetaDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
+const video_display_options_dto_1 = require("./video-display-options.dto");
+const video_embed_options_dto_1 = require("./video-embed-options.dto");
+const class_transformer_1 = require("class-transformer");
+class EmbedVideoMetaDto {
+    name;
+    displayOptions;
+    embedOptions;
+}
+exports.EmbedVideoMetaDto = EmbedVideoMetaDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Video name' }),
+    __metadata("design:type", String)
+], EmbedVideoMetaDto.prototype, "name", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Display options for the video player',
+        type: () => video_display_options_dto_1.VideoDisplayOptionsDto,
+        required: false
+    }),
+    (0, class_transformer_1.Type)(() => video_display_options_dto_1.VideoDisplayOptionsDto),
+    __metadata("design:type", video_display_options_dto_1.VideoDisplayOptionsDto)
+], EmbedVideoMetaDto.prototype, "displayOptions", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Embed options for the video',
+        type: () => video_embed_options_dto_1.VideoEmbedOptionsDto,
+        required: false
+    }),
+    (0, class_transformer_1.Type)(() => video_embed_options_dto_1.VideoEmbedOptionsDto),
+    __metadata("design:type", video_embed_options_dto_1.VideoEmbedOptionsDto)
+], EmbedVideoMetaDto.prototype, "embedOptions", void 0);
 class EmbedVideoDto {
     uid;
     thumbnail;
@@ -43,8 +74,8 @@ __decorate([
     __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "status", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video metadata', required: false }),
-    __metadata("design:type", Object)
+    (0, swagger_1.ApiProperty)({ description: 'Video metadata', type: () => EmbedVideoMetaDto }),
+    __metadata("design:type", EmbedVideoMetaDto)
 ], EmbedVideoDto.prototype, "meta", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Video duration in seconds', required: false, nullable: true }),
@@ -60,11 +91,11 @@ class EmbedVideoResponseDto {
 }
 exports.EmbedVideoResponseDto = EmbedVideoResponseDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Operation success status' }),
+    (0, swagger_1.ApiProperty)({ description: 'Whether the operation was successful' }),
     __metadata("design:type", Boolean)
 ], EmbedVideoResponseDto.prototype, "success", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Video information' }),
+    (0, swagger_1.ApiProperty)({ description: 'Video details', type: () => EmbedVideoDto }),
     __metadata("design:type", EmbedVideoDto)
 ], EmbedVideoResponseDto.prototype, "result", void 0);
 //# sourceMappingURL=embed-video-response.dto.js.map

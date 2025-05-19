@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { VideoDto } from './video-response.dto';
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
+import { Type } from 'class-transformer';
 
 export class VideoPlaybackDto {
   @ApiProperty({ description: 'HLS playback URL' })
@@ -12,6 +15,22 @@ export class VideoPlaybackDto {
 export class VideoMetaDto {
   @ApiProperty({ description: 'Video name' })
   name: string;
+
+  @ApiProperty({ 
+    description: 'Display options for the video player',
+    type: () => VideoDisplayOptionsDto,
+    required: false
+  })
+  @Type(() => VideoDisplayOptionsDto)
+  displayOptions?: VideoDisplayOptionsDto;
+
+  @ApiProperty({ 
+    description: 'Embed options for the video',
+    type: () => VideoEmbedOptionsDto,
+    required: false
+  })
+  @Type(() => VideoEmbedOptionsDto)
+  embedOptions?: VideoEmbedOptionsDto;
 }
 
 export class VideoStatusDto {

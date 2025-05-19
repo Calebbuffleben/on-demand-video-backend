@@ -44,25 +44,43 @@ model UserOrganization {
 }
 
 model Video {
-  id             String       @id @default(uuid())
-  name           String
-  description    String?
-  organizationId String
-  status         VideoStatus  @default(PROCESSING)
-  duration       Int?
-  thumbnailUrl   String?
-  playbackUrl    String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  isLive         Boolean      @default(false)
-  visibility     Visibility   @default(PUBLIC)
-  tags           String[]
-  price          Float?
-  currency       String?      @default("USD")
-  muxAssetId     String?
-  muxPlaybackId  String?
-  muxUploadId    String?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(uuid())
+  name                String
+  description         String?
+  organizationId      String
+  status              VideoStatus  @default(PROCESSING)
+  duration            Int?
+  thumbnailUrl        String?
+  playbackUrl         String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  isLive              Boolean      @default(false)
+  visibility          Visibility   @default(PUBLIC)
+  tags                String[]
+  price               Float?
+  currency            String?      @default("USD")
+  muxAssetId          String?
+  muxPlaybackId       String?
+  muxUploadId         String?
+  
+  // Display options
+  showProgressBar     Boolean?     @default(true)
+  showTitle           Boolean?     @default(true)
+  showPlaybackControls Boolean?    @default(true)
+  autoPlay            Boolean?     @default(false)
+  muted               Boolean?     @default(false)
+  loop                Boolean?     @default(false)
+  
+  // Embed options
+  showVideoTitle      Boolean?     @default(true)
+  showUploadDate      Boolean?     @default(true)
+  showMetadata        Boolean?     @default(true)
+  allowFullscreen     Boolean?     @default(true)
+  responsive          Boolean?     @default(true)
+  showBranding        Boolean?     @default(true)
+  showTechnicalInfo   Boolean?     @default(false)
+  
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model PendingVideo {

@@ -1,3 +1,5 @@
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
 export declare class PlaybackDto {
     hls: string;
     dash: string;
@@ -14,6 +16,8 @@ export declare class VideoMetaDto {
     name?: string;
     relativePath?: string;
     type?: string;
+    displayOptions?: VideoDisplayOptionsDto;
+    embedOptions?: VideoEmbedOptionsDto;
 }
 export declare class VideoInputDto {
     width?: number;
@@ -28,6 +32,8 @@ export declare class VideoDto {
     };
     meta: {
         name: string;
+        displayOptions?: VideoDisplayOptionsDto;
+        embedOptions?: VideoEmbedOptionsDto;
     };
     created: string;
     modified: string;

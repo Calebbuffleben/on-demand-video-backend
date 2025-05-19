@@ -13,6 +13,8 @@ import { EmbedVideoDto, EmbedVideoResponseDto } from './dto/embed-video-response
 import { MuxService } from '../providers/mux/mux.service';
 import Mux from '@mux/mux-node';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
+import { VideoDisplayOptionsDto } from './dto/video-display-options.dto';
+import { VideoEmbedOptionsDto } from './dto/video-embed-options.dto';
 
 // Keeping these interfaces for backward compatibility in responses
 interface CloudflareResponse {
@@ -153,15 +155,39 @@ export class VideosService {
     // Check if video exists and belongs to organization
     const video = await this.findOne(id, organizationId);
     
+    // Extract display and embed options
+    const { displayOptions, embedOptions, ...basicData } = updateVideoDto;
+    
+    // Create update data with basic fields
+    const updateData: any = {
+      ...basicData,
+    };
+    
+    // Add display options fields if provided
+    if (displayOptions) {
+      updateData.showProgressBar = displayOptions.showProgressBar;
+      updateData.showTitle = displayOptions.showTitle;
+      updateData.showPlaybackControls = displayOptions.showPlaybackControls;
+      updateData.autoPlay = displayOptions.autoPlay;
+      updateData.muted = displayOptions.muted;
+      updateData.loop = displayOptions.loop;
+    }
+    
+    // Add embed options fields if provided
+    if (embedOptions) {
+      updateData.showVideoTitle = embedOptions.showVideoTitle;
+      updateData.showUploadDate = embedOptions.showUploadDate;
+      updateData.showMetadata = embedOptions.showMetadata;
+      updateData.allowFullscreen = embedOptions.allowFullscreen;
+      updateData.responsive = embedOptions.responsive;
+      updateData.showBranding = embedOptions.showBranding;
+      updateData.showTechnicalInfo = embedOptions.showTechnicalInfo;
+    }
+    
     // Update video in database
     return this.prisma.video.update({
       where: { id },
-      data: {
-        name: updateVideoDto.name,
-        description: updateVideoDto.description,
-        tags: updateVideoDto.tags,
-        visibility: updateVideoDto.visibility,
-      },
+      data: updateData,
     });
   }
 
@@ -324,6 +350,27 @@ export class VideosService {
       throw new ForbiddenException('This video is only accessible to organization members');
     }
 
+    // Create display options object from explicit fields
+    const displayOptions: VideoDisplayOptionsDto = {
+      showProgressBar: video.showProgressBar === false ? false : true,
+      showTitle: video.showTitle === false ? false : true,
+      showPlaybackControls: video.showPlaybackControls === false ? false : true,
+      autoPlay: video.autoPlay === true ? true : false,
+      muted: video.muted === true ? true : false,
+      loop: video.loop === true ? true : false,
+    };
+    
+    // Create embed options object from explicit fields
+    const embedOptions: VideoEmbedOptionsDto = {
+      showVideoTitle: video.showVideoTitle === false ? false : true,
+      showUploadDate: video.showUploadDate === false ? false : true,
+      showMetadata: video.showMetadata === false ? false : true,
+      allowFullscreen: video.allowFullscreen === false ? false : true,
+      responsive: video.responsive === false ? false : true,
+      showBranding: video.showBranding === false ? false : true,
+      showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+    };
+
     // Format the response
     const embedVideo: EmbedVideoDto = {
       uid: video.id,
@@ -335,6 +382,8 @@ export class VideosService {
       },
       meta: {
         name: video.name,
+        displayOptions,
+        embedOptions,
       },
       duration: video.duration,
       playback: {
@@ -573,10 +622,32 @@ export class VideosService {
       // If we found a video, return its info
       if (video) {
         this.logger.log(`Returning status for video: ${video.id}, status: ${video.status}`);
+        
+        // Create display options object from explicit fields
+        const displayOptions: VideoDisplayOptionsDto = {
+          showProgressBar: video.showProgressBar === false ? false : true,
+          showTitle: video.showTitle === false ? false : true,
+          showPlaybackControls: video.showPlaybackControls === false ? false : true,
+          autoPlay: video.autoPlay === true ? true : false,
+          muted: video.muted === true ? true : false,
+          loop: video.loop === true ? true : false,
+        };
+        
+        // Create embed options object from explicit fields
+        const embedOptions: VideoEmbedOptionsDto = {
+          showVideoTitle: video.showVideoTitle === false ? false : true,
+          showUploadDate: video.showUploadDate === false ? false : true,
+          showMetadata: video.showMetadata === false ? false : true,
+          allowFullscreen: video.allowFullscreen === false ? false : true,
+          responsive: video.responsive === false ? false : true,
+          showBranding: video.showBranding === false ? false : true,
+          showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+        };
+        
         return {
           success: true,
           video: {
-            uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
+            uid: video.id,
             readyToStream: video.status === VideoStatus.READY,
             status: {
               state: this.mapVideoStatus(video.status)
@@ -589,6 +660,8 @@ export class VideosService {
             },
             meta: {
               name: video.name,
+              displayOptions,
+              embedOptions,
             },
             duration: video.duration || 100,
           }
@@ -699,7 +772,7 @@ export class VideosService {
                 return {
                   success: true,
                   video: {
-                    uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
+                    uid: video.id,
                     readyToStream: video.status === VideoStatus.READY,
                     status: {
                       state: this.mapVideoStatus(video.status)
@@ -728,7 +801,7 @@ export class VideosService {
         return {
           success: true,
           video: {
-            uid: pendingVideo.id, // Always use the pendingVideo's ID as the uid
+            uid: pendingVideo.id,
             readyToStream: false,
             status: {
               state: this.mapVideoStatus(VideoStatus.PROCESSING)
@@ -766,7 +839,7 @@ export class VideosService {
       return {
         success: true,
         video: {
-          uid: videoId, // Use the requested videoId as the uid
+          uid: videoId,
           readyToStream: false,
           status: {
             state: "processing"
@@ -804,27 +877,8 @@ export class VideosService {
         },
       });
       
-      // Format the response to match the expected format
-      const result: VideoDto[] = videos.map(video => ({
-        uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
-        thumbnail: video.thumbnailUrl || '',
-        readyToStream: video.status === VideoStatus.READY,
-        status: {
-          state: this.mapVideoStatus(video.status),
-        },
-        meta: {
-          name: video.name,
-        },
-        created: video.createdAt.toISOString(),
-        modified: video.updatedAt.toISOString(),
-        duration: video.duration || 0,
-        size: 0, // MUX doesn't provide this directly
-        preview: video.thumbnailUrl || '',
-        playback: {
-          hls: video.playbackUrl || '',
-          dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
-        },
-      }));
+      // Map all videos using our mapper function
+      const result = videos.map(video => this.mapVideoToDto(video));
       
       return {
         success: true,
@@ -866,27 +920,8 @@ export class VideosService {
         throw new NotFoundException(`Video with UID ${uid} not found`);
       }
       
-      // Format the response to match the expected format
-      const result: VideoDto = {
-        uid: video.id, // Always use the video's ID as the uid, not the muxAssetId
-        thumbnail: video.thumbnailUrl || '',
-        readyToStream: video.status === VideoStatus.READY,
-        status: {
-          state: this.mapVideoStatus(video.status),
-        },
-        meta: {
-          name: video.name,
-        },
-        created: video.createdAt.toISOString(),
-        modified: video.updatedAt.toISOString(),
-        duration: video.duration || 0,
-        size: 0, // MUX doesn't provide this directly
-        preview: video.thumbnailUrl || '',
-        playback: {
-          hls: video.playbackUrl || '',
-          dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
-        },
-      };
+      // Format the response using our mapper function
+      const result = this.mapVideoToDto(video);
       
       return {
         success: true,
@@ -978,5 +1013,54 @@ export class VideosService {
       '*'.repeat(input.length - visiblePrefixLength - visibleSuffixLength) +
       input.substring(input.length - visibleSuffixLength)
     );
+  }
+
+  /**
+   * Map database video to VideoDto with explicit display and embed options
+   */
+  private mapVideoToDto(video: Video): VideoDto {
+    // Create display options object from explicit fields
+    const displayOptions: VideoDisplayOptionsDto = {
+      showProgressBar: video.showProgressBar === false ? false : true,
+      showTitle: video.showTitle === false ? false : true,
+      showPlaybackControls: video.showPlaybackControls === false ? false : true,
+      autoPlay: video.autoPlay === true ? true : false,
+      muted: video.muted === true ? true : false,
+      loop: video.loop === true ? true : false,
+    };
+    
+    // Create embed options object from explicit fields
+    const embedOptions: VideoEmbedOptionsDto = {
+      showVideoTitle: video.showVideoTitle === false ? false : true,
+      showUploadDate: video.showUploadDate === false ? false : true,
+      showMetadata: video.showMetadata === false ? false : true,
+      allowFullscreen: video.allowFullscreen === false ? false : true,
+      responsive: video.responsive === false ? false : true,
+      showBranding: video.showBranding === false ? false : true,
+      showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
+    };
+    
+    return {
+      uid: video.id,
+      thumbnail: video.thumbnailUrl || '',
+      readyToStream: video.status === VideoStatus.READY,
+      status: {
+        state: this.mapVideoStatus(video.status),
+      },
+      meta: {
+        name: video.name,
+        displayOptions,
+        embedOptions,
+      },
+      created: video.createdAt.toISOString(),
+      modified: video.updatedAt.toISOString(),
+      duration: video.duration || 0,
+      size: 0, // MUX doesn't provide this directly
+      preview: video.thumbnailUrl || '',
+      playback: {
+        hls: video.playbackUrl || '',
+        dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+      },
+    };
   }
 } 

@@ -1,3 +1,10 @@
+import { VideoDisplayOptionsDto } from './video-display-options.dto';
+import { VideoEmbedOptionsDto } from './video-embed-options.dto';
+export declare class EmbedVideoMetaDto {
+    name: string;
+    displayOptions?: VideoDisplayOptionsDto;
+    embedOptions?: VideoEmbedOptionsDto;
+}
 export declare class EmbedVideoDto {
     uid: string;
     thumbnail: string | null;
@@ -6,10 +13,7 @@ export declare class EmbedVideoDto {
     status: {
         state: string;
     };
-    meta: {
-        name: string;
-        [key: string]: any;
-    };
+    meta: EmbedVideoMetaDto;
     duration: number | null;
     playback: {
         hls: string | null;

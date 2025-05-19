@@ -49,5 +49,6 @@ export declare class VideosService {
     updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, organizationId: string): Promise<CloudflareSettingsResponseDto>;
     getOrgCloudflareSettings(organizationId: string): Promise<CloudflareSettingsResponseDto>;
     private maskString;
+    private mapVideoToDto;
 }
 export {};
