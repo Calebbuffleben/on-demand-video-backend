@@ -90,6 +90,7 @@ let VideosService = VideosService_1 = class VideosService {
             updateData.autoPlay = displayOptions.autoPlay;
             updateData.muted = displayOptions.muted;
             updateData.loop = displayOptions.loop;
+            updateData.useOriginalProgressBar = displayOptions.useOriginalProgressBar;
         }
         if (embedOptions) {
             updateData.showVideoTitle = embedOptions.showVideoTitle;
@@ -216,6 +217,7 @@ let VideosService = VideosService_1 = class VideosService {
             autoPlay: video.autoPlay === true ? true : false,
             muted: video.muted === true ? true : false,
             loop: video.loop === true ? true : false,
+            useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
         };
         const embedOptions = {
             showVideoTitle: video.showVideoTitle === false ? false : true,
@@ -413,6 +415,7 @@ let VideosService = VideosService_1 = class VideosService {
                     autoPlay: video.autoPlay === true ? true : false,
                     muted: video.muted === true ? true : false,
                     loop: video.loop === true ? true : false,
+                    useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
                 };
                 const embedOptions = {
                     showVideoTitle: video.showVideoTitle === false ? false : true,
@@ -730,6 +733,7 @@ let VideosService = VideosService_1 = class VideosService {
             autoPlay: video.autoPlay === true ? true : false,
             muted: video.muted === true ? true : false,
             loop: video.loop === true ? true : false,
+            useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
         };
         const embedOptions = {
             showVideoTitle: video.showVideoTitle === false ? false : true,

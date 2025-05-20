@@ -70,6 +70,7 @@ model Video {
   autoPlay            Boolean?     @default(false)
   muted               Boolean?     @default(false)
   loop                Boolean?     @default(false)
+  useOriginalProgressBar Boolean?  @default(false)
   
   // Embed options
   showVideoTitle      Boolean?     @default(true)

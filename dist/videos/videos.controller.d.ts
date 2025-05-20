@@ -34,6 +34,7 @@ export declare class VideosController {
         autoPlay: boolean | null;
         muted: boolean | null;
         loop: boolean | null;
+        useOriginalProgressBar: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -68,6 +69,7 @@ export declare class VideosController {
         autoPlay: boolean | null;
         muted: boolean | null;
         loop: boolean | null;
+        useOriginalProgressBar: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -105,6 +107,7 @@ export declare class VideosController {
         autoPlay: boolean | null;
         muted: boolean | null;
         loop: boolean | null;
+        useOriginalProgressBar: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -139,6 +142,7 @@ export declare class VideosController {
         autoPlay: boolean | null;
         muted: boolean | null;
         loop: boolean | null;
+        useOriginalProgressBar: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -197,6 +201,7 @@ export declare class VideosController {
             autoPlay: boolean | null;
             muted: boolean | null;
             loop: boolean | null;
+            useOriginalProgressBar: boolean | null;
             showVideoTitle: boolean | null;
             showUploadDate: boolean | null;
             showMetadata: boolean | null;
