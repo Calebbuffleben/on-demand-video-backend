@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class VideoDisplayOptionsDto {
@@ -38,4 +38,37 @@ export class VideoDisplayOptionsDto {
   @IsOptional()
   @Type(() => Boolean)
   loop?: boolean = false;
+
+  @ApiProperty({ description: 'Whether to use the original progress bar style', default: false })
+  @IsBoolean()
+  @IsOptional()
+  @Type(() => Boolean)
+  useOriginalProgressBar?: boolean = false;
+
+  @ApiProperty({ description: 'Color of the progress bar', default: '#3B82F6' })
+  @IsString()
+  @IsOptional()
+  progressBarColor?: string;
+
+  @ApiProperty({ description: 'Easing value for the progress bar animation', default: 0.25 })
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  progressEasing?: number;
+
+  @ApiProperty({ description: 'Color of the play button', default: '#FFFFFF' })
+  @IsString()
+  @IsOptional()
+  playButtonColor?: string;
+
+  @ApiProperty({ description: 'Size of the play button in pixels', default: 60 })
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  playButtonSize?: number;
+
+  @ApiProperty({ description: 'Background color of the play button', default: 'rgba(0,0,0,0.6)' })
+  @IsString()
+  @IsOptional()
+  playButtonBgColor?: string;
 } 

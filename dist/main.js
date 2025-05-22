@@ -23,6 +23,9 @@ async function bootstrap() {
         whitelist: true,
         transform: true,
         forbidNonWhitelisted: true,
+        disableErrorMessages: false,
+        enableDebugMessages: true,
+        validationError: { target: true, value: true },
     }));
     app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter(), new http_exception_filter_1.AllExceptionsFilter());
     app.useGlobalInterceptors(new transform_interceptor_1.TransformInterceptor());

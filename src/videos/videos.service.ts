@@ -171,6 +171,12 @@ export class VideosService {
       updateData.autoPlay = displayOptions.autoPlay;
       updateData.muted = displayOptions.muted;
       updateData.loop = displayOptions.loop;
+      updateData.useOriginalProgressBar = displayOptions.useOriginalProgressBar;
+      updateData.progressBarColor = displayOptions.progressBarColor;
+      updateData.progressEasing = displayOptions.progressEasing;
+      updateData.playButtonColor = displayOptions.playButtonColor;
+      updateData.playButtonSize = displayOptions.playButtonSize;
+      updateData.playButtonBgColor = displayOptions.playButtonBgColor;
     }
     
     // Add embed options fields if provided
@@ -358,6 +364,12 @@ export class VideosService {
       autoPlay: video.autoPlay === true ? true : false,
       muted: video.muted === true ? true : false,
       loop: video.loop === true ? true : false,
+      useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
+      progressBarColor: video.progressBarColor || '#3B82F6',
+      progressEasing: video.progressEasing || 0.25,
+      playButtonColor: video.playButtonColor || '#FFFFFF',
+      playButtonSize: video.playButtonSize || 60,
+      playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
     };
     
     // Create embed options object from explicit fields
@@ -404,6 +416,9 @@ export class VideosService {
   private async handleMuxAssetReady(payload: any): Promise<void> {
     const { data } = payload;
     
+    this.logger.log(`Handling MUX asset ready event for asset ID: ${data.id}`);
+    this.logger.log(`MUX asset data: ${JSON.stringify(data, null, 2)}`);
+    
     // Find the video by MUX Asset ID
     const video = await this.prisma.video.findFirst({
       where: { muxAssetId: data.id },
@@ -411,16 +426,104 @@ export class VideosService {
     
     if (!this.isVideo(video)) {
       this.logger.warn(`Video not found for MUX Asset ID: ${data.id}`);
+      
+      // Check if there's a pending video with this asset ID
+      const pendingVideo = await this.prisma.pendingVideo.findFirst({
+        where: { muxAssetId: data.id },
+      });
+      
+      if (pendingVideo) {
+        this.logger.log(`Found pending video with MUX Asset ID: ${data.id}`);
+        
+        // Get playback ID and create playback URL
+        const playbackId = data.playback_ids && data.playback_ids.length > 0 
+          ? data.playback_ids[0].id 
+          : null;
+        
+        const playbackUrl = playbackId 
+          ? `https://stream.mux.com/${playbackId}.m3u8` 
+          : null;
+        
+        const thumbnailUrl = playbackId 
+          ? `https://image.mux.com/${playbackId}/thumbnail.jpg` 
+          : null;
+        
+        this.logger.log(`Creating a new video for MUX Asset ID: ${data.id}`);
+        try {
+          const newVideo = await this.prisma.video.create({
+            data: {
+              name: pendingVideo.name,
+              description: pendingVideo.description,
+              organizationId: pendingVideo.organizationId,
+              muxUploadId: pendingVideo.muxUploadId,
+              muxAssetId: data.id,
+              muxPlaybackId: playbackId,
+              playbackUrl: playbackUrl,
+              thumbnailUrl: thumbnailUrl,
+              tags: pendingVideo.tags,
+              visibility: pendingVideo.visibility,
+              status: VideoStatus.READY,
+              duration: Math.round(data.duration || 0),
+              // Set default display options
+              showProgressBar: true,
+              showTitle: true,
+              showPlaybackControls: true,
+              autoPlay: false,
+              muted: false,
+              loop: false,
+              useOriginalProgressBar: false,
+              progressBarColor: "#3B82F6",
+              progressEasing: 0.25,
+              playButtonColor: "#FFFFFF",
+              playButtonSize: 60,
+              playButtonBgColor: "rgba(0,0,0,0.6)",
+              // Set default embed options
+              showVideoTitle: true,
+              showUploadDate: true,
+              showMetadata: true,
+              allowFullscreen: true,
+              responsive: true,
+              showBranding: true,
+              showTechnicalInfo: false,
+            },
+          });
+          
+          this.logger.log(`Created new video with ID: ${newVideo.id}`);
+          
+          // Delete the pending video
+          await this.prisma.pendingVideo.delete({
+            where: { id: pendingVideo.id },
+          });
+          this.logger.log(`Deleted pending video ${pendingVideo.id}`);
+        } catch (error) {
+          this.logger.error(`Error creating video from pending video: ${error.message}`);
+        }
+      }
+      
       return;
     }
+    
+    // Get playback ID and create playback URL
+    const playbackId = data.playback_ids && data.playback_ids.length > 0 
+      ? data.playback_ids[0].id 
+      : null;
+    
+    const playbackUrl = playbackId 
+      ? `https://stream.mux.com/${playbackId}.m3u8` 
+      : null;
+    
+    const thumbnailUrl = playbackId 
+      ? `https://image.mux.com/${playbackId}/thumbnail.jpg` 
+      : null;
     
     // Update the video status
     const updatedVideo = await this.prisma.video.update({
       where: { id: video.id },
       data: {
         status: VideoStatus.READY,
-        thumbnailUrl: data.thumbnail_url || null,
-        playbackUrl: data.playback_url || null,
+        thumbnailUrl: thumbnailUrl || data.thumbnail_url || null,
+        playbackUrl: playbackUrl || data.playback_url || null,
+        muxPlaybackId: playbackId,
         duration: Math.round(data.duration || 0),
       },
     });
@@ -430,7 +533,7 @@ export class VideosService {
       return;
     }
     
-    this.logger.log(`Video ${updatedVideo.id} is now ready for playback`);
+    this.logger.log(`Video ${updatedVideo.id} is now ready for playback with URL: ${updatedVideo.playbackUrl || 'N/A'}`);
   }
 
   /**
@@ -631,6 +734,12 @@ export class VideosService {
           autoPlay: video.autoPlay === true ? true : false,
           muted: video.muted === true ? true : false,
           loop: video.loop === true ? true : false,
+          useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
+          progressBarColor: video.progressBarColor || '#3B82F6',
+          progressEasing: video.progressEasing || 0.25,
+          playButtonColor: video.playButtonColor || '#FFFFFF',
+          playButtonSize: video.playButtonSize || 60,
+          playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
         };
         
         // Create embed options object from explicit fields
@@ -737,6 +846,32 @@ export class VideosService {
                 // Create a new video from the pending video
                 try {
                   this.logger.log(`Creating new video from pending video: ${pendingVideo.id}`);
+                  
+                  // Get MUX credentials
+                  const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(pendingVideo.organizationId);
+                  
+                  // Initialize MUX client
+                  const muxClient = new Mux({
+                    tokenId,
+                    tokenSecret,
+                  });
+                  
+                  // Get asset details to get playback ID
+                  const asset = await muxClient.video.assets.retrieve(uploadStatus.assetId);
+                  
+                  // Get playback ID and create playback URL
+                  const playbackId = asset?.playback_ids && asset.playback_ids.length > 0 
+                    ? asset.playback_ids[0].id 
+                    : null;
+                  
+                  const playbackUrl = playbackId 
+                    ? `https://stream.mux.com/${playbackId}.m3u8` 
+                    : null;
+                  
+                  const thumbnailUrl = playbackId 
+                    ? `https://image.mux.com/${playbackId}/thumbnail.jpg` 
+                    : null;
+                  
                   const newVideo = await this.prisma.video.create({
                     data: {
                       name: pendingVideo.name,
@@ -744,9 +879,34 @@ export class VideosService {
                       organizationId: pendingVideo.organizationId,
                       muxUploadId: pendingVideo.muxUploadId,
                       muxAssetId: uploadStatus.assetId,
+                      muxPlaybackId: playbackId,
+                      playbackUrl: playbackUrl,
+                      thumbnailUrl: thumbnailUrl,
                       tags: pendingVideo.tags,
                       visibility: pendingVideo.visibility,
                       status: VideoStatus.READY,
+                      duration: Math.round(asset?.duration || 0),
+                      // Set default display options
+                      showProgressBar: true,
+                      showTitle: true,
+                      showPlaybackControls: true,
+                      autoPlay: false,
+                      muted: false,
+                      loop: false,
+                      useOriginalProgressBar: false,
+                      progressBarColor: "#3B82F6",
+                      progressEasing: 0.25,
+                      playButtonColor: "#FFFFFF",
+                      playButtonSize: 60,
+                      playButtonBgColor: "rgba(0,0,0,0.6)",
+                      // Set default embed options
+                      showVideoTitle: true,
+                      showUploadDate: true,
+                      showMetadata: true,
+                      allowFullscreen: true,
+                      responsive: true,
+                      showBranding: true,
+                      showTechnicalInfo: false,
                     },
                   });
                   
@@ -1027,6 +1187,12 @@ export class VideosService {
       autoPlay: video.autoPlay === true ? true : false,
       muted: video.muted === true ? true : false,
       loop: video.loop === true ? true : false,
+      useOriginalProgressBar: video.useOriginalProgressBar === true ? true : false,
+      progressBarColor: video.progressBarColor || '#3B82F6',
+      progressEasing: video.progressEasing || 0.25,
+      playButtonColor: video.playButtonColor || '#FFFFFF',
+      playButtonSize: video.playButtonSize || 60,
+      playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
     };
     
     // Create embed options object from explicit fields

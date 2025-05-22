@@ -44,7 +44,7 @@ let SubscriptionsService = class SubscriptionsService {
             throw new Error('Stripe secret key is missing');
         }
         this.stripe = new stripe_1.default(stripeSecretKey, {
-            apiVersion: '2025-03-31.basil',
+            apiVersion: '2025-04-30.basil',
         });
     }
     async getSubscription(organizationId) {
