@@ -18,6 +18,11 @@ class CreateVideoDto {
     description;
     tags;
     visibility;
+    ctaText;
+    ctaButtonText;
+    ctaLink;
+    ctaStartTime;
+    ctaEndTime;
 }
 exports.CreateVideoDto = CreateVideoDto;
 __decorate([
@@ -47,4 +52,32 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateVideoDto.prototype, "visibility", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'CTA text to display as a message' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateVideoDto.prototype, "ctaText", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'CTA button text' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateVideoDto.prototype, "ctaButtonText", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'CTA link URL' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateVideoDto.prototype, "ctaLink", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'CTA start time in seconds' }),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], CreateVideoDto.prototype, "ctaStartTime", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'CTA end time in seconds' }),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], CreateVideoDto.prototype, "ctaEndTime", void 0);
 //# sourceMappingURL=create-video.dto.js.map

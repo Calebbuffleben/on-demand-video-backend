@@ -44,6 +44,11 @@ export declare class VideoDto {
         hls: string;
         dash: string;
     };
+    ctaText?: string;
+    ctaButtonText?: string;
+    ctaLink?: string;
+    ctaStartTime?: number;
+    ctaEndTime?: number;
 }
 export declare class ResultInfoDto {
     total_count: number;

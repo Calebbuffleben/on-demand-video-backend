@@ -106,6 +106,16 @@ let VideosService = VideosService_1 = class VideosService {
             updateData.showBranding = embedOptions.showBranding;
             updateData.showTechnicalInfo = embedOptions.showTechnicalInfo;
         }
+        if (typeof updateVideoDto.ctaText !== 'undefined')
+            updateData.ctaText = updateVideoDto.ctaText;
+        if (typeof updateVideoDto.ctaButtonText !== 'undefined')
+            updateData.ctaButtonText = updateVideoDto.ctaButtonText;
+        if (typeof updateVideoDto.ctaLink !== 'undefined')
+            updateData.ctaLink = updateVideoDto.ctaLink;
+        if (typeof updateVideoDto.ctaStartTime !== 'undefined')
+            updateData.ctaStartTime = updateVideoDto.ctaStartTime;
+        if (typeof updateVideoDto.ctaEndTime !== 'undefined')
+            updateData.ctaEndTime = updateVideoDto.ctaEndTime;
         return this.prisma.video.update({
             where: { id },
             data: updateData,
@@ -896,6 +906,11 @@ let VideosService = VideosService_1 = class VideosService {
                 hls: video.playbackUrl || '',
                 dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
             },
+            ctaText: video.ctaText || undefined,
+            ctaButtonText: video.ctaButtonText || undefined,
+            ctaLink: video.ctaLink || undefined,
+            ctaStartTime: video.ctaStartTime ?? undefined,
+            ctaEndTime: video.ctaEndTime ?? undefined,
         };
     }
 };

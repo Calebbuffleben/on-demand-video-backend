@@ -24,4 +24,27 @@ export class UpdateVideoDto extends PartialType(CreateVideoDto) {
   @Type(() => VideoEmbedOptionsDto)
   @IsOptional()
   embedOptions?: VideoEmbedOptionsDto;
+
+  @ApiPropertyOptional({ description: 'CTA text to display as a message' })
+  @IsString()
+  @IsOptional()
+  ctaText?: string;
+
+  @ApiPropertyOptional({ description: 'CTA button text' })
+  @IsString()
+  @IsOptional()
+  ctaButtonText?: string;
+
+  @ApiPropertyOptional({ description: 'CTA link URL' })
+  @IsString()
+  @IsOptional()
+  ctaLink?: string;
+
+  @ApiPropertyOptional({ description: 'CTA start time in seconds' })
+  @IsOptional()
+  ctaStartTime?: number;
+
+  @ApiPropertyOptional({ description: 'CTA end time in seconds' })
+  @IsOptional()
+  ctaEndTime?: number;
 } 

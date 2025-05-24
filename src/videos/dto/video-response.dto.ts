@@ -108,6 +108,21 @@ export class VideoDto {
     hls: string;
     dash: string;
   };
+
+  @ApiProperty({ description: 'CTA text to display as a message', required: false })
+  ctaText?: string;
+
+  @ApiProperty({ description: 'CTA button text', required: false })
+  ctaButtonText?: string;
+
+  @ApiProperty({ description: 'CTA link URL', required: false })
+  ctaLink?: string;
+
+  @ApiProperty({ description: 'CTA start time in seconds', required: false })
+  ctaStartTime?: number;
+
+  @ApiProperty({ description: 'CTA end time in seconds', required: false })
+  ctaEndTime?: number;
 }
 
 export class ResultInfoDto {

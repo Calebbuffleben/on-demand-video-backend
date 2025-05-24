@@ -123,6 +123,11 @@ class VideoDto {
     size;
     preview;
     playback;
+    ctaText;
+    ctaButtonText;
+    ctaLink;
+    ctaStartTime;
+    ctaEndTime;
 }
 exports.VideoDto = VideoDto;
 __decorate([
@@ -169,6 +174,26 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Video playback URLs' }),
     __metadata("design:type", Object)
 ], VideoDto.prototype, "playback", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA text to display as a message', required: false }),
+    __metadata("design:type", String)
+], VideoDto.prototype, "ctaText", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA button text', required: false }),
+    __metadata("design:type", String)
+], VideoDto.prototype, "ctaButtonText", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA link URL', required: false }),
+    __metadata("design:type", String)
+], VideoDto.prototype, "ctaLink", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA start time in seconds', required: false }),
+    __metadata("design:type", Number)
+], VideoDto.prototype, "ctaStartTime", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA end time in seconds', required: false }),
+    __metadata("design:type", Number)
+], VideoDto.prototype, "ctaEndTime", void 0);
 class ResultInfoDto {
     total_count;
     per_page;

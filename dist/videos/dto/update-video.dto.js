@@ -20,6 +20,11 @@ const video_embed_options_dto_1 = require("./video-embed-options.dto");
 class UpdateVideoDto extends (0, swagger_1.PartialType)(create_video_dto_1.CreateVideoDto) {
     displayOptions;
     embedOptions;
+    ctaText;
+    ctaButtonText;
+    ctaLink;
+    ctaStartTime;
+    ctaEndTime;
 }
 exports.UpdateVideoDto = UpdateVideoDto;
 __decorate([
@@ -42,4 +47,32 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", video_embed_options_dto_1.VideoEmbedOptionsDto)
 ], UpdateVideoDto.prototype, "embedOptions", void 0);
+__decorate([
+    (0, swagger_2.ApiPropertyOptional)({ description: 'CTA text to display as a message' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateVideoDto.prototype, "ctaText", void 0);
+__decorate([
+    (0, swagger_2.ApiPropertyOptional)({ description: 'CTA button text' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateVideoDto.prototype, "ctaButtonText", void 0);
+__decorate([
+    (0, swagger_2.ApiPropertyOptional)({ description: 'CTA link URL' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateVideoDto.prototype, "ctaLink", void 0);
+__decorate([
+    (0, swagger_2.ApiPropertyOptional)({ description: 'CTA start time in seconds' }),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], UpdateVideoDto.prototype, "ctaStartTime", void 0);
+__decorate([
+    (0, swagger_2.ApiPropertyOptional)({ description: 'CTA end time in seconds' }),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], UpdateVideoDto.prototype, "ctaEndTime", void 0);
 //# sourceMappingURL=update-video.dto.js.map

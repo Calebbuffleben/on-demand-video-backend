@@ -4,4 +4,9 @@ export declare class CreateVideoDto {
     description?: string;
     tags?: string[];
     visibility?: Visibility;
+    ctaText?: string;
+    ctaButtonText?: string;
+    ctaLink?: string;
+    ctaStartTime?: number;
+    ctaEndTime?: number;
 }
