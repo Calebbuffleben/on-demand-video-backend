@@ -36,7 +36,7 @@ export class SubscriptionsService {
       throw new Error('Stripe secret key is missing');
     }
     this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2025-04-30.basil',
+      apiVersion: '2025-03-31.basil',
     });
   }
 

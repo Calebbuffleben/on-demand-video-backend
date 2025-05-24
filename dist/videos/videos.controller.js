@@ -15,6 +15,7 @@ var VideosController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideosController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const videos_service_1 = require("./videos.service");
 const create_video_dto_1 = require("./dto/create-video.dto");
 const update_video_dto_1 = require("./dto/update-video.dto");
@@ -27,15 +28,18 @@ const common_2 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const crypto_1 = require("crypto");
 const mux_webhook_controller_1 = require("../providers/mux/mux-webhook.controller");
+const upload_service_1 = require("./upload.service");
 let VideosController = VideosController_1 = class VideosController {
     videosService;
     prismaService;
     muxWebhookController;
+    uploadService;
     logger = new common_2.Logger(VideosController_1.name);
-    constructor(videosService, prismaService, muxWebhookController) {
+    constructor(videosService, prismaService, muxWebhookController, uploadService) {
         this.videosService = videosService;
         this.prismaService = prismaService;
         this.muxWebhookController = muxWebhookController;
+        this.uploadService = uploadService;
     }
     async findAllOrganizationVideos(req) {
         const organizationId = req['organization'].id;
@@ -277,6 +281,27 @@ let VideosController = VideosController_1 = class VideosController {
             throw error;
         }
     }
+    async uploadCoverImage(videoId, files, req) {
+        this.logger.log(`Received request to upload cover for video ${videoId}. Files received: ${files?.length}`);
+        const coverFile = files?.find(file => file.fieldname === 'cover');
+        if (!coverFile) {
+            this.logger.error('No cover image file with fieldname \'cover\' was uploaded.');
+            throw new common_1.BadRequestException('No cover image file with fieldname \'cover\' uploaded.');
+        }
+        this.logger.log(`Processing cover file: ${coverFile.originalname}, size: ${coverFile.size}`);
+        const organizationId = req['organization']?.id;
+        if (!organizationId) {
+            this.logger.error('Organization ID not found in authenticated request.');
+            throw new common_1.BadRequestException('Organization ID not found in request.');
+        }
+        return this.uploadService.uploadCoverImage(coverFile, videoId, organizationId);
+    }
+    async removeCoverImage(videoId, req) {
+        const organizationId = req['organization']?.id;
+        if (!organizationId)
+            throw new common_1.BadRequestException('Organization ID is required');
+        return this.uploadService.removeCoverImage(videoId, organizationId);
+    }
 };
 exports.VideosController = VideosController;
 __decorate([
@@ -479,12 +504,51 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "testCreateVideo", null);
+__decorate([
+    (0, common_1.Post)(':videoId/cover'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.AnyFilesInterceptor)({
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            if (allowedTypes.includes(file.mimetype)) {
+                cb(null, true);
+            }
+            else {
+                cb(new common_1.BadRequestException('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed.'), false);
+            }
+        },
+        limits: {
+            fileSize: 10 * 1024 * 1024,
+        }
+    })),
+    (0, swagger_1.ApiOperation)({ summary: 'Upload a cover image for a video' }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: 'Cover image uploaded successfully.' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Bad request (e.g., no file, invalid file type, video not found).' }),
+    (0, swagger_1.ApiParam)({ name: 'videoId', description: 'The ID of the video' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.UploadedFiles)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Array, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "uploadCoverImage", null);
+__decorate([
+    (0, common_1.Delete)(':videoId/cover'),
+    (0, swagger_1.ApiOperation)({ summary: 'Remove the cover image for a video' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Cover image removed.' }),
+    (0, swagger_1.ApiParam)({ name: 'videoId', description: 'The ID of the video' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "removeCoverImage", null);
 exports.VideosController = VideosController = VideosController_1 = __decorate([
     (0, swagger_1.ApiTags)('videos'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('api/videos'),
     __metadata("design:paramtypes", [videos_service_1.VideosService,
         prisma_service_1.PrismaService,
-        mux_webhook_controller_1.MuxWebhookController])
+        mux_webhook_controller_1.MuxWebhookController,
+        upload_service_1.UploadService])
 ], VideosController);
 //# sourceMappingURL=videos.controller.js.map

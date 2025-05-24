@@ -11,7 +11,10 @@ import {
   BadRequestException,
   Headers,
   InternalServerErrorException,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
@@ -24,11 +27,12 @@ import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/vi
 import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoDto, EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
-import { Visibility } from '@prisma/client';
+import { Visibility, VideoStatus } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
+import { UploadService } from './upload.service';
 
 interface AuthenticatedRequest extends Request {
   organization: any;
@@ -44,7 +48,8 @@ export class VideosController {
   constructor(
     private readonly videosService: VideosService,
     private readonly prismaService: PrismaService,
-    private readonly muxWebhookController: MuxWebhookController
+    private readonly muxWebhookController: MuxWebhookController,
+    private readonly uploadService: UploadService,
   ) {}
 
   @Get('organization')
@@ -454,5 +459,60 @@ export class VideosController {
       this.logger.error(`Error in test-create-video endpoint: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  @Post(':videoId/cover')
+  @UseInterceptors(AnyFilesInterceptor({
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed.'), false);
+      }
+    },
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB file size limit for covers
+    }
+  }))
+  @ApiOperation({ summary: 'Upload a cover image for a video' })
+  @ApiResponse({ status: 201, description: 'Cover image uploaded successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad request (e.g., no file, invalid file type, video not found).' })
+  @ApiParam({ name: 'videoId', description: 'The ID of the video' })
+  async uploadCoverImage(
+    @Param('videoId') videoId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: AuthenticatedRequest,
+  ) {
+    this.logger.log(`Received request to upload cover for video ${videoId}. Files received: ${files?.length}`);
+    
+    const coverFile = files?.find(file => file.fieldname === 'cover');
+    
+    if (!coverFile) {
+      this.logger.error('No cover image file with fieldname \'cover\' was uploaded.');
+      throw new BadRequestException('No cover image file with fieldname \'cover\' uploaded.');
+    }
+    this.logger.log(`Processing cover file: ${coverFile.originalname}, size: ${coverFile.size}`);
+    
+    const organizationId = req['organization']?.id;
+    if (!organizationId) {
+      this.logger.error('Organization ID not found in authenticated request.');
+      throw new BadRequestException('Organization ID not found in request.');
+    }
+    
+    return this.uploadService.uploadCoverImage(coverFile, videoId, organizationId);
+  }
+
+  @Delete(':videoId/cover')
+  @ApiOperation({ summary: 'Remove the cover image for a video' })
+  @ApiResponse({ status: 200, description: 'Cover image removed.' })
+  @ApiParam({ name: 'videoId', description: 'The ID of the video' })
+  async removeCoverImage(
+    @Param('videoId') videoId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const organizationId = req['organization']?.id;
+    if (!organizationId) throw new BadRequestException('Organization ID is required');
+    return this.uploadService.removeCoverImage(videoId, organizationId);
   }
 } 

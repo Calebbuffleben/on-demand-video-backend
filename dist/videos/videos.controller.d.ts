@@ -9,6 +9,7 @@ import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
+import { UploadService } from './upload.service';
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
@@ -17,8 +18,9 @@ export declare class VideosController {
     private readonly videosService;
     private readonly prismaService;
     private readonly muxWebhookController;
+    private readonly uploadService;
     private readonly logger;
-    constructor(videosService: VideosService, prismaService: PrismaService, muxWebhookController: MuxWebhookController);
+    constructor(videosService: VideosService, prismaService: PrismaService, muxWebhookController: MuxWebhookController, uploadService: UploadService);
     findAllOrganizationVideos(req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
@@ -245,6 +247,55 @@ export declare class VideosController {
             currency: string | null;
             muxPlaybackId: string | null;
         };
+    }>;
+    uploadCoverImage(videoId: string, files: Express.Multer.File[], req: AuthenticatedRequest): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            result: {
+                tags: string[];
+                description: string | null;
+                organizationId: string;
+                name: string;
+                id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                visibility: import(".prisma/client").$Enums.Visibility;
+                showProgressBar: boolean | null;
+                showTitle: boolean | null;
+                showPlaybackControls: boolean | null;
+                autoPlay: boolean | null;
+                muted: boolean | null;
+                loop: boolean | null;
+                useOriginalProgressBar: boolean | null;
+                progressBarColor: string | null;
+                progressEasing: number | null;
+                playButtonColor: string | null;
+                playButtonSize: number | null;
+                playButtonBgColor: string | null;
+                showVideoTitle: boolean | null;
+                showUploadDate: boolean | null;
+                showMetadata: boolean | null;
+                allowFullscreen: boolean | null;
+                responsive: boolean | null;
+                showBranding: boolean | null;
+                showTechnicalInfo: boolean | null;
+                status: import(".prisma/client").$Enums.VideoStatus;
+                duration: number | null;
+                muxUploadId: string | null;
+                muxAssetId: string | null;
+                thumbnailUrl: string | null;
+                playbackUrl: string | null;
+                isLive: boolean;
+                price: number | null;
+                currency: string | null;
+                muxPlaybackId: string | null;
+            }[];
+        };
+    }>;
+    removeCoverImage(videoId: string, req: AuthenticatedRequest): Promise<{
+        success: boolean;
+        message: string;
     }>;
 }
 export {};

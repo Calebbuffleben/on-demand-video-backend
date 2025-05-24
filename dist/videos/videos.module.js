@@ -14,21 +14,28 @@ const videos_controller_1 = require("./videos.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
 const transform_interceptor_1 = require("../common/interceptors/transform.interceptor");
 const mux_module_1 = require("../providers/mux/mux.module");
+const upload_service_1 = require("./upload.service");
+const config_1 = require("@nestjs/config");
 let VideosModule = class VideosModule {
 };
 exports.VideosModule = VideosModule;
 exports.VideosModule = VideosModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, mux_module_1.MuxModule],
+        imports: [
+            prisma_module_1.PrismaModule,
+            mux_module_1.MuxModule,
+            config_1.ConfigModule
+        ],
         controllers: [videos_controller_1.VideosController],
         providers: [
             videos_service_1.VideosService,
+            upload_service_1.UploadService,
             {
                 provide: core_1.APP_INTERCEPTOR,
                 useClass: transform_interceptor_1.TransformInterceptor,
             },
         ],
-        exports: [videos_service_1.VideosService],
+        exports: [videos_service_1.VideosService, upload_service_1.UploadService],
     })
 ], VideosModule);
 //# sourceMappingURL=videos.module.js.map

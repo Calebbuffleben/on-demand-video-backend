@@ -5,17 +5,24 @@ import { VideosController } from './videos.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TransformInterceptor } from '../common/interceptors/transform.interceptor';
 import { MuxModule } from '../providers/mux/mux.module';
+import { UploadService } from './upload.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [PrismaModule, MuxModule],
+  imports: [
+    PrismaModule,
+    MuxModule,
+    ConfigModule
+  ],
   controllers: [VideosController],
   providers: [
     VideosService,
+    UploadService,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
     },
   ],
-  exports: [VideosService],
+  exports: [VideosService, UploadService],
 })
 export class VideosModule {} 
