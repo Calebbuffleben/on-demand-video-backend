@@ -438,6 +438,10 @@ export class VideosService {
       playButtonColor: video.playButtonColor || '#FFFFFF',
       playButtonSize: video.playButtonSize || 60,
       playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
+      soundControlText: video.soundControlText || '',
+      soundControlColor: video.soundControlColor || '#FFFFFF',
+      soundControlOpacity: video.soundControlOpacity ?? 0.8,
+      soundControlSize: video.soundControlSize ?? 64,
     };
     
     // Create embed options object from explicit fields
