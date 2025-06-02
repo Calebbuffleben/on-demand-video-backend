@@ -34,6 +34,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 import { UploadService } from './upload.service';
+import { Request } from 'express';
 
 interface AuthenticatedRequest extends Request {
   organization: any;

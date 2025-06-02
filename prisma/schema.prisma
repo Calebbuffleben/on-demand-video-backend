@@ -19,6 +19,9 @@ model Organization {
   subscription   Subscription?
   users          UserOrganization[]
   videos         Video[]
+  analyticsCache AnalyticsCache[]
+  
+  @@index([clerkId])
 }
 
 model User {
@@ -62,6 +65,7 @@ model Video {
   muxAssetId          String?
   muxPlaybackId       String?
   muxUploadId         String?
+  analytics           VideoAnalytics?
   
   // Display options
   showProgressBar     Boolean?     @default(true)
@@ -129,6 +133,80 @@ model Subscription {
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model VideoAnalytics {
+  id            String   @id @default(uuid())
+  videoId       String   @unique
+  views         Int      @default(0)
+  watchTime     Int      @default(0)
+  retention     Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  dailyStats    VideoAnalyticsDaily[]
+  hourlyStats   VideoAnalyticsHourly[]
+  viewerStats   VideoViewerStats[]
+}
+
+model VideoAnalyticsDaily {
+  id            String   @id @default(uuid())
+  videoId       String
+  date          DateTime
+  views         Int      @default(0)
+  watchTime     Int      @default(0)
+  uniqueViewers Int      @default(0)
+  retention     Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+
+  @@unique([videoId, date])
+  @@index([date])
+}
+
+model VideoAnalyticsHourly {
+  id            String   @id @default(uuid())
+  videoId       String
+  timestamp     DateTime
+  views         Int      @default(0)
+  watchTime     Int      @default(0)
+  uniqueViewers Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+
+  @@unique([videoId, timestamp])
+  @@index([timestamp])
+}
+
+model VideoViewerStats {
+  id            String   @id @default(uuid())
+  videoId       String
+  viewerId      String   // Can be IP hash or user ID
+  watchTime     Int      @default(0)
+  lastWatched   DateTime @default(now())
+  watchCount    Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+
+  @@unique([videoId, viewerId])
+  @@index([viewerId])
+}
+
+model AnalyticsCache {
+  id            String   @id @default(uuid())
+  organizationId String
+  cacheKey      String
+  data          Json
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, cacheKey])
+  @@index([expiresAt])
 }
 
 enum Role {
