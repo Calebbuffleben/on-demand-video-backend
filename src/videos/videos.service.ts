@@ -158,6 +158,10 @@ export class VideosService {
     // Extract display and embed options
     const { displayOptions, embedOptions, ...basicData } = updateVideoDto;
     
+    this.logger.log('Updating video with ID: ' + id);
+    this.logger.log('----------- Current video display options: -----------', displayOptions);
+    this.logger.log('----------- Current video embed options: -----------', embedOptions);
+    
     // Create update data with basic fields
     const updateData: any = {
       ...basicData,
@@ -165,6 +169,8 @@ export class VideosService {
     
     // Add display options fields if provided
     if (displayOptions) {
+      this.logger.log('Received new display options:', displayOptions);
+      
       updateData.showProgressBar = displayOptions.showProgressBar;
       updateData.showTitle = displayOptions.showTitle;
       updateData.showPlaybackControls = displayOptions.showPlaybackControls;
@@ -177,10 +183,44 @@ export class VideosService {
       updateData.playButtonColor = displayOptions.playButtonColor;
       updateData.playButtonSize = displayOptions.playButtonSize;
       updateData.playButtonBgColor = displayOptions.playButtonBgColor;
+      
+      // Add sound control fields with detailed logging
+      if (displayOptions.soundControlText !== undefined) {
+        this.logger.log('Updating soundControlText:', {
+          current: video.soundControlText,
+          new: displayOptions.soundControlText
+        });
+        updateData.soundControlText = displayOptions.soundControlText;
+      }
+      
+      if (displayOptions.soundControlColor !== undefined) {
+        this.logger.log('Updating soundControlColor:', {
+          current: video.soundControlColor,
+          new: displayOptions.soundControlColor
+        });
+        updateData.soundControlColor = displayOptions.soundControlColor;
+      }
+      
+      if (displayOptions.soundControlOpacity !== undefined) {
+        this.logger.log('Updating soundControlOpacity:', {
+          current: video.soundControlOpacity,
+          new: displayOptions.soundControlOpacity
+        });
+        updateData.soundControlOpacity = displayOptions.soundControlOpacity;
+      }
+      
+      if (displayOptions.soundControlSize !== undefined) {
+        this.logger.log('Updating soundControlSize:', {
+          current: video.soundControlSize,
+          new: displayOptions.soundControlSize
+        });
+        updateData.soundControlSize = displayOptions.soundControlSize;
+      }
     }
     
     // Add embed options fields if provided
     if (embedOptions) {
+      this.logger.log('Received new embed options:', embedOptions);
       updateData.showVideoTitle = embedOptions.showVideoTitle;
       updateData.showUploadDate = embedOptions.showUploadDate;
       updateData.showMetadata = embedOptions.showMetadata;
@@ -197,11 +237,32 @@ export class VideosService {
     if (typeof updateVideoDto.ctaStartTime !== 'undefined') updateData.ctaStartTime = updateVideoDto.ctaStartTime;
     if (typeof updateVideoDto.ctaEndTime !== 'undefined') updateData.ctaEndTime = updateVideoDto.ctaEndTime;
     
+    // Log the final update data
+    this.logger.log('Final update data:', {
+      displayOptions: {
+        soundControlText: updateData.soundControlText,
+        soundControlColor: updateData.soundControlColor,
+        soundControlOpacity: updateData.soundControlOpacity,
+        soundControlSize: updateData.soundControlSize
+      }
+    });
+    //The sound control text is undefined here
+
+    
     // Update video in database
-    return this.prisma.video.update({
+    const updatedVideo = await this.prisma.video.update({
       where: { id },
       data: updateData,
     });
+
+    this.logger.log('Video updated successfully. New sound control values:', {
+      soundControlText: updatedVideo.soundControlText,
+      soundControlColor: updatedVideo.soundControlColor,
+      soundControlOpacity: updatedVideo.soundControlOpacity,
+      soundControlSize: updatedVideo.soundControlSize
+    });
+
+    return updatedVideo;
   }
 
   /**
@@ -747,6 +808,10 @@ export class VideosService {
           playButtonColor: video.playButtonColor || '#FFFFFF',
           playButtonSize: video.playButtonSize || 60,
           playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
+          soundControlText: video.soundControlText || '',
+          soundControlColor: video.soundControlColor || '#FFFFFF',
+          soundControlOpacity: video.soundControlOpacity ?? 0.8,
+          soundControlSize: video.soundControlSize ?? 64,
         };
         
         // Create embed options object from explicit fields
@@ -1200,6 +1265,10 @@ export class VideosService {
       playButtonColor: video.playButtonColor || '#FFFFFF',
       playButtonSize: video.playButtonSize || 60,
       playButtonBgColor: video.playButtonBgColor || 'rgba(0,0,0,0.6)',
+      soundControlText: video.soundControlText || '',
+      soundControlColor: video.soundControlColor || '#FFFFFF',
+      soundControlOpacity: video.soundControlOpacity ?? 0.8,
+      soundControlSize: video.soundControlSize ?? 64,
     };
     
     // Create embed options object from explicit fields

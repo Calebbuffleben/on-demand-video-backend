@@ -76,6 +76,10 @@ model Video {
   playButtonColor     String?      @default("#FFFFFF")
   playButtonSize      Int?         @default(60)
   playButtonBgColor   String?      @default("rgba(0,0,0,0.6)")
+  soundControlText    String?      @default("Sound")
+  soundControlColor   String?      @default("#FFFFFF")
+  soundControlOpacity Float?       @default(0.8)
+  soundControlSize    Int?         @default(64)
   
   // Embed options
   showVideoTitle      Boolean?     @default(true)

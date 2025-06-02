@@ -47,6 +47,10 @@ export declare class VideosController {
         playButtonColor: string | null;
         playButtonSize: number | null;
         playButtonBgColor: string | null;
+        soundControlText: string | null;
+        soundControlColor: string | null;
+        soundControlOpacity: number | null;
+        soundControlSize: number | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -92,6 +96,10 @@ export declare class VideosController {
         playButtonColor: string | null;
         playButtonSize: number | null;
         playButtonBgColor: string | null;
+        soundControlText: string | null;
+        soundControlColor: string | null;
+        soundControlOpacity: number | null;
+        soundControlSize: number | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -140,6 +148,10 @@ export declare class VideosController {
         playButtonColor: string | null;
         playButtonSize: number | null;
         playButtonBgColor: string | null;
+        soundControlText: string | null;
+        soundControlColor: string | null;
+        soundControlOpacity: number | null;
+        soundControlSize: number | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -185,6 +197,10 @@ export declare class VideosController {
         playButtonColor: string | null;
         playButtonSize: number | null;
         playButtonBgColor: string | null;
+        soundControlText: string | null;
+        soundControlColor: string | null;
+        soundControlOpacity: number | null;
+        soundControlSize: number | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -254,6 +270,10 @@ export declare class VideosController {
             playButtonColor: string | null;
             playButtonSize: number | null;
             playButtonBgColor: string | null;
+            soundControlText: string | null;
+            soundControlColor: string | null;
+            soundControlOpacity: number | null;
+            soundControlSize: number | null;
             showVideoTitle: boolean | null;
             showUploadDate: boolean | null;
             showMetadata: boolean | null;
@@ -303,6 +323,10 @@ export declare class VideosController {
                 playButtonColor: string | null;
                 playButtonSize: number | null;
                 playButtonBgColor: string | null;
+                soundControlText: string | null;
+                soundControlColor: string | null;
+                soundControlOpacity: number | null;
+                soundControlSize: number | null;
                 showVideoTitle: boolean | null;
                 showUploadDate: boolean | null;
                 showMetadata: boolean | null;

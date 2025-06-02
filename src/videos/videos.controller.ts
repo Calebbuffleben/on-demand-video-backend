@@ -13,6 +13,7 @@ import {
   InternalServerErrorException,
   UploadedFiles,
   UseInterceptors,
+  Patch,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';

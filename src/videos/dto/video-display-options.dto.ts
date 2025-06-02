@@ -71,4 +71,26 @@ export class VideoDisplayOptionsDto {
   @IsString()
   @IsOptional()
   playButtonBgColor?: string;
+
+  @ApiProperty({ description: 'Text to display on the sound control', default: 'Sound' })
+  @IsString()
+  @IsOptional()
+  soundControlText?: string;
+
+  @ApiProperty({ description: 'Color of the sound control', default: '#FFFFFF' })
+  @IsString()
+  @IsOptional()
+  soundControlColor?: string;
+
+  @ApiProperty({ description: 'Opacity of the sound control', default: 0.8 })
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  soundControlOpacity?: number;
+
+  @ApiProperty({ description: 'Size of the sound control in pixels', default: 64 })
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  soundControlSize?: number;
 } 
