@@ -17,13 +17,16 @@ exports.ClerkService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const client_1 = require("@prisma/client");
+const config_1 = require("@nestjs/config");
 let ClerkService = ClerkService_1 = class ClerkService {
     prisma;
     clerkClient;
+    configService;
     logger = new common_1.Logger(ClerkService_1.name);
-    constructor(prisma, clerkClient) {
+    constructor(prisma, clerkClient, configService) {
         this.prisma = prisma;
         this.clerkClient = clerkClient;
+        this.configService = configService;
     }
     async syncUser(userData) {
         const clerkId = userData.id;
@@ -103,10 +106,24 @@ let ClerkService = ClerkService_1 = class ClerkService {
                 });
             }
             else {
-                this.logger.log(`Creating new organization with clerkId: ${clerkId}`);
-                return this.prisma.organization.create({
-                    data: { clerkId, name },
+                const muxTokenId = this.configService.get('MUX_TOKEN_ID');
+                const muxTokenSecret = this.configService.get('MUX_TOKEN_SECRET');
+                this.logger.log(`Mux credentials found - Token ID: ${muxTokenId ? 'Yes' : 'No'}, Token Secret: ${muxTokenSecret ? 'Yes' : 'No'}`);
+                if (!muxTokenId || !muxTokenSecret) {
+                    this.logger.warn('Global MUX credentials not configured, organization will be created without Mux credentials');
+                }
+                this.logger.log(`Creating new organization with clerkId: ${clerkId} and name: ${name}`);
+                const newOrg = await this.prisma.organization.create({
+                    data: {
+                        clerkId,
+                        name,
+                        muxTokenId,
+                        muxTokenSecret,
+                    },
                 });
+                this.logger.log(`Organization created successfully with ID: ${newOrg.id}`);
+                this.logger.log(`Mux credentials set - Token ID: ${newOrg.muxTokenId ? 'Yes' : 'No'}, Token Secret: ${newOrg.muxTokenSecret ? 'Yes' : 'No'}`);
+                return newOrg;
             }
         }
         catch (error) {
@@ -270,6 +287,6 @@ exports.ClerkService = ClerkService;
 exports.ClerkService = ClerkService = ClerkService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Inject)('ClerkClient')),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object, config_1.ConfigService])
 ], ClerkService);
 //# sourceMappingURL=clerk.service.js.map

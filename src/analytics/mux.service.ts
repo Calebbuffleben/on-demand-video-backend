@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Mux from '@mux/mux-node';
+import { PrismaService } from '../prisma/prisma.service';
 
 type MuxAsset = {
   id: string;
@@ -27,7 +28,10 @@ export class MuxService {
   private readonly logger = new Logger(MuxService.name);
   private readonly muxClient: Mux;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prisma: PrismaService,
+  ) {
     const tokenId = this.configService.get<string>('MUX_TOKEN_ID');
     const tokenSecret = this.configService.get<string>('MUX_TOKEN_SECRET');
 
@@ -41,23 +45,30 @@ export class MuxService {
     });
   }
 
-  private getMuxClientForOrganization(organizationId?: string): Mux {
+  private async getMuxClientForOrganization(organizationId?: string): Promise<Mux> {
     if (!organizationId) {
       return this.muxClient;
     }
 
-    const orgTokenId = this.configService.get<string>(`MUX_TOKEN_ID_${organizationId}`);
-    const orgTokenSecret = this.configService.get<string>(`MUX_TOKEN_SECRET_${organizationId}`);
+    try {
+      // Get organization from database
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
 
-    if (!orgTokenId || !orgTokenSecret) {
-      this.logger.warn(`Mux credentials not found for organization ${organizationId}, using global credentials`);
+      if (!organization?.muxTokenId || !organization?.muxTokenSecret) {
+        this.logger.warn(`Mux credentials not found for organization ${organizationId}, using global credentials`);
+        return this.muxClient;
+      }
+
+      return new Mux({
+        tokenId: organization.muxTokenId,
+        tokenSecret: organization.muxTokenSecret,
+      });
+    } catch (error) {
+      this.logger.error(`Error getting Mux client for organization ${organizationId}: ${error.message}`);
       return this.muxClient;
     }
-
-    return new Mux({
-      tokenId: orgTokenId,
-      tokenSecret: orgTokenSecret,
-    });
   }
 
   /**
@@ -65,7 +76,7 @@ export class MuxService {
    */
   async getVideos(organizationId?: string) {
     try {
-      const client = this.getMuxClientForOrganization(organizationId);
+      const client = await this.getMuxClientForOrganization(organizationId);
       const { data: assets } = await client.video.assets.list({
         limit: 100,
       });
@@ -106,7 +117,7 @@ export class MuxService {
    */
   async getAnalytics(organizationId?: string) {
     try {
-      const client = this.getMuxClientForOrganization(organizationId);
+      const client = await this.getMuxClientForOrganization(organizationId);
       
       // Get the current date and 30 days ago for the time range
       const endTime = new Date();
@@ -118,7 +129,7 @@ export class MuxService {
       const endTimeStr = endTime.toISOString();
 
       // Fetch views data for the last 30 days
-      const { data: viewsData } = await (client.data as any).query({
+      const { data: viewsData } = await (client as any).data.query({
         timeframe: ['1d'],
         filters: [],
         group_by: ['video_id'],
@@ -171,7 +182,7 @@ export class MuxService {
    */
   async getVideoAnalytics(videoId: string, organizationId?: string) {
     try {
-      const client = this.getMuxClientForOrganization(organizationId);
+      const client = await this.getMuxClientForOrganization(organizationId);
       
       const endTime = new Date();
       const startTime = new Date();
@@ -181,7 +192,7 @@ export class MuxService {
       const endTimeStr = endTime.toISOString();
 
       // Fetch views data for the specific video
-      const { data: viewsData } = await (client.data as any).query({
+      const { data: viewsData } = await (client as any).data.query({
         timeframe: ['1d'],
         filters: [`video_id:${videoId}`],
         group_by: ['video_id'],

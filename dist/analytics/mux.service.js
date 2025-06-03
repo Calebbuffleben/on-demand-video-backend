@@ -14,12 +14,15 @@ exports.MuxService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const mux_node_1 = require("@mux/mux-node");
+const prisma_service_1 = require("../prisma/prisma.service");
 let MuxService = MuxService_1 = class MuxService {
     configService;
+    prisma;
     logger = new common_1.Logger(MuxService_1.name);
     muxClient;
-    constructor(configService) {
+    constructor(configService, prisma) {
         this.configService = configService;
+        this.prisma = prisma;
         const tokenId = this.configService.get('MUX_TOKEN_ID');
         const tokenSecret = this.configService.get('MUX_TOKEN_SECRET');
         if (!tokenId || !tokenSecret) {
@@ -30,24 +33,31 @@ let MuxService = MuxService_1 = class MuxService {
             tokenSecret,
         });
     }
-    getMuxClientForOrganization(organizationId) {
+    async getMuxClientForOrganization(organizationId) {
         if (!organizationId) {
             return this.muxClient;
         }
-        const orgTokenId = this.configService.get(`MUX_TOKEN_ID_${organizationId}`);
-        const orgTokenSecret = this.configService.get(`MUX_TOKEN_SECRET_${organizationId}`);
-        if (!orgTokenId || !orgTokenSecret) {
-            this.logger.warn(`Mux credentials not found for organization ${organizationId}, using global credentials`);
+        try {
+            const organization = await this.prisma.organization.findUnique({
+                where: { id: organizationId },
+            });
+            if (!organization?.muxTokenId || !organization?.muxTokenSecret) {
+                this.logger.warn(`Mux credentials not found for organization ${organizationId}, using global credentials`);
+                return this.muxClient;
+            }
+            return new mux_node_1.default({
+                tokenId: organization.muxTokenId,
+                tokenSecret: organization.muxTokenSecret,
+            });
+        }
+        catch (error) {
+            this.logger.error(`Error getting Mux client for organization ${organizationId}: ${error.message}`);
             return this.muxClient;
         }
-        return new mux_node_1.default({
-            tokenId: orgTokenId,
-            tokenSecret: orgTokenSecret,
-        });
     }
     async getVideos(organizationId) {
         try {
-            const client = this.getMuxClientForOrganization(organizationId);
+            const client = await this.getMuxClientForOrganization(organizationId);
             const { data: assets } = await client.video.assets.list({
                 limit: 100,
             });
@@ -84,7 +94,7 @@ let MuxService = MuxService_1 = class MuxService {
     }
     async getAnalytics(organizationId) {
         try {
-            const client = this.getMuxClientForOrganization(organizationId);
+            const client = await this.getMuxClientForOrganization(organizationId);
             const endTime = new Date();
             const startTime = new Date();
             startTime.setDate(startTime.getDate() - 30);
@@ -130,7 +140,7 @@ let MuxService = MuxService_1 = class MuxService {
     }
     async getVideoAnalytics(videoId, organizationId) {
         try {
-            const client = this.getMuxClientForOrganization(organizationId);
+            const client = await this.getMuxClientForOrganization(organizationId);
             const endTime = new Date();
             const startTime = new Date();
             startTime.setDate(startTime.getDate() - 30);
@@ -166,6 +176,7 @@ let MuxService = MuxService_1 = class MuxService {
 exports.MuxService = MuxService;
 exports.MuxService = MuxService = MuxService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [config_1.ConfigService])
+    __metadata("design:paramtypes", [config_1.ConfigService,
+        prisma_service_1.PrismaService])
 ], MuxService);
 //# sourceMappingURL=mux.service.js.map

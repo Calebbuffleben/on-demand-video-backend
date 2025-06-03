@@ -1,9 +1,11 @@
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 export declare class MuxService {
     private configService;
+    private prisma;
     private readonly logger;
     private readonly muxClient;
-    constructor(configService: ConfigService);
+    constructor(configService: ConfigService, prisma: PrismaService);
     private getMuxClientForOrganization;
     getVideos(organizationId?: string): Promise<{
         uid: string;

@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClerkClient } from '@clerk/backend';
 import { Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ClerkService {
@@ -10,6 +11,7 @@ export class ClerkService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('ClerkClient') private readonly clerkClient: ClerkClient,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -125,11 +127,31 @@ export class ClerkService {
           data: { name },
         });
       } else {
-        // Create new organization
-        this.logger.log(`Creating new organization with clerkId: ${clerkId}`);
-        return this.prisma.organization.create({
-          data: { clerkId, name },
+        // Get Mux credentials from environment
+        const muxTokenId = this.configService.get<string>('MUX_TOKEN_ID');
+        const muxTokenSecret = this.configService.get<string>('MUX_TOKEN_SECRET');
+
+        this.logger.log(`Mux credentials found - Token ID: ${muxTokenId ? 'Yes' : 'No'}, Token Secret: ${muxTokenSecret ? 'Yes' : 'No'}`);
+
+        if (!muxTokenId || !muxTokenSecret) {
+          this.logger.warn('Global MUX credentials not configured, organization will be created without Mux credentials');
+        }
+
+        // Create new organization with Mux credentials
+        this.logger.log(`Creating new organization with clerkId: ${clerkId} and name: ${name}`);
+        const newOrg = await this.prisma.organization.create({
+          data: { 
+            clerkId, 
+            name,
+            muxTokenId,
+            muxTokenSecret,
+          },
         });
+
+        this.logger.log(`Organization created successfully with ID: ${newOrg.id}`);
+        this.logger.log(`Mux credentials set - Token ID: ${newOrg.muxTokenId ? 'Yes' : 'No'}, Token Secret: ${newOrg.muxTokenSecret ? 'Yes' : 'No'}`);
+
+        return newOrg;
       }
     } catch (error) {
       this.logger.error(`Error syncing organization: ${error.message}`, error.stack);

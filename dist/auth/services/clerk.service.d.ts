@@ -1,10 +1,12 @@
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClerkClient } from '@clerk/backend';
+import { ConfigService } from '@nestjs/config';
 export declare class ClerkService {
     private readonly prisma;
     private readonly clerkClient;
+    private readonly configService;
     private readonly logger;
-    constructor(prisma: PrismaService, clerkClient: ClerkClient);
+    constructor(prisma: PrismaService, clerkClient: ClerkClient, configService: ConfigService);
     syncUser(userData: any): Promise<{
         email: string;
         id: string;
