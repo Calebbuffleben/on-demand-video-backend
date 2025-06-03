@@ -471,7 +471,7 @@ __decorate([
     __param(0, (0, common_1.Param)('uid')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Request]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getVideoForEmbed", null);
 __decorate([

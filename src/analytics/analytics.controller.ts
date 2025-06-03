@@ -202,7 +202,7 @@ export class AnalyticsController {
       query,
     );
     return {
-      retention: analytics.retention,
+      retention: analytics.data.retentionData,
     };
   }
 
@@ -235,10 +235,10 @@ export class AnalyticsController {
       query,
     );
     return {
-      totalViews: analytics.totalViews,
-      totalWatchTime: analytics.totalWatchTime,
-      averageWatchTime: analytics.averageWatchTime,
-      viewerTimelines: analytics.viewerTimelines,
+      totalViews: analytics.data.totalViews,
+      totalWatchTime: analytics.data.averageWatchTime * analytics.data.totalViews,
+      averageWatchTime: analytics.data.averageWatchTime,
+      viewerTimelines: analytics.data.viewerTimeline,
     };
   }
 } 

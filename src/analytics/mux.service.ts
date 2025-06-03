@@ -12,6 +12,13 @@ type MuxAsset = {
   thumbnails?: Array<{ url: string }>;
   playback_ids?: Array<{ id: string }>;
   aspect_ratio?: string;
+  views?: number;
+  [key: string]: any;
+};
+
+type MuxViewsData = {
+  video_id: string;
+  value: number;
   [key: string]: any;
 };
 
@@ -25,7 +32,7 @@ export class MuxService {
     const tokenSecret = this.configService.get<string>('MUX_TOKEN_SECRET');
 
     if (!tokenId || !tokenSecret) {
-      throw new Error('MUX credentials not configured');
+      this.logger.warn('Global MUX credentials not configured');
     }
 
     this.muxClient = new Mux({
@@ -34,12 +41,32 @@ export class MuxService {
     });
   }
 
+  private getMuxClientForOrganization(organizationId?: string): Mux {
+    if (!organizationId) {
+      return this.muxClient;
+    }
+
+    const orgTokenId = this.configService.get<string>(`MUX_TOKEN_ID_${organizationId}`);
+    const orgTokenSecret = this.configService.get<string>(`MUX_TOKEN_SECRET_${organizationId}`);
+
+    if (!orgTokenId || !orgTokenSecret) {
+      this.logger.warn(`Mux credentials not found for organization ${organizationId}, using global credentials`);
+      return this.muxClient;
+    }
+
+    return new Mux({
+      tokenId: orgTokenId,
+      tokenSecret: orgTokenSecret,
+    });
+  }
+
   /**
    * Get all videos from MUX
    */
   async getVideos(organizationId?: string) {
     try {
-      const { data: assets } = await this.muxClient.video.assets.list({
+      const client = this.getMuxClientForOrganization(organizationId);
+      const { data: assets } = await client.video.assets.list({
         limit: 100,
       });
 
@@ -66,6 +93,7 @@ export class MuxService {
           height: 100,
         },
         readyToStream: asset.status === 'ready',
+        views: asset.views || 0,
       }));
     } catch (error) {
       this.logger.error('Error fetching videos from MUX', error);
@@ -78,25 +106,105 @@ export class MuxService {
    */
   async getAnalytics(organizationId?: string) {
     try {
-      const { data: metrics } = await this.muxClient.video.assets.list({
+      const client = this.getMuxClientForOrganization(organizationId);
+      
+      // Get the current date and 30 days ago for the time range
+      const endTime = new Date();
+      const startTime = new Date();
+      startTime.setDate(startTime.getDate() - 30);
+
+      // Format dates for Mux API
+      const startTimeStr = startTime.toISOString();
+      const endTimeStr = endTime.toISOString();
+
+      // Fetch views data for the last 30 days
+      const { data: viewsData } = await (client.data as any).query({
+        timeframe: ['1d'],
+        filters: [],
+        group_by: ['video_id'],
+        measurement: 'views',
+        start_time: startTimeStr,
+        end_time: endTimeStr,
+      });
+
+      // Fetch assets to get storage usage
+      const { data: assets } = await client.video.assets.list({
         limit: 100,
       });
 
-      // Calculate totals from metrics
-      const totals = {
-        totalVideoViews: metrics.length,
-        storage: metrics.reduce((sum, asset: MuxAsset) => sum + (asset.size || 0), 0),
-        bandwidth: 0, // MUX doesn't provide this directly
-      };
+      const assetsWithViews = assets as MuxAsset[];
+
+      // Calculate total views from views data
+      const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+
+      // Calculate storage usage
+      const totalStorage = assetsWithViews.reduce((sum, asset) => sum + (asset.size || 0), 0);
+
+      // Get views per video
+      const viewsPerVideo = viewsData.map(data => ({
+        videoId: data.video_id,
+        views: data.value || 0
+      }));
 
       return {
         success: true,
         result: {
-          totals,
+          totals: {
+            totalVideoViews: totalViews,
+            storage: totalStorage,
+            viewsPerVideo,
+            timeframe: {
+              start: startTimeStr,
+              end: endTimeStr
+            }
+          },
         },
       };
     } catch (error) {
       this.logger.error('Error fetching analytics from MUX', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed analytics for a specific video
+   */
+  async getVideoAnalytics(videoId: string, organizationId?: string) {
+    try {
+      const client = this.getMuxClientForOrganization(organizationId);
+      
+      const endTime = new Date();
+      const startTime = new Date();
+      startTime.setDate(startTime.getDate() - 30);
+
+      const startTimeStr = startTime.toISOString();
+      const endTimeStr = endTime.toISOString();
+
+      // Fetch views data for the specific video
+      const { data: viewsData } = await (client.data as any).query({
+        timeframe: ['1d'],
+        filters: [`video_id:${videoId}`],
+        group_by: ['video_id'],
+        measurement: 'views',
+        start_time: startTimeStr,
+        end_time: endTimeStr,
+      });
+
+      const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+
+      return {
+        success: true,
+        result: {
+          videoId,
+          views: totalViews,
+          timeframe: {
+            start: startTimeStr,
+            end: endTimeStr
+          }
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching analytics for video ${videoId}`, error);
       throw error;
     }
   }

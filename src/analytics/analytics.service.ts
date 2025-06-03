@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MuxService } from './mux.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
+import { PrismaService } from '../prisma/prisma.service';
+import { MuxService } from './mux.service';
 import { 
   PlatformStats, 
   RecentUpload, 
@@ -15,6 +16,7 @@ export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
   constructor(
+    private prisma: PrismaService,
     private muxService: MuxService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) {}
@@ -65,15 +67,22 @@ export class AnalyticsService {
     }
 
     try {
-      // Get videos and analytics data
-      const videos = await this.muxService.getVideos(organizationId);
-      const analytics = await this.muxService.getAnalytics(organizationId);
+      // Get videos from database
+      const videos = await this.prisma.video.findMany({
+        where: organizationId ? { organizationId } : undefined,
+        include: {
+          analytics: true,
+        },
+      });
+
+      // Get Mux analytics data
+      const muxAnalytics = await this.muxService.getAnalytics(organizationId);
 
       // Calculate totals
       const totalVideos = videos.length;
-      const totalViews = analytics.result.totals.totalVideoViews || 0;
-      const totalStorage = this.formatFileSize(analytics.result.totals.storage || 0);
-      const totalBandwidth = this.formatFileSize(analytics.result.totals.bandwidth || 0);
+      const totalViews = videos.reduce((sum, video) => sum + (video.analytics?.views || 0), 0);
+      const totalStorage = this.formatFileSize(muxAnalytics.result.totals.storage);
+      const totalBandwidth = '0 GB'; // Mux doesn't provide this directly
 
       const stats: PlatformStats = {
         totalVideos,
@@ -111,20 +120,23 @@ export class AnalyticsService {
     }
 
     try {
-      const videos = await this.muxService.getVideos(organizationId);
+      const videos = await this.prisma.video.findMany({
+        where: organizationId ? { organizationId } : undefined,
+        include: {
+          analytics: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
 
-      // Sort by created date (newest first) and limit
-      const recentUploads = videos
-        .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
-        .slice(0, limit)
-        .map(video => ({
-          id: video.uid,
-          title: video.meta?.name || 'Untitled Video',
-          thumbnailUrl: video.thumbnail || '',
-          uploadDate: this.formatDate(video.created),
-          size: this.formatFileSize(video.size || 0),
-          duration: this.formatDuration(video.duration || 0),
-        }));
+      const recentUploads = videos.map(video => ({
+        id: video.id,
+        title: video.name || 'Untitled Video',
+        thumbnailUrl: video.thumbnailUrl || '',
+        uploadDate: this.formatDate(video.createdAt.toISOString()),
+        size: this.formatFileSize(video.analytics?.watchTime || 0),
+        duration: this.formatDuration(video.duration || 0),
+      }));
 
       // Cache the results
       await this.cacheManager.set(cacheKey, recentUploads, 60 * 5); // 5 minutes
@@ -148,21 +160,45 @@ export class AnalyticsService {
     }
 
     try {
-      const videos = await this.muxService.getVideos(organizationId);
+      // Get videos with their Mux asset IDs
+      const videos = await this.prisma.video.findMany({
+        where: organizationId ? { organizationId } : undefined,
+        include: {
+          analytics: true,
+        },
+        orderBy: {
+          analytics: {
+            views: 'desc',
+          },
+        },
+        take: limit,
+      });
 
-      // Mock view count since MUX API doesn't directly provide view counts per video in the list endpoint
-      // In a real implementation, you would fetch individual video analytics or use database tracking
-      const popularVideos = videos
-        .map(video => ({
-          id: video.uid,
-          title: video.meta?.name || 'Untitled Video',
-          thumbnailUrl: video.thumbnail || '',
-          // This is a mock view count - in production, you would get actual counts
-          views: Math.floor(Math.random() * 10000), // Mock view count
-          duration: this.formatDuration(video.duration || 0),
-        }))
-        .sort((a, b) => b.views - a.views) // Sort by view count (highest first)
-        .slice(0, limit);
+      // Get detailed analytics from Mux for each video
+      const videosWithMuxData = await Promise.all(
+        videos.map(async (video) => {
+          if (!video.muxAssetId) return video;
+
+          try {
+            const muxAnalytics = await this.muxService.getAnalytics(organizationId);
+            return {
+              ...video,
+              muxAnalytics: muxAnalytics.result.totals,
+            };
+          } catch (error) {
+            this.logger.error(`Error fetching Mux analytics for video ${video.id}:`, error);
+            return video;
+          }
+        })
+      );
+
+      const popularVideos = videosWithMuxData.map(video => ({
+        id: video.id,
+        title: video.name || 'Untitled Video',
+        thumbnailUrl: video.thumbnailUrl || '',
+        views: video.analytics?.views || 0,
+        duration: this.formatDuration(video.duration || 0),
+      }));
 
       // Cache the results
       await this.cacheManager.set(cacheKey, popularVideos, 60 * 5); // 5 minutes

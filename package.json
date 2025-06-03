@@ -18,7 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "migration:video-options": "ts-node src/migration/migrate-video-options.ts"
+    "migration:video-options": "ts-node src/migration/migrate-video-options.ts",
+    "update:mux-credentials": "ts-node src/scripts/update-mux-credentials.ts"
   },
   "dependencies": {
     "@clerk/backend": "^1.25.8",

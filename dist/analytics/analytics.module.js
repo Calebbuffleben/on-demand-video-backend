@@ -10,23 +10,23 @@ exports.AnalyticsModule = void 0;
 const common_1 = require("@nestjs/common");
 const analytics_controller_1 = require("./analytics.controller");
 const analytics_service_1 = require("./analytics.service");
-const mux_service_1 = require("./mux.service");
-const config_1 = require("@nestjs/config");
+const prisma_module_1 = require("../prisma/prisma.module");
+const mux_module_1 = require("../providers/mux/mux.module");
+const mux_analytics_service_1 = require("./services/mux-analytics.service");
 const cache_manager_1 = require("@nestjs/cache-manager");
+const mux_service_1 = require("./mux.service");
 let AnalyticsModule = class AnalyticsModule {
 };
 exports.AnalyticsModule = AnalyticsModule;
 exports.AnalyticsModule = AnalyticsModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            config_1.ConfigModule,
-            cache_manager_1.CacheModule.register({
-                ttl: 60 * 5,
-                max: 100,
-            }),
+            prisma_module_1.PrismaModule,
+            mux_module_1.MuxModule,
+            cache_manager_1.CacheModule.register(),
         ],
         controllers: [analytics_controller_1.AnalyticsController],
-        providers: [analytics_service_1.AnalyticsService, mux_service_1.MuxService],
+        providers: [analytics_service_1.AnalyticsService, mux_analytics_service_1.MuxAnalyticsService, mux_service_1.MuxService],
         exports: [analytics_service_1.AnalyticsService],
     })
 ], AnalyticsModule);

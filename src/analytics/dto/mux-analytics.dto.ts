@@ -1,19 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsISO8601 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GetMuxAnalyticsDto {
-  @ApiProperty({ description: 'The ID of the video to get analytics for' })
-  @IsString()
-  videoId: string;
-
-  @ApiProperty({ description: 'Start date for analytics data', required: false })
+  @ApiProperty({ 
+    description: 'Start date for analytics data (ISO 8601 format)', 
+    required: false,
+    example: '2024-01-01T00:00:00Z'
+  })
   @IsOptional()
-  @IsDateString()
+  @IsISO8601()
+  @Type(() => String)
   startDate?: string;
 
-  @ApiProperty({ description: 'End date for analytics data', required: false })
+  @ApiProperty({ 
+    description: 'End date for analytics data (ISO 8601 format)', 
+    required: false,
+    example: '2024-12-31T23:59:59Z'
+  })
   @IsOptional()
-  @IsDateString()
+  @IsISO8601()
+  @Type(() => String)
   endDate?: string;
 }
 
@@ -29,29 +36,35 @@ export class ViewerTimelineDto {
 }
 
 export class RetentionDataPointDto {
-  @ApiProperty({ description: 'Timestamp in seconds from video start' })
-  timestamp: number;
-
-  @ApiProperty({ description: 'Number of viewers at this timestamp' })
-  viewers: number;
+  @ApiProperty({ description: 'Time in seconds from video start' })
+  time: number;
 
   @ApiProperty({ description: 'Percentage of viewers retained' })
-  percentage: number;
+  retention: number;
 }
 
 export class MuxAnalyticsResponseDto {
-  @ApiProperty({ description: 'Total number of views' })
-  totalViews: number;
+  @ApiProperty()
+  success: boolean;
 
-  @ApiProperty({ description: 'Total watch time in seconds' })
-  totalWatchTime: number;
-
-  @ApiProperty({ description: 'Average watch time in seconds' })
-  averageWatchTime: number;
-
-  @ApiProperty({ description: 'Retention data points' })
-  retention: RetentionDataPointDto[];
-
-  @ApiProperty({ description: 'Individual viewer timelines' })
-  viewerTimelines: ViewerTimelineDto[];
+  @ApiProperty()
+  data: {
+    totalViews: number;
+    averageWatchTime: number;
+    engagementRate: number;
+    uniqueViewers: number;
+    viewsOverTime: Array<{
+      date: string;
+      views: number;
+    }>;
+    retentionData: Array<{
+      time: number;
+      retention: number;
+    }>;
+    viewerTimeline: Array<{
+      timestamp: string;
+      duration: number;
+      percentage: number;
+    }>;
+  };
 } 

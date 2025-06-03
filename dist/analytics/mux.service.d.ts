@@ -4,6 +4,7 @@ export declare class MuxService {
     private readonly logger;
     private readonly muxClient;
     constructor(configService: ConfigService);
+    private getMuxClientForOrganization;
     getVideos(organizationId?: string): Promise<{
         uid: string;
         thumbnail: string;
@@ -27,14 +28,30 @@ export declare class MuxService {
             height: number;
         };
         readyToStream: boolean;
+        views: number;
     }[]>;
     getAnalytics(organizationId?: string): Promise<{
         success: boolean;
         result: {
             totals: {
-                totalVideoViews: number;
+                totalVideoViews: any;
                 storage: number;
-                bandwidth: number;
+                viewsPerVideo: any;
+                timeframe: {
+                    start: string;
+                    end: string;
+                };
+            };
+        };
+    }>;
+    getVideoAnalytics(videoId: string, organizationId?: string): Promise<{
+        success: boolean;
+        result: {
+            videoId: string;
+            views: any;
+            timeframe: {
+                start: string;
+                end: string;
             };
         };
     }>;

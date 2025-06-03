@@ -1,20 +1,20 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
-import { MuxService } from './mux/mux.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { AnalyticsRepository } from './repositories/analytics.repository';
+import { PrismaModule } from '../prisma/prisma.module';
+import { MuxModule } from '../providers/mux/mux.module';
 import { MuxAnalyticsService } from './services/mux-analytics.service';
+import { CacheModule } from '@nestjs/cache-manager';
+import { MuxService } from './mux.service';
 
 @Module({
-  controllers: [AnalyticsController],
-  providers: [
-    AnalyticsService,
-    MuxService,
-    PrismaService,
-    AnalyticsRepository,
-    MuxAnalyticsService,
+  imports: [
+    PrismaModule,
+    MuxModule,
+    CacheModule.register(),
   ],
-  exports: [AnalyticsService, MuxAnalyticsService],
+  controllers: [AnalyticsController],
+  providers: [AnalyticsService, MuxAnalyticsService, MuxService],
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {} 

@@ -10,6 +10,7 @@ import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 import { UploadService } from './upload.service';
+import { Request } from 'express';
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
