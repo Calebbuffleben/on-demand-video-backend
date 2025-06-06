@@ -183,6 +183,7 @@ export class VideosService {
       updateData.playButtonColor = displayOptions.playButtonColor;
       updateData.playButtonSize = displayOptions.playButtonSize;
       updateData.playButtonBgColor = displayOptions.playButtonBgColor;
+      updateData.showSoundControl = displayOptions.showSoundControl;
       
       // Add sound control fields with detailed logging
       if (displayOptions.soundControlText !== undefined) {
@@ -442,6 +443,7 @@ export class VideosService {
       soundControlColor: video.soundControlColor || '#FFFFFF',
       soundControlOpacity: video.soundControlOpacity ?? 0.8,
       soundControlSize: video.soundControlSize ?? 64,
+      showSoundControl: video.showSoundControl === true,
     };
     
     // Create embed options object from explicit fields
@@ -816,6 +818,7 @@ export class VideosService {
           soundControlColor: video.soundControlColor || '#FFFFFF',
           soundControlOpacity: video.soundControlOpacity ?? 0.8,
           soundControlSize: video.soundControlSize ?? 64,
+          showSoundControl: video.showSoundControl === true,
         };
         
         // Create embed options object from explicit fields
@@ -1273,6 +1276,7 @@ export class VideosService {
       soundControlColor: video.soundControlColor || '#FFFFFF',
       soundControlOpacity: video.soundControlOpacity ?? 0.8,
       soundControlSize: video.soundControlSize ?? 64,
+      showSoundControl: video.showSoundControl === true,
     };
     
     // Create embed options object from explicit fields

@@ -100,6 +100,7 @@ let VideosService = VideosService_1 = class VideosService {
             updateData.playButtonColor = displayOptions.playButtonColor;
             updateData.playButtonSize = displayOptions.playButtonSize;
             updateData.playButtonBgColor = displayOptions.playButtonBgColor;
+            updateData.showSoundControl = displayOptions.showSoundControl;
             if (displayOptions.soundControlText !== undefined) {
                 this.logger.log('Updating soundControlText:', {
                     current: video.soundControlText,
@@ -290,6 +291,7 @@ let VideosService = VideosService_1 = class VideosService {
             soundControlColor: video.soundControlColor || '#FFFFFF',
             soundControlOpacity: video.soundControlOpacity ?? 0.8,
             soundControlSize: video.soundControlSize ?? 64,
+            showSoundControl: video.showSoundControl === true,
         };
         const embedOptions = {
             showVideoTitle: video.showVideoTitle === false ? false : true,
@@ -570,6 +572,7 @@ let VideosService = VideosService_1 = class VideosService {
                     soundControlColor: video.soundControlColor || '#FFFFFF',
                     soundControlOpacity: video.soundControlOpacity ?? 0.8,
                     soundControlSize: video.soundControlSize ?? 64,
+                    showSoundControl: video.showSoundControl === true,
                 };
                 const embedOptions = {
                     showVideoTitle: video.showVideoTitle === false ? false : true,
@@ -935,6 +938,7 @@ let VideosService = VideosService_1 = class VideosService {
             soundControlColor: video.soundControlColor || '#FFFFFF',
             soundControlOpacity: video.soundControlOpacity ?? 0.8,
             soundControlSize: video.soundControlSize ?? 64,
+            showSoundControl: video.showSoundControl === true,
         };
         const embedOptions = {
             showVideoTitle: video.showVideoTitle === false ? false : true,

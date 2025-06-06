@@ -84,6 +84,7 @@ model Video {
   soundControlColor   String?      @default("#FFFFFF")
   soundControlOpacity Float?       @default(0.8)
   soundControlSize    Int?         @default(64)
+  showSoundControl    Boolean?     @default(false)
   
   // Embed options
   showVideoTitle      Boolean?     @default(true)

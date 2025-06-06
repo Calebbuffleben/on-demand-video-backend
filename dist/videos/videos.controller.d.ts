@@ -52,6 +52,7 @@ export declare class VideosController {
         soundControlColor: string | null;
         soundControlOpacity: number | null;
         soundControlSize: number | null;
+        showSoundControl: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -101,6 +102,7 @@ export declare class VideosController {
         soundControlColor: string | null;
         soundControlOpacity: number | null;
         soundControlSize: number | null;
+        showSoundControl: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -153,6 +155,7 @@ export declare class VideosController {
         soundControlColor: string | null;
         soundControlOpacity: number | null;
         soundControlSize: number | null;
+        showSoundControl: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -202,6 +205,7 @@ export declare class VideosController {
         soundControlColor: string | null;
         soundControlOpacity: number | null;
         soundControlSize: number | null;
+        showSoundControl: boolean | null;
         showVideoTitle: boolean | null;
         showUploadDate: boolean | null;
         showMetadata: boolean | null;
@@ -275,6 +279,7 @@ export declare class VideosController {
             soundControlColor: string | null;
             soundControlOpacity: number | null;
             soundControlSize: number | null;
+            showSoundControl: boolean | null;
             showVideoTitle: boolean | null;
             showUploadDate: boolean | null;
             showMetadata: boolean | null;
@@ -328,6 +333,7 @@ export declare class VideosController {
                 soundControlColor: string | null;
                 soundControlOpacity: number | null;
                 soundControlSize: number | null;
+                showSoundControl: boolean | null;
                 showVideoTitle: boolean | null;
                 showUploadDate: boolean | null;
                 showMetadata: boolean | null;

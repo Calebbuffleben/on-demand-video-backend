@@ -93,4 +93,10 @@ export class VideoDisplayOptionsDto {
   @IsOptional()
   @Type(() => Number)
   soundControlSize?: number;
+
+  @ApiProperty({ description: 'Whether to show the sound control button', default: false })
+  @IsBoolean()
+  @IsOptional()
+  @Type(() => Boolean)
+  showSoundControl?: boolean = false;
 } 
