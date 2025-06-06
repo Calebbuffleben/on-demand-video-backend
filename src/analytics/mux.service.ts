@@ -124,18 +124,16 @@ export class MuxService {
       const startTime = new Date();
       startTime.setDate(startTime.getDate() - 30);
 
-      // Format dates for Mux API
-      const startTimeStr = startTime.toISOString();
-      const endTimeStr = endTime.toISOString();
+      // Convert to epoch timestamps (seconds)
+      const startTimeEpoch = Math.floor(startTime.getTime() / 1000);
+      const endTimeEpoch = Math.floor(endTime.getTime() / 1000);
 
-      // Fetch views data for the last 30 days using the correct API method
-      const { data: viewsData } = await (client as any).data.views.query({
-        timeframe: ['1d'],
-        filters: [],
-        group_by: ['video_id'],
-        measurement: 'views',
-        start_time: startTimeStr,
-        end_time: endTimeStr,
+      // Fetch views data for the last 30 days
+      const viewsResponse = await client.data.videoViews.list({
+        query: {
+          timeframe: [startTimeEpoch, endTimeEpoch],
+          filters: [],
+        }
       });
 
       // Fetch assets to get storage usage
@@ -146,15 +144,15 @@ export class MuxService {
       const assetsWithViews = assets as MuxAsset[];
 
       // Calculate total views from views data
-      const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+      const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
 
       // Calculate storage usage
       const totalStorage = assetsWithViews.reduce((sum, asset) => sum + (asset.size || 0), 0);
 
       // Get views per video
-      const viewsPerVideo = viewsData.map(data => ({
-        videoId: data.video_id,
-        views: data.value || 0
+      const viewsPerVideo = viewsResponse.data.map(view => ({
+        videoId: view.id,
+        views: view.watch_time || 0
       }));
 
       return {
@@ -165,8 +163,8 @@ export class MuxService {
             storage: totalStorage,
             viewsPerVideo,
             timeframe: {
-              start: startTimeStr,
-              end: endTimeStr
+              start: startTime.toISOString(),
+              end: endTime.toISOString()
             }
           },
         },
@@ -188,20 +186,19 @@ export class MuxService {
       const startTime = new Date();
       startTime.setDate(startTime.getDate() - 30);
 
-      const startTimeStr = startTime.toISOString();
-      const endTimeStr = endTime.toISOString();
+      // Convert to epoch timestamps (seconds)
+      const startTimeEpoch = Math.floor(startTime.getTime() / 1000);
+      const endTimeEpoch = Math.floor(endTime.getTime() / 1000);
 
-      // Fetch views data for the specific video using the correct API method
-      const { data: viewsData } = await (client as any).data.views.query({
-        timeframe: ['1d'],
-        filters: [`video_id:${videoId}`],
-        group_by: ['video_id'],
-        measurement: 'views',
-        start_time: startTimeStr,
-        end_time: endTimeStr,
+      // Fetch views data for the specific video
+      const viewsResponse = await client.data.videoViews.list({
+        query: {
+          timeframe: [startTimeEpoch, endTimeEpoch],
+          filters: [`asset_id:${videoId}`],
+        }
       });
 
-      const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+      const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
 
       return {
         success: true,
@@ -209,8 +206,8 @@ export class MuxService {
           videoId,
           views: totalViews,
           timeframe: {
-            start: startTimeStr,
-            end: endTimeStr
+            start: startTime.toISOString(),
+            end: endTime.toISOString()
           }
         }
       };

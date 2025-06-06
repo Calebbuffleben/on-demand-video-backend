@@ -98,11 +98,13 @@ let MuxService = MuxService_1 = class MuxService {
             const endTime = new Date();
             const startTime = new Date();
             startTime.setDate(startTime.getDate() - 30);
-            const startTimeStr = startTime.toISOString();
-            const endTimeStr = endTime.toISOString();
+            const startTimeEpoch = Math.floor(startTime.getTime() / 1000);
+            const endTimeEpoch = Math.floor(endTime.getTime() / 1000);
             const viewsResponse = await client.data.videoViews.list({
-                timeframe: [startTimeStr, endTimeStr],
-                filters: [],
+                query: {
+                    timeframe: [startTimeEpoch, endTimeEpoch],
+                    filters: [],
+                }
             });
             const { data: assets } = await client.video.assets.list({
                 limit: 100,
@@ -122,8 +124,8 @@ let MuxService = MuxService_1 = class MuxService {
                         storage: totalStorage,
                         viewsPerVideo,
                         timeframe: {
-                            start: startTimeStr,
-                            end: endTimeStr
+                            start: startTime.toISOString(),
+                            end: endTime.toISOString()
                         }
                     },
                 },
@@ -140,11 +142,13 @@ let MuxService = MuxService_1 = class MuxService {
             const endTime = new Date();
             const startTime = new Date();
             startTime.setDate(startTime.getDate() - 30);
-            const startTimeStr = startTime.toISOString();
-            const endTimeStr = endTime.toISOString();
+            const startTimeEpoch = Math.floor(startTime.getTime() / 1000);
+            const endTimeEpoch = Math.floor(endTime.getTime() / 1000);
             const viewsResponse = await client.data.videoViews.list({
-                timeframe: [startTimeStr, endTimeStr],
-                filters: [`id:${videoId}`],
+                query: {
+                    timeframe: [startTimeEpoch, endTimeEpoch],
+                    filters: [`asset_id:${videoId}`],
+                }
             });
             const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
             return {
@@ -153,8 +157,8 @@ let MuxService = MuxService_1 = class MuxService {
                     videoId,
                     views: totalViews,
                     timeframe: {
-                        start: startTimeStr,
-                        end: endTimeStr
+                        start: startTime.toISOString(),
+                        end: endTime.toISOString()
                     }
                 }
             };
