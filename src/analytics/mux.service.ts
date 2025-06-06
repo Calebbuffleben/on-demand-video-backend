@@ -128,8 +128,8 @@ export class MuxService {
       const startTimeStr = startTime.toISOString();
       const endTimeStr = endTime.toISOString();
 
-      // Fetch views data for the last 30 days
-      const { data: viewsData } = await (client as any).data.query({
+      // Fetch views data for the last 30 days using the correct API method
+      const { data: viewsData } = await (client as any).data.views.query({
         timeframe: ['1d'],
         filters: [],
         group_by: ['video_id'],
@@ -191,8 +191,8 @@ export class MuxService {
       const startTimeStr = startTime.toISOString();
       const endTimeStr = endTime.toISOString();
 
-      // Fetch views data for the specific video
-      const { data: viewsData } = await (client as any).data.query({
+      // Fetch views data for the specific video using the correct API method
+      const { data: viewsData } = await (client as any).data.views.query({
         timeframe: ['1d'],
         filters: [`video_id:${videoId}`],
         group_by: ['video_id'],
