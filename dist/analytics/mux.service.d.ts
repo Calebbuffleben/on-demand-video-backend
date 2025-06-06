@@ -36,9 +36,12 @@ export declare class MuxService {
         success: boolean;
         result: {
             totals: {
-                totalVideoViews: any;
+                totalVideoViews: number;
                 storage: number;
-                viewsPerVideo: any;
+                viewsPerVideo: {
+                    videoId: string;
+                    views: number;
+                }[];
                 timeframe: {
                     start: string;
                     end: string;
@@ -50,7 +53,7 @@ export declare class MuxService {
         success: boolean;
         result: {
             videoId: string;
-            views: any;
+            views: number;
             timeframe: {
                 start: string;
                 end: string;

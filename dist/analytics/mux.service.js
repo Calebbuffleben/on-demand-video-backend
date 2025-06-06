@@ -100,23 +100,19 @@ let MuxService = MuxService_1 = class MuxService {
             startTime.setDate(startTime.getDate() - 30);
             const startTimeStr = startTime.toISOString();
             const endTimeStr = endTime.toISOString();
-            const { data: viewsData } = await client.data.query({
-                timeframe: ['1d'],
+            const viewsResponse = await client.data.videoViews.list({
+                timeframe: [startTimeStr, endTimeStr],
                 filters: [],
-                group_by: ['video_id'],
-                measurement: 'views',
-                start_time: startTimeStr,
-                end_time: endTimeStr,
             });
             const { data: assets } = await client.video.assets.list({
                 limit: 100,
             });
             const assetsWithViews = assets;
-            const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+            const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
             const totalStorage = assetsWithViews.reduce((sum, asset) => sum + (asset.size || 0), 0);
-            const viewsPerVideo = viewsData.map(data => ({
-                videoId: data.video_id,
-                views: data.value || 0
+            const viewsPerVideo = viewsResponse.data.map(view => ({
+                videoId: view.id,
+                views: view.watch_time || 0
             }));
             return {
                 success: true,
@@ -146,15 +142,11 @@ let MuxService = MuxService_1 = class MuxService {
             startTime.setDate(startTime.getDate() - 30);
             const startTimeStr = startTime.toISOString();
             const endTimeStr = endTime.toISOString();
-            const { data: viewsData } = await client.data.query({
-                timeframe: ['1d'],
-                filters: [`video_id:${videoId}`],
-                group_by: ['video_id'],
-                measurement: 'views',
-                start_time: startTimeStr,
-                end_time: endTimeStr,
+            const viewsResponse = await client.data.videoViews.list({
+                timeframe: [startTimeStr, endTimeStr],
+                filters: [`id:${videoId}`],
             });
-            const totalViews = viewsData.reduce((sum, data) => sum + (data.value || 0), 0);
+            const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
             return {
                 success: true,
                 result: {
