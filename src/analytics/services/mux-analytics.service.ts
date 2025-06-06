@@ -125,17 +125,18 @@ export class MuxAnalyticsService {
     videoDuration: number,
   ): RetentionDataPointDto[] {
     const retentionPoints: RetentionDataPointDto[] = [];
-    const timePoints = Math.min(100, videoDuration); // Limit to 100 data points
-
-    for (let i = 0; i <= timePoints; i++) {
-      const time = Math.floor((i / timePoints) * videoDuration);
+    
+    // Create a point for each second
+    for (let second = 0; second <= videoDuration; second++) {
       const viewersAtPoint = viewerTimelines.filter(
-        view => view.duration >= time,
+        view => view.duration >= second
       ).length;
-      const retention = (viewersAtPoint / viewerTimelines.length) * 100;
+      const retention = viewerTimelines.length > 0 
+        ? (viewersAtPoint / viewerTimelines.length) * 100 
+        : 0;
 
       retentionPoints.push({
-        time,
+        time: second,
         retention,
       });
     }
