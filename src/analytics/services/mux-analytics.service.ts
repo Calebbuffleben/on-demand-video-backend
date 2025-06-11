@@ -67,14 +67,6 @@ export class MuxAnalyticsService {
       const viewerTimelines = viewsResponse.data.map(view => {
         // Convert watch_time from milliseconds to seconds
         const watchTimeInSeconds = Math.floor((view.watch_time || 0) / 1000);
-        
-        // Log individual view data for debugging
-        this.logger.debug('--------------------------------- View data:', {
-          view_start: view.view_start,
-          watch_time_ms: view.watch_time,
-          watch_time_seconds: watchTimeInSeconds,
-          video_duration: video.duration
-        });
 
         return {
           timestamp: view.view_start,
@@ -82,9 +74,6 @@ export class MuxAnalyticsService {
           percentage: (watchTimeInSeconds / (video.duration || 1)) * 100,
         };
       });
-
-      // Log the viewer timelines for debugging
-      this.logger.debug('--------------------------------- Viewer timelines:', JSON.stringify(viewerTimelines));
 
       // Calculate retention data
       const retention = this.calculateRetention(viewerTimelines, video.duration || 0);
