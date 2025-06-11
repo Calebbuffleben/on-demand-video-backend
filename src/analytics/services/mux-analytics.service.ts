@@ -14,6 +14,8 @@ export class MuxAnalyticsService {
     tenantId: string,
     dto: GetMuxAnalyticsDto,
   ): Promise<MuxAnalyticsResponseDto> {
+    // Log the viewer timelines for debugging
+      this.logger.debug('--------------------------------- Got here:');
     // Get video and verify it belongs to tenant
     const video = await this.prisma.video.findFirst({
       where: {
@@ -58,12 +60,31 @@ export class MuxAnalyticsService {
         timeframe: dto.startDate && dto.endDate ? [dto.startDate, dto.endDate] : undefined,
       });
 
+      // Log raw Mux data for debugging
+      this.logger.debug('--------------------------------- Raw Mux data:', JSON.stringify(viewsResponse.data));
+
       // Process viewer timelines
-      const viewerTimelines = viewsResponse.data.map(view => ({
-        timestamp: view.view_start,
-        duration: view.watch_time || 0,
-        percentage: ((view.watch_time || 0) / (video.duration || 1)) * 100,
-      }));
+      const viewerTimelines = viewsResponse.data.map(view => {
+        // Convert watch_time from milliseconds to seconds
+        const watchTimeInSeconds = Math.floor((view.watch_time || 0) / 1000);
+        
+        // Log individual view data for debugging
+        this.logger.debug('--------------------------------- View data:', {
+          view_start: view.view_start,
+          watch_time_ms: view.watch_time,
+          watch_time_seconds: watchTimeInSeconds,
+          video_duration: video.duration
+        });
+
+        return {
+          timestamp: view.view_start,
+          duration: watchTimeInSeconds,
+          percentage: (watchTimeInSeconds / (video.duration || 1)) * 100,
+        };
+      });
+
+      // Log the viewer timelines for debugging
+      this.logger.debug('--------------------------------- Viewer timelines:', JSON.stringify(viewerTimelines));
 
       // Calculate retention data
       const retention = this.calculateRetention(viewerTimelines, video.duration || 0);
@@ -125,21 +146,38 @@ export class MuxAnalyticsService {
     videoDuration: number,
   ): RetentionDataPointDto[] {
     const retentionPoints: RetentionDataPointDto[] = [];
+    const totalViewers = viewerTimelines.length;
     
+    if (totalViewers === 0) {
+      // If no viewers, return array of zero retention
+      for (let second = 0; second <= videoDuration; second++) {
+        retentionPoints.push({
+          time: second,
+          retention: 0,
+        });
+      }
+      return retentionPoints;
+    }
+
     // Create a point for each second
     for (let second = 0; second <= videoDuration; second++) {
-      const viewersAtPoint = viewerTimelines.filter(
-        view => view.duration >= second
-      ).length;
-      const retention = viewerTimelines.length > 0 
-        ? (viewersAtPoint / viewerTimelines.length) * 100 
-        : 0;
+      // Count viewers who are still watching at this second
+      const activeViewers = viewerTimelines.filter(view => {
+        // A viewer is considered active if they haven't reached their watch duration
+        return second <= view.duration;
+      }).length;
+
+      // Calculate retention percentage
+      const retention = (activeViewers / totalViewers) * 100;
 
       retentionPoints.push({
         time: second,
         retention,
       });
     }
+
+    // Log the retention points for debugging
+    this.logger.debug('Retention points:', JSON.stringify(retentionPoints));
 
     return retentionPoints;
   }
