@@ -15,7 +15,9 @@ export class MuxAnalyticsService {
     dto: GetMuxAnalyticsDto,
   ): Promise<MuxAnalyticsResponseDto> {
     // Log the viewer timelines for debugging
-      this.logger.debug('--------------------------------- Got here:');
+    this.logger.debug('--------------------------------- Got here:');
+    this.logger.debug('Time range params:', JSON.stringify(dto));
+    
     // Get video and verify it belongs to tenant
     const video = await this.prisma.video.findFirst({
       where: {
@@ -54,10 +56,32 @@ export class MuxAnalyticsService {
     });
 
     try {
+      // Convert dates to UTC if timezone is provided
+      let startDate = dto.startDate;
+      let endDate = dto.endDate;
+      
+      if (startDate && endDate) {
+        // Convert to Unix timestamps (seconds)
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        // Set start date to beginning of day
+        start.setHours(0, 0, 0, 0);
+        // Set end date to end of day
+        end.setHours(23, 59, 59, 999);
+        
+        // Convert to Unix timestamps (seconds)
+        startDate = Math.floor(start.getTime() / 1000).toString();
+        endDate = Math.floor(end.getTime() / 1000).toString();
+      }
+
+      // Log the formatted dates for debugging
+      this.logger.debug('Formatted dates:', { startDate, endDate });
+
       // Fetch views data from Mux
       const viewsResponse = await muxClient.data.videoViews.list({
         filters: [`asset_id:${video.muxAssetId}`],
-        timeframe: dto.startDate && dto.endDate ? [dto.startDate, dto.endDate] : undefined,
+        timeframe: startDate && endDate ? [startDate, endDate] : undefined,
       });
 
       // Log raw Mux data for debugging
@@ -83,8 +107,8 @@ export class MuxAnalyticsService {
       const totalWatchTime = viewerTimelines.reduce((sum, view) => sum + view.duration, 0);
       const averageWatchTime = totalViews > 0 ? totalWatchTime / totalViews : 0;
 
-      // Format views over time data
-      const viewsOverTime = this.formatViewsOverTime(viewerTimelines);
+      // Format views over time data with granularity
+      const viewsOverTime = this.formatViewsOverTime(viewerTimelines, dto.granularity);
 
       // Save analytics to database
       await this.saveAnalytics(videoId, {
@@ -171,20 +195,41 @@ export class MuxAnalyticsService {
     return retentionPoints;
   }
 
-  private formatViewsOverTime(viewerTimelines: ViewerTimelineDto[]): any[] {
-    // Group views by date
+  private formatViewsOverTime(viewerTimelines: ViewerTimelineDto[], granularity?: number): any[] {
+    // Group views by date with granularity
     const viewsByDate = new Map<string, number>();
     
     viewerTimelines.forEach(view => {
-      const date = new Date(view.timestamp).toISOString().split('T')[0];
-      viewsByDate.set(date, (viewsByDate.get(date) || 0) + 1);
+      const date = new Date(view.timestamp);
+      let key: string;
+      
+      if (granularity) {
+        if (granularity < 60) {
+          // Handle second-by-second granularity
+          const seconds = date.getSeconds();
+          const roundedSeconds = Math.floor(seconds / granularity) * granularity;
+          date.setSeconds(roundedSeconds, 0);
+        } else {
+          // Handle minute-by-minute granularity
+          const minutes = date.getMinutes();
+          const roundedMinutes = Math.floor(minutes / (granularity / 60)) * (granularity / 60);
+          date.setMinutes(roundedMinutes, 0, 0);
+        }
+        key = date.toISOString();
+      } else {
+        key = date.toISOString().split('T')[0];
+      }
+      
+      viewsByDate.set(key, (viewsByDate.get(key) || 0) + 1);
     });
 
-    // Convert to array format
-    return Array.from(viewsByDate.entries()).map(([date, views]) => ({
-      date,
-      views,
-    }));
+    // Convert to array format and sort by date
+    return Array.from(viewsByDate.entries())
+      .map(([date, views]) => ({
+        date,
+        views,
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   private calculateEngagementRate(viewerTimelines: ViewerTimelineDto[], videoDuration: number): number {

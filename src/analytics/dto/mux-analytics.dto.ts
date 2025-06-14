@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsISO8601 } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsISO8601, IsInt, Min, Max, ValidateIf, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetMuxAnalyticsDto {
@@ -22,6 +22,49 @@ export class GetMuxAnalyticsDto {
   @IsISO8601()
   @Type(() => String)
   endDate?: string;
+
+  @ApiProperty({
+    description: 'Start time of day in 24-hour format (HH:mm)',
+    required: false,
+    example: '09:00'
+  })
+  @IsOptional()
+  @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+    message: 'startTimeOfDay must be in HH:mm format (24-hour)'
+  })
+  startTimeOfDay?: string;
+
+  @ApiProperty({
+    description: 'End time of day in 24-hour format (HH:mm)',
+    required: false,
+    example: '17:00'
+  })
+  @IsOptional()
+  @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+    message: 'endTimeOfDay must be in HH:mm format (24-hour)'
+  })
+  endTimeOfDay?: string;
+
+  @ApiProperty({
+    description: 'Time zone for the time range (IANA timezone)',
+    required: false,
+    example: 'America/New_York'
+  })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiProperty({
+    description: 'Granularity of the data in minutes',
+    required: false,
+    example: 5
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  @Type(() => Number)
+  granularity?: number;
 }
 
 export class ViewerTimelineDto {
