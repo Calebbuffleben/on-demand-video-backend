@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import Mux from '@mux/mux-node';
 import { GetMuxAnalyticsDto, MuxAnalyticsResponseDto, RetentionDataPointDto, ViewerTimelineDto } from '../dto/mux-analytics.dto';
+import { ViewerAnalytics, DeviceBreakdown, BrowserBreakdown, LocationBreakdown, OSBreakdown, ConnectionBreakdown } from '../interfaces/analytics.interfaces';
 
 @Injectable()
 export class MuxAnalyticsService {
@@ -272,5 +273,354 @@ export class MuxAnalyticsService {
         updatedAt: new Date(),
       },
     });
+  }
+
+  async getViewerAnalytics(
+    videoId: string,
+    tenantId: string,
+    dto: GetMuxAnalyticsDto,
+  ): Promise<ViewerAnalytics> {
+    this.logger.debug(`Getting viewer analytics for video ${videoId}, tenant ${tenantId}`);
+    
+    // Get video and verify it belongs to tenant
+    const video = await this.prisma.video.findFirst({
+      where: {
+        id: videoId,
+        organizationId: tenantId,
+      },
+      select: {
+        muxAssetId: true,
+      },
+    });
+
+    if (!video || !video.muxAssetId) {
+      this.logger.error(`Video not found or not associated with Mux: ${videoId}`);
+      throw new Error('Video not found or not associated with Mux');
+    }
+
+    this.logger.debug(`Found video with Mux asset ID: ${video.muxAssetId}`);
+
+    // Get tenant Mux credentials
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: tenantId },
+      select: {
+        muxTokenId: true,
+        muxTokenSecret: true,
+      },
+    });
+
+    // If no Mux credentials, return empty analytics
+    if (!organization?.muxTokenId || !organization?.muxTokenSecret) {
+      this.logger.warn(`Mux credentials not found for organization ${tenantId}, returning empty viewer analytics`);
+      return this.getDefaultViewerAnalytics();
+    }
+
+    this.logger.debug(`Found Mux credentials for organization ${tenantId}`);
+
+    // Initialize Mux client
+    const muxClient = new Mux({
+      tokenId: organization.muxTokenId,
+      tokenSecret: organization.muxTokenSecret,
+    });
+
+    try {
+      // Convert dates to time range if provided
+      let timeframe: [string, string] | undefined;
+      if (dto.startDate && dto.endDate) {
+        const start = new Date(dto.startDate);
+        const end = new Date(dto.endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        timeframe = [
+          Math.floor(start.getTime() / 1000).toString(),
+          Math.floor(end.getTime() / 1000).toString()
+        ];
+        this.logger.debug(`Using timeframe: ${timeframe[0]} to ${timeframe[1]}`);
+      } else {
+        this.logger.debug('No timeframe specified, using all-time data');
+      }
+
+      const filters = [`asset_id:${video.muxAssetId}`];
+      this.logger.debug(`Using filters: ${JSON.stringify(filters)}`);
+
+      // Fetch all breakdowns in parallel
+      this.logger.debug('Fetching viewer analytics breakdowns...');
+      const [
+        deviceBreakdown,
+        browserBreakdown,
+        locationBreakdown,
+        osBreakdown,
+        connectionBreakdown,
+        totalViewsData,
+      ] = await Promise.all([
+        this.getDeviceBreakdown(muxClient, filters, timeframe),
+        this.getBrowserBreakdown(muxClient, filters, timeframe),
+        this.getLocationBreakdown(muxClient, filters, timeframe),
+        this.getOSBreakdown(muxClient, filters, timeframe),
+        this.getConnectionBreakdown(muxClient, filters, timeframe),
+        this.getTotalViews(muxClient, filters, timeframe),
+      ]);
+
+      this.logger.debug(`Fetched breakdown data:
+        - Devices: ${deviceBreakdown.length} entries
+        - Browsers: ${browserBreakdown.length} entries
+        - Locations: ${locationBreakdown.length} entries
+        - OS: ${osBreakdown.length} entries
+        - Connections: ${connectionBreakdown.length} entries
+        - Total Views: ${totalViewsData}`);
+
+      // Return real data only - no fake sample data
+      return {
+        devices: deviceBreakdown,
+        browsers: browserBreakdown,
+        locations: locationBreakdown,
+        operatingSystems: osBreakdown,
+        connections: connectionBreakdown,
+        totalViews: totalViewsData,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching viewer analytics: ${error.message}`, error.stack);
+      // Return empty analytics on error, not sample data
+      return this.getDefaultViewerAnalytics();
+    }
+  }
+
+  private async getDeviceBreakdown(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<DeviceBreakdown[]> {
+    try {
+      // Get device name breakdown
+      const deviceResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_device_name',
+        filters,
+        timeframe,
+      });
+
+      // Get device category breakdown
+      const categoryResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_device_category',
+        filters,
+        timeframe,
+      });
+
+      // Get device manufacturer breakdown
+      const manufacturerResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_device_manufacturer',
+        filters,
+        timeframe,
+      });
+
+      // Combine the data (simplified approach - in reality you'd want to correlate these)
+      const totalViews = deviceResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      
+      return deviceResponse.data.map((item: any) => ({
+        device: item.field || 'Unknown Device',
+        category: this.findCorrelatedValue(categoryResponse.data, item.field) || 'Unknown',
+        manufacturer: this.findCorrelatedValue(manufacturerResponse.data, item.field) || 'Unknown',
+        views: item.value,
+        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching device breakdown:', error);
+      return [];
+    }
+  }
+
+  private async getBrowserBreakdown(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<BrowserBreakdown[]> {
+    try {
+      // Get browser breakdown
+      const browserResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_application_name',
+        filters,
+        timeframe,
+      });
+
+      // Get browser version breakdown
+      const versionResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_application_version',
+        filters,
+        timeframe,
+      });
+
+      const totalViews = browserResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      
+      return browserResponse.data.map((item: any) => ({
+        browser: item.field || 'Unknown Browser',
+        version: this.findCorrelatedValue(versionResponse.data, item.field) || 'Unknown',
+        views: item.value,
+        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching browser breakdown:', error);
+      return [];
+    }
+  }
+
+  private async getLocationBreakdown(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<LocationBreakdown[]> {
+    try {
+      // Get country breakdown
+      const countryResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'country',
+        filters,
+        timeframe,
+      });
+
+      // Get region breakdown (if available)
+      const regionResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'region',
+        filters,
+        timeframe,
+      }).catch(() => ({ data: [] })); // Region might not be available
+
+      const totalViews = countryResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      
+      return countryResponse.data.map((item: any) => ({
+        country: item.field || 'Unknown Country',
+        countryCode: this.getCountryCode(item.field) || 'XX',
+        region: this.findCorrelatedValue(regionResponse.data, item.field),
+        views: item.value,
+        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching location breakdown:', error);
+      return [];
+    }
+  }
+
+  private async getOSBreakdown(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<OSBreakdown[]> {
+    try {
+      // Get OS breakdown
+      const osResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_os_family',
+        filters,
+        timeframe,
+      });
+
+      // Get OS version breakdown
+      const versionResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_os_version',
+        filters,
+        timeframe,
+      });
+
+      const totalViews = osResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      
+      return osResponse.data.map((item: any) => ({
+        os: item.field || 'Unknown OS',
+        version: this.findCorrelatedValue(versionResponse.data, item.field) || 'Unknown',
+        views: item.value,
+        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching OS breakdown:', error);
+      return [];
+    }
+  }
+
+  private async getConnectionBreakdown(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<ConnectionBreakdown[]> {
+    try {
+      const connectionResponse = await muxClient.data.metrics.breakdown('views', {
+        group_by: 'viewer_connection_type',
+        filters,
+        timeframe,
+      });
+
+      const totalViews = connectionResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      
+      return connectionResponse.data.map((item: any) => ({
+        connectionType: item.field || 'Unknown Connection',
+        views: item.value,
+        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching connection breakdown:', error);
+      return [];
+    }
+  }
+
+  private findCorrelatedValue(data: any[], key: string): string | undefined {
+    // This is a simplified correlation - in reality you'd want more sophisticated matching
+    const item = data.find(d => d.field?.includes(key) || key?.includes(d.field));
+    return item?.field;
+  }
+
+  private getCountryCode(countryName: string): string {
+    // Simple mapping - in production you'd want a comprehensive country code lookup
+    const countryMap: { [key: string]: string } = {
+      'United States': 'US',
+      'Canada': 'CA',
+      'United Kingdom': 'GB',
+      'Germany': 'DE',
+      'France': 'FR',
+      'Japan': 'JP',
+      'Australia': 'AU',
+      'Brazil': 'BR',
+      'India': 'IN',
+      'China': 'CN',
+    };
+    return countryMap[countryName] || 'XX';
+  }
+
+  private getDefaultViewerAnalytics(): ViewerAnalytics {
+    return {
+      devices: [],
+      browsers: [],
+      locations: [],
+      operatingSystems: [],
+      connections: [],
+      totalViews: 0,
+    };
+  }
+
+  private async getTotalViews(
+    muxClient: any,
+    filters: string[],
+    timeframe?: [string, string]
+  ): Promise<number> {
+    try {
+      const params: any = {
+        metric_filters: filters,
+        dimension: 'video_id'
+      };
+
+      if (timeframe) {
+        params.timeframe = timeframe;
+      }
+
+      this.logger.debug(`Fetching total views with params: ${JSON.stringify(params)}`);
+      
+      const response = await muxClient.Data.Metrics.breakdown(
+        'video_views',
+        params
+      );
+
+      const totalViews = response?.data?.reduce((total: number, item: any) => {
+        return total + (item.total_value || 0);
+      }, 0) || 0;
+
+      this.logger.debug(`Total views calculated: ${totalViews}`);
+      return totalViews;
+    } catch (error) {
+      this.logger.error(`Error fetching total views: ${error.message}`);
+      return 0;
+    }
   }
 } 

@@ -19,6 +19,46 @@ export interface PopularVideo {
     views: number;
     duration: string;
 }
+export interface DeviceBreakdown {
+    device: string;
+    category: string;
+    manufacturer: string;
+    views: number;
+    percentage: number;
+}
+export interface BrowserBreakdown {
+    browser: string;
+    version: string;
+    views: number;
+    percentage: number;
+}
+export interface LocationBreakdown {
+    country: string;
+    countryCode: string;
+    region?: string;
+    city?: string;
+    views: number;
+    percentage: number;
+}
+export interface OSBreakdown {
+    os: string;
+    version: string;
+    views: number;
+    percentage: number;
+}
+export interface ConnectionBreakdown {
+    connectionType: string;
+    views: number;
+    percentage: number;
+}
+export interface ViewerAnalytics {
+    devices: DeviceBreakdown[];
+    browsers: BrowserBreakdown[];
+    locations: LocationBreakdown[];
+    operatingSystems: OSBreakdown[];
+    connections: ConnectionBreakdown[];
+    totalViews: number;
+}
 export interface DashboardResponse {
     platformStats: PlatformStats;
     recentUploads: RecentUpload[];

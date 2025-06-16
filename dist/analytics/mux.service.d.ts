@@ -51,26 +51,13 @@ export declare class MuxService {
     }>;
     getVideoAnalytics(videoId: string, organizationId?: string): Promise<{
         success: boolean;
-        data: {
-            totalViews: number;
-            averageWatchTime: number;
-            engagementRate: number;
-            uniqueViewers: number;
-            viewsOverTime: {
-                timestamp: string;
-                views: number;
-            }[];
-            retentionData: {
-                time: number;
-                retention: number;
-            }[];
-            viewerTimeline: {
-                timestamp: string;
-                activeViewers: number;
-            }[];
+        result: {
+            videoId: string;
+            views: number;
+            timeframe: {
+                start: string;
+                end: string;
+            };
         };
     }>;
-    private calculateViewsOverTime;
-    private calculateRetentionData;
-    private calculateViewerTimeline;
 }

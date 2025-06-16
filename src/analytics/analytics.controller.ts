@@ -1,13 +1,14 @@
 import { Controller, Get, Query, UseGuards, Req, Param, NotFoundException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { 
-  QueryLimitDto, 
+  GetVideosLimitDto, 
   PlatformStatsDto,
   RecentUploadDto,
   PopularVideoDto,
-  DashboardResponseDto
+  DashboardResponseDto,
+  ViewerAnalyticsDto,
 } from './dto/analytics.dto';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { MuxAnalyticsService } from './services/mux-analytics.service';
 import { GetMuxAnalyticsDto, MuxAnalyticsResponseDto } from './dto/mux-analytics.dto';
@@ -97,7 +98,7 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   async getRecentUploads(
-    @Query() query: QueryLimitDto,
+    @Query() query: GetVideosLimitDto,
     @Req() req: AuthenticatedRequest
   ) {
     const organizationId = req['organization'].id;
@@ -126,7 +127,7 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   async getPopularVideos(
-    @Query() query: QueryLimitDto,
+    @Query() query: GetVideosLimitDto,
     @Req() req: AuthenticatedRequest
   ) {
     const organizationId = req['organization'].id;
@@ -240,5 +241,42 @@ export class AnalyticsController {
       averageWatchTime: analytics.data.averageWatchTime,
       viewerTimelines: analytics.data.viewerTimeline,
     };
+  }
+
+  /**
+   * Get viewer analytics (device, browser, location breakdowns)
+   */
+  @Get('videos/:videoId/viewer-analytics')
+  @ApiOperation({ summary: 'Get viewer analytics breakdown' })
+  @ApiParam({
+    name: 'videoId',
+    description: 'Video ID to get viewer analytics for',
+    example: 'abc123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns viewer analytics breakdown including device, browser, and location data',
+    type: ViewerAnalyticsDto,
+  })
+  async getViewerAnalytics(
+    @Param('videoId') videoId: string,
+    @Query() query: GetMuxAnalyticsDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const organizationId = req['organization'].id;
+
+    // Verify video ownership
+    const video = await this.prisma.video.findFirst({
+      where: {
+        id: videoId,
+        organizationId,
+      },
+    });
+
+    if (!video) {
+      throw new NotFoundException('Video not found or not owned by tenant');
+    }
+
+    return this.muxAnalyticsService.getViewerAnalytics(videoId, organizationId, query);
   }
 } 

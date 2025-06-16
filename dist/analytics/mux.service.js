@@ -150,74 +150,23 @@ let MuxService = MuxService_1 = class MuxService {
                     filters: [`asset_id:${videoId}`],
                 }
             });
-            const { data: assets } = await client.video.assets.list({
-                query: {
-                    asset_id: videoId
-                }
-            });
-            const videoDuration = assets[0]?.duration || 0;
-            const totalViews = viewsResponse.data.length;
-            const totalWatchTime = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
-            const averageWatchTime = totalViews > 0 ? totalWatchTime / totalViews : 0;
-            const uniqueViewers = new Set(viewsResponse.data.map(view => view.id)).size;
-            const engagementRate = videoDuration > 0 ? (averageWatchTime / videoDuration) * 100 : 0;
+            const totalViews = viewsResponse.data.reduce((sum, view) => sum + (view.watch_time || 0), 0);
             return {
                 success: true,
-                data: {
-                    totalViews,
-                    averageWatchTime,
-                    engagementRate,
-                    uniqueViewers,
-                    viewsOverTime: this.calculateViewsOverTime(viewsResponse.data),
-                    retentionData: this.calculateRetentionData(viewsResponse.data, videoDuration),
-                    viewerTimeline: this.calculateViewerTimeline(viewsResponse.data)
+                result: {
+                    videoId,
+                    views: totalViews,
+                    timeframe: {
+                        start: startTime.toISOString(),
+                        end: endTime.toISOString()
+                    }
                 }
             };
         }
         catch (error) {
-            this.logger.error(`Error fetching analytics for video ${videoId}:`, error);
+            this.logger.error(`Error fetching analytics for video ${videoId}`, error);
             throw error;
         }
-    }
-    calculateViewsOverTime(views) {
-        const viewsMap = new Map();
-        views.forEach(view => {
-            const timestamp = new Date(view.created_at || Date.now()).toISOString();
-            viewsMap.set(timestamp, (viewsMap.get(timestamp) || 0) + 1);
-        });
-        return Array.from(viewsMap.entries())
-            .map(([timestamp, views]) => ({
-            timestamp,
-            views
-        }))
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    }
-    calculateRetentionData(views, videoDuration) {
-        const retentionMap = new Map();
-        const totalViews = views.length;
-        views.forEach(view => {
-            const percentage = Math.floor((view.watch_time / videoDuration) * 100);
-            retentionMap.set(percentage, (retentionMap.get(percentage) || 0) + 1);
-        });
-        return Array.from(retentionMap.entries())
-            .map(([time, count]) => ({
-            time,
-            retention: (count / totalViews) * 100
-        }))
-            .sort((a, b) => a.time - b.time);
-    }
-    calculateViewerTimeline(views) {
-        const timelineMap = new Map();
-        views.forEach(view => {
-            const timestamp = new Date(view.created_at || Date.now()).toISOString();
-            timelineMap.set(timestamp, (timelineMap.get(timestamp) || 0) + 1);
-        });
-        return Array.from(timelineMap.entries())
-            .map(([timestamp, activeViewers]) => ({
-            timestamp,
-            activeViewers
-        }))
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     }
 };
 exports.MuxService = MuxService;

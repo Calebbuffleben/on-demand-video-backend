@@ -25,6 +25,58 @@ export interface PopularVideo {
   duration: string;          // Formatted duration (MM:SS)
 }
 
+// Device analytics breakdown
+export interface DeviceBreakdown {
+  device: string;            // Device name (e.g., "iPhone 12")
+  category: string;          // Device category (e.g., "phone", "desktop", "tablet")
+  manufacturer: string;      // Device manufacturer (e.g., "Apple", "Samsung")
+  views: number;             // Number of views from this device
+  percentage: number;        // Percentage of total views
+}
+
+// Browser analytics breakdown
+export interface BrowserBreakdown {
+  browser: string;           // Browser name (e.g., "Chrome", "Safari")
+  version: string;           // Browser version (e.g., "91.0.4472.124")
+  views: number;             // Number of views from this browser
+  percentage: number;        // Percentage of total views
+}
+
+// Location analytics breakdown
+export interface LocationBreakdown {
+  country: string;           // Country name (e.g., "United States")
+  countryCode: string;       // Country code (e.g., "US")
+  region?: string;           // State/region (e.g., "California")
+  city?: string;             // City name (e.g., "San Francisco")
+  views: number;             // Number of views from this location
+  percentage: number;        // Percentage of total views
+}
+
+// Operating System analytics breakdown
+export interface OSBreakdown {
+  os: string;                // Operating system (e.g., "iOS", "Android", "Windows")
+  version: string;           // OS version (e.g., "14.6")
+  views: number;             // Number of views from this OS
+  percentage: number;        // Percentage of total views
+}
+
+// Connection type analytics breakdown
+export interface ConnectionBreakdown {
+  connectionType: string;    // Connection type (e.g., "wifi", "cellular", "wired")
+  views: number;             // Number of views from this connection type
+  percentage: number;        // Percentage of total views
+}
+
+// Comprehensive device/browser/location analytics response
+export interface ViewerAnalytics {
+  devices: DeviceBreakdown[];
+  browsers: BrowserBreakdown[];
+  locations: LocationBreakdown[];
+  operatingSystems: OSBreakdown[];
+  connections: ConnectionBreakdown[];
+  totalViews: number;
+}
+
 // Combined dashboard response
 export interface DashboardResponse {
   platformStats: PlatformStats;

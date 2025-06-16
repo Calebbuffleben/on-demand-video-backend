@@ -118,6 +118,19 @@ let AnalyticsController = class AnalyticsController {
             viewerTimelines: analytics.data.viewerTimeline,
         };
     }
+    async getViewerAnalytics(videoId, query, req) {
+        const organizationId = req['organization'].id;
+        const video = await this.prisma.video.findFirst({
+            where: {
+                id: videoId,
+                organizationId,
+            },
+        });
+        if (!video) {
+            throw new common_1.NotFoundException('Video not found or not owned by tenant');
+        }
+        return this.muxAnalyticsService.getViewerAnalytics(videoId, organizationId, query);
+    }
 };
 exports.AnalyticsController = AnalyticsController;
 __decorate([
@@ -160,7 +173,7 @@ __decorate([
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [analytics_dto_1.QueryLimitDto, Object]),
+    __metadata("design:paramtypes", [analytics_dto_1.GetVideosLimitDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getRecentUploads", null);
 __decorate([
@@ -175,7 +188,7 @@ __decorate([
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [analytics_dto_1.QueryLimitDto, Object]),
+    __metadata("design:paramtypes", [analytics_dto_1.GetVideosLimitDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getPopularVideos", null);
 __decorate([
@@ -214,6 +227,26 @@ __decorate([
     __metadata("design:paramtypes", [String, mux_analytics_dto_1.GetMuxAnalyticsDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getVideoViews", null);
+__decorate([
+    (0, common_1.Get)('videos/:videoId/viewer-analytics'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get viewer analytics breakdown' }),
+    (0, swagger_1.ApiParam)({
+        name: 'videoId',
+        description: 'Video ID to get viewer analytics for',
+        example: 'abc123',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Returns viewer analytics breakdown including device, browser, and location data',
+        type: analytics_dto_1.ViewerAnalyticsDto,
+    }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, mux_analytics_dto_1.GetMuxAnalyticsDto, Object]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getViewerAnalytics", null);
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, swagger_1.ApiTags)('analytics'),
     (0, common_1.Controller)('api/analytics'),

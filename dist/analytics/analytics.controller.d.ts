@@ -1,5 +1,5 @@
 import { AnalyticsService } from './analytics.service';
-import { QueryLimitDto } from './dto/analytics.dto';
+import { GetVideosLimitDto } from './dto/analytics.dto';
 import { MuxAnalyticsService } from './services/mux-analytics.service';
 import { GetMuxAnalyticsDto, MuxAnalyticsResponseDto } from './dto/mux-analytics.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,8 +16,8 @@ export declare class AnalyticsController {
     constructor(analyticsService: AnalyticsService, muxAnalyticsService: MuxAnalyticsService, prisma: PrismaService);
     getDashboard(req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").DashboardResponse>;
     getPlatformStats(req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").PlatformStats>;
-    getRecentUploads(query: QueryLimitDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").RecentUpload[]>;
-    getPopularVideos(query: QueryLimitDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").PopularVideo[]>;
+    getRecentUploads(query: GetVideosLimitDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").RecentUpload[]>;
+    getPopularVideos(query: GetVideosLimitDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").PopularVideo[]>;
     getVideoAnalytics(videoId: string, query: GetMuxAnalyticsDto, req: AuthenticatedRequest): Promise<MuxAnalyticsResponseDto>;
     getVideoRetention(videoId: string, query: GetMuxAnalyticsDto, req: AuthenticatedRequest): Promise<{
         retention: {
@@ -35,5 +35,6 @@ export declare class AnalyticsController {
             percentage: number;
         }[];
     }>;
+    getViewerAnalytics(videoId: string, query: GetMuxAnalyticsDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").ViewerAnalytics>;
 }
 export {};
