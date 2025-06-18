@@ -66,10 +66,10 @@ export class MuxAnalyticsService {
         const start = new Date(startDate);
         const end = new Date(endDate);
         
-        // Set start date to beginning of day
-        start.setHours(0, 0, 0, 0);
-        // Set end date to end of day
-        end.setHours(23, 59, 59, 999);
+        // Set start date to beginning of day in UTC
+        start.setUTCHours(0, 0, 0, 0);
+        // Set end date to end of day in UTC
+        end.setUTCHours(23, 59, 59, 999);
         
         // Convert to Unix timestamps (seconds)
         startDate = Math.floor(start.getTime() / 1000).toString();
@@ -81,8 +81,10 @@ export class MuxAnalyticsService {
 
       // Fetch views data from Mux
       const viewsResponse = await muxClient.data.videoViews.list({
-        filters: [`asset_id:${video.muxAssetId}`],
-        timeframe: startDate && endDate ? [startDate, endDate] : undefined,
+        query: {
+          filters: [`asset_id:${video.muxAssetId}`],
+          timeframe: startDate && endDate ? [startDate, endDate] : undefined,
+        }
       });
 
       // Log raw Mux data for debugging
@@ -343,6 +345,15 @@ export class MuxAnalyticsService {
       const filters = [`asset_id:${video.muxAssetId}`];
       this.logger.debug(`Using filters: ${JSON.stringify(filters)}`);
 
+      // First check if we have any views at all
+      const totalViewsData = await this.getTotalViews(muxClient, filters, timeframe);
+      this.logger.debug(`Total views found: ${totalViewsData}`);
+
+      if (totalViewsData === 0) {
+        this.logger.debug('No views found, returning empty analytics');
+        return this.getDefaultViewerAnalytics();
+      }
+
       // Fetch all breakdowns in parallel
       this.logger.debug('Fetching viewer analytics breakdowns...');
       const [
@@ -351,14 +362,12 @@ export class MuxAnalyticsService {
         locationBreakdown,
         osBreakdown,
         connectionBreakdown,
-        totalViewsData,
       ] = await Promise.all([
         this.getDeviceBreakdown(muxClient, filters, timeframe),
         this.getBrowserBreakdown(muxClient, filters, timeframe),
         this.getLocationBreakdown(muxClient, filters, timeframe),
         this.getOSBreakdown(muxClient, filters, timeframe),
         this.getConnectionBreakdown(muxClient, filters, timeframe),
-        this.getTotalViews(muxClient, filters, timeframe),
       ]);
 
       this.logger.debug(`Fetched breakdown data:
@@ -366,8 +375,7 @@ export class MuxAnalyticsService {
         - Browsers: ${browserBreakdown.length} entries
         - Locations: ${locationBreakdown.length} entries
         - OS: ${osBreakdown.length} entries
-        - Connections: ${connectionBreakdown.length} entries
-        - Total Views: ${totalViewsData}`);
+        - Connections: ${connectionBreakdown.length} entries`);
 
       // Return real data only - no fake sample data
       return {
@@ -391,37 +399,66 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<DeviceBreakdown[]> {
     try {
-      // Get device name breakdown
-      const deviceResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_device_name',
-        filters,
-        timeframe,
+      // Get device name breakdown using videoViews endpoint
+      const deviceResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_device_name',
+          filters,
+          timeframe,
+        }
       });
+
+      this.logger.debug('Device name response structure:', JSON.stringify(deviceResponse, null, 2));
 
       // Get device category breakdown
-      const categoryResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_device_category',
-        filters,
-        timeframe,
+      const categoryResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_device_category',
+          filters,
+          timeframe,
+        }
       });
+
+      this.logger.debug('Device category response structure:', JSON.stringify(categoryResponse, null, 2));
 
       // Get device manufacturer breakdown
-      const manufacturerResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_device_manufacturer',
-        filters,
-        timeframe,
+      const manufacturerResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_device_manufacturer',
+          filters,
+          timeframe,
+        }
       });
 
-      // Combine the data (simplified approach - in reality you'd want to correlate these)
-      const totalViews = deviceResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      this.logger.debug('Device manufacturer response structure:', JSON.stringify(manufacturerResponse, null, 2));
+
+      // Check if we have data and what the structure looks like
+      if (deviceResponse.data && deviceResponse.data.length > 0) {
+        this.logger.debug('First device data item:', JSON.stringify(deviceResponse.data[0], null, 2));
+      }
+
+      // Process the data - videoViews returns individual view records
+      const deviceCounts = new Map<string, number>();
       
-      return deviceResponse.data.map((item: any) => ({
-        device: item.field || 'Unknown Device',
-        category: this.findCorrelatedValue(categoryResponse.data, item.field) || 'Unknown',
-        manufacturer: this.findCorrelatedValue(manufacturerResponse.data, item.field) || 'Unknown',
-        views: item.value,
-        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
-      }));
+      deviceResponse.data.forEach((view: any) => {
+        const deviceName = view.viewer_device_name || 'Unknown Device';
+        deviceCounts.set(deviceName, (deviceCounts.get(deviceName) || 0) + 1);
+      });
+
+      const totalViews = Array.from(deviceCounts.values()).reduce((sum, count) => sum + count, 0);
+      
+      return Array.from(deviceCounts.entries()).map(([deviceName, count]) => {
+        const category = this.findCorrelatedValue(categoryResponse.data, deviceName) || 'Unknown';
+        const manufacturer = this.findCorrelatedValue(manufacturerResponse.data, deviceName) || 'Unknown';
+        
+        return {
+          device: deviceName,
+          category,
+          manufacturer,
+          views: count,
+          percentage: totalViews > 0 ? (count / totalViews) * 100 : 0,
+        };
+      });
     } catch (error) {
       this.logger.error('Error fetching device breakdown:', error);
       return [];
@@ -434,28 +471,53 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<BrowserBreakdown[]> {
     try {
-      // Get browser breakdown
-      const browserResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_application_name',
-        filters,
-        timeframe,
+      // Get browser breakdown using videoViews endpoint
+      const browserResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_application_name',
+          filters,
+          timeframe,
+        }
       });
+
+      this.logger.debug('Browser response structure:', JSON.stringify(browserResponse, null, 2));
 
       // Get browser version breakdown
-      const versionResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_application_version',
-        filters,
-        timeframe,
+      const versionResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_application_version',
+          filters,
+          timeframe,
+        }
       });
 
-      const totalViews = browserResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      this.logger.debug('Browser version response structure:', JSON.stringify(versionResponse, null, 2));
+
+      // Check if we have data and what the structure looks like
+      if (browserResponse.data && browserResponse.data.length > 0) {
+        this.logger.debug('First browser data item:', JSON.stringify(browserResponse.data[0], null, 2));
+      }
+
+      // Process the data - videoViews returns individual view records
+      const browserCounts = new Map<string, number>();
       
-      return browserResponse.data.map((item: any) => ({
-        browser: item.field || 'Unknown Browser',
-        version: this.findCorrelatedValue(versionResponse.data, item.field) || 'Unknown',
-        views: item.value,
-        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
-      }));
+      browserResponse.data.forEach((view: any) => {
+        const browserName = view.viewer_application_name || 'Unknown Browser';
+        browserCounts.set(browserName, (browserCounts.get(browserName) || 0) + 1);
+      });
+
+      const totalViews = Array.from(browserCounts.values()).reduce((sum, count) => sum + count, 0);
+      
+      return Array.from(browserCounts.entries()).map(([browserName, count]) => {
+        const version = this.findCorrelatedVersion(versionResponse.data, browserName) || 'Unknown';
+        
+        return {
+          browser: browserName,
+          version,
+          views: count,
+          percentage: totalViews > 0 ? (count / totalViews) * 100 : 0,
+        };
+      });
     } catch (error) {
       this.logger.error('Error fetching browser breakdown:', error);
       return [];
@@ -468,28 +530,40 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<LocationBreakdown[]> {
     try {
-      // Get country breakdown
-      const countryResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'country',
-        filters,
-        timeframe,
+      // Get country breakdown using videoViews endpoint
+      const countryResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'country',
+          filters,
+          timeframe,
+        }
       });
 
       // Get region breakdown (if available)
-      const regionResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'region',
-        filters,
-        timeframe,
+      const regionResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'region',
+          filters,
+          timeframe,
+        }
       }).catch(() => ({ data: [] })); // Region might not be available
 
-      const totalViews = countryResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      // Process the data - videoViews returns individual view records
+      const countryCounts = new Map<string, number>();
       
-      return countryResponse.data.map((item: any) => ({
-        country: item.field || 'Unknown Country',
-        countryCode: this.getCountryCode(item.field) || 'XX',
-        region: this.findCorrelatedValue(regionResponse.data, item.field),
-        views: item.value,
-        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      countryResponse.data.forEach((view: any) => {
+        const country = view.country || 'Unknown Country';
+        countryCounts.set(country, (countryCounts.get(country) || 0) + 1);
+      });
+
+      const totalViews = Array.from(countryCounts.values()).reduce((sum, count) => sum + count, 0);
+      
+      return Array.from(countryCounts.entries()).map(([country, count]) => ({
+        country,
+        countryCode: this.getCountryCode(country) || 'XX',
+        region: this.findCorrelatedValue(regionResponse.data, country),
+        views: count,
+        percentage: totalViews > 0 ? (count / totalViews) * 100 : 0,
       }));
     } catch (error) {
       this.logger.error('Error fetching location breakdown:', error);
@@ -503,27 +577,39 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<OSBreakdown[]> {
     try {
-      // Get OS breakdown
-      const osResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_os_family',
-        filters,
-        timeframe,
+      // Get OS breakdown using videoViews endpoint
+      const osResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_os_family',
+          filters,
+          timeframe,
+        }
       });
 
       // Get OS version breakdown
-      const versionResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_os_version',
-        filters,
-        timeframe,
+      const versionResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_os_version',
+          filters,
+          timeframe,
+        }
       });
 
-      const totalViews = osResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      // Process the data - videoViews returns individual view records
+      const osCounts = new Map<string, number>();
       
-      return osResponse.data.map((item: any) => ({
-        os: item.field || 'Unknown OS',
-        version: this.findCorrelatedValue(versionResponse.data, item.field) || 'Unknown',
-        views: item.value,
-        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      osResponse.data.forEach((view: any) => {
+        const os = view.viewer_os_family || 'Unknown OS';
+        osCounts.set(os, (osCounts.get(os) || 0) + 1);
+      });
+
+      const totalViews = Array.from(osCounts.values()).reduce((sum, count) => sum + count, 0);
+      
+      return Array.from(osCounts.entries()).map(([os, count]) => ({
+        os,
+        version: this.findCorrelatedVersion(versionResponse.data, os) || 'Unknown',
+        views: count,
+        percentage: totalViews > 0 ? (count / totalViews) * 100 : 0,
       }));
     } catch (error) {
       this.logger.error('Error fetching OS breakdown:', error);
@@ -537,18 +623,28 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<ConnectionBreakdown[]> {
     try {
-      const connectionResponse = await muxClient.data.metrics.breakdown('views', {
-        group_by: 'viewer_connection_type',
-        filters,
-        timeframe,
+      const connectionResponse = await muxClient.data.videoViews.list({
+        query: {
+          dimension: 'viewer_connection_type',
+          filters,
+          timeframe,
+        }
       });
 
-      const totalViews = connectionResponse.data.reduce((sum: number, item: any) => sum + item.value, 0);
+      // Process the data - videoViews returns individual view records
+      const connectionCounts = new Map<string, number>();
       
-      return connectionResponse.data.map((item: any) => ({
-        connectionType: item.field || 'Unknown Connection',
-        views: item.value,
-        percentage: totalViews > 0 ? (item.value / totalViews) * 100 : 0,
+      connectionResponse.data.forEach((view: any) => {
+        const connectionType = view.viewer_connection_type || 'Unknown Connection';
+        connectionCounts.set(connectionType, (connectionCounts.get(connectionType) || 0) + 1);
+      });
+
+      const totalViews = Array.from(connectionCounts.values()).reduce((sum, count) => sum + count, 0);
+      
+      return Array.from(connectionCounts.entries()).map(([connectionType, count]) => ({
+        connectionType,
+        views: count,
+        percentage: totalViews > 0 ? (count / totalViews) * 100 : 0,
       }));
     } catch (error) {
       this.logger.error('Error fetching connection breakdown:', error);
@@ -556,10 +652,38 @@ export class MuxAnalyticsService {
     }
   }
 
+  private findCorrelatedVersion(versionData: any[], browserName: string): string | undefined {
+    if (!browserName || !versionData || !Array.isArray(versionData)) return undefined;
+    
+    // Try exact match first
+    const exactMatch = versionData.find(d => d.field === browserName);
+    if (exactMatch) return exactMatch.field;
+
+    // Try partial match for browser name in version field
+    const partialMatch = versionData.find(d => {
+      const field = d.field?.toLowerCase() || '';
+      const searchKey = browserName.toLowerCase();
+      return field.includes(searchKey) || searchKey.includes(field);
+    });
+
+    return partialMatch?.field;
+  }
+
   private findCorrelatedValue(data: any[], key: string): string | undefined {
-    // This is a simplified correlation - in reality you'd want more sophisticated matching
-    const item = data.find(d => d.field?.includes(key) || key?.includes(d.field));
-    return item?.field;
+    if (!key || !data || !Array.isArray(data)) return undefined;
+    
+    // Try exact match first
+    const exactMatch = data.find(d => d.field === key);
+    if (exactMatch) return exactMatch.field;
+
+    // Try partial match
+    const partialMatch = data.find(d => {
+      const field = d.field?.toLowerCase() || '';
+      const searchKey = key.toLowerCase();
+      return field.includes(searchKey) || searchKey.includes(field);
+    });
+
+    return partialMatch?.field;
   }
 
   private getCountryCode(countryName: string): string {
@@ -596,24 +720,27 @@ export class MuxAnalyticsService {
     timeframe?: [string, string]
   ): Promise<number> {
     try {
-      const params: any = {
-        metric_filters: filters,
-        dimension: 'video_id'
+      const params = {
+        query: {
+          filters,
+          dimension: 'video_id',
+          timeframe,
+          metric: 'video_views'
+        }
       };
 
-      if (timeframe) {
-        params.timeframe = timeframe;
-      }
-
       this.logger.debug(`Fetching total views with params: ${JSON.stringify(params)}`);
+      this.logger.debug(`Mux client structure: ${JSON.stringify(Object.keys(muxClient))}`);
+      this.logger.debug(`Mux client.data structure: ${JSON.stringify(Object.keys(muxClient.data || {}))}`);
+      this.logger.debug(`Mux client.data.metrics structure: ${JSON.stringify(Object.keys(muxClient.data.metrics || {}))}`);
       
-      const response = await muxClient.Data.Metrics.breakdown(
-        'video_views',
-        params
-      );
+      // Try the correct Mux API structure - use data.metrics (lowercase)
+      const response = await muxClient.data.metrics.list(params);
+
+      this.logger.debug(`Raw total views response: ${JSON.stringify(response)}`);
 
       const totalViews = response?.data?.reduce((total: number, item: any) => {
-        return total + (item.total_value || 0);
+        return total + (item.value || 0);
       }, 0) || 0;
 
       this.logger.debug(`Total views calculated: ${totalViews}`);
@@ -621,6 +748,133 @@ export class MuxAnalyticsService {
     } catch (error) {
       this.logger.error(`Error fetching total views: ${error.message}`);
       return 0;
+    }
+  }
+
+  async getBrowserAndDeviceAnalytics(
+    assetId: string,
+    timeframe: [string, string],
+    tokenId: string,
+    tokenSecret: string
+  ): Promise<{
+    browsers: Array<{ browser: string; version: string; views: number; percentage: number }>;
+    devices: Array<{ device: string; category: string; manufacturer: string; views: number; percentage: number }>;
+  }> {
+    try {
+      // Initialize Mux client
+      const muxClient = new Mux({
+        tokenId,
+        tokenSecret,
+      });
+
+      this.logger.debug(`Fetching analytics for asset: ${assetId}, timeframe: ${timeframe[0]} to ${timeframe[1]}`);
+      this.logger.debug(`Mux client structure: ${JSON.stringify(Object.keys(muxClient))}`);
+      this.logger.debug(`Mux client.data structure: ${JSON.stringify(Object.keys(muxClient.data || {}))}`);
+
+      // Fetch all breakdowns in parallel
+      const [
+        browserResponse,
+        browserVersionResponse,
+        deviceNameResponse,
+        deviceCategoryResponse,
+        deviceManufacturerResponse,
+      ] = await Promise.all([
+        // Browser breakdown
+        muxClient.data.metrics.list({
+          query: {
+            dimension: 'viewer_application_name',
+            filters: [`asset_id:${assetId}`],
+            timeframe,
+            metric: 'video_views'
+          }
+        }),
+        // Browser version breakdown
+        muxClient.data.metrics.list({
+          query: {
+            dimension: 'viewer_application_version',
+            filters: [`asset_id:${assetId}`],
+            timeframe,
+            metric: 'video_views'
+          }
+        }),
+        // Device name breakdown
+        muxClient.data.metrics.list({
+          query: {
+            dimension: 'viewer_device_name',
+            filters: [`asset_id:${assetId}`],
+            timeframe,
+            metric: 'video_views'
+          }
+        }),
+        // Device category breakdown
+        muxClient.data.metrics.list({
+          query: {
+            dimension: 'viewer_device_category',
+            filters: [`asset_id:${assetId}`],
+            timeframe,
+            metric: 'video_views'
+          }
+        }),
+        // Device manufacturer breakdown
+        muxClient.data.metrics.list({
+          query: {
+            dimension: 'viewer_device_manufacturer',
+            filters: [`asset_id:${assetId}`],
+            timeframe,
+            metric: 'video_views'
+          }
+        }),
+      ]);
+
+      // Log raw responses for debugging
+      this.logger.debug('************************Browser response:', JSON.stringify(browserResponse));
+      this.logger.debug('************************Browser version response:', JSON.stringify(browserVersionResponse));
+      this.logger.debug('************************Device name response:', JSON.stringify(deviceNameResponse));
+      this.logger.debug('************************Device category response:', JSON.stringify(deviceCategoryResponse));
+      this.logger.debug('************************Device manufacturer response:', JSON.stringify(deviceManufacturerResponse));
+
+      // Process browser data
+      const totalBrowserViews = browserResponse.data.reduce((sum: number, item: any) => sum + (item.value || 0), 0);
+      const browsers = browserResponse.data.map((item: any) => {
+        const browserName = item.field || 'Unknown';
+        const version = this.findCorrelatedVersion(browserVersionResponse.data, browserName);
+        
+        return {
+          browser: browserName,
+          version: version || 'Unknown',
+          views: item.value || 0,
+          percentage: totalBrowserViews > 0 ? ((item.value || 0) / totalBrowserViews) * 100 : 0,
+        };
+      });
+
+      // Process device data
+      const totalDeviceViews = deviceNameResponse.data.reduce((sum: number, item: any) => sum + (item.value || 0), 0);
+      const devices = deviceNameResponse.data.map((item: any) => {
+        const deviceName = item.field || 'Unknown';
+        const category = this.findCorrelatedValue(deviceCategoryResponse.data, deviceName) || 'Unknown';
+        const manufacturer = this.findCorrelatedValue(deviceManufacturerResponse.data, deviceName) || 'Unknown';
+        
+        return {
+          device: deviceName,
+          category,
+          manufacturer,
+          views: item.value || 0,
+          percentage: totalDeviceViews > 0 ? ((item.value || 0) / totalDeviceViews) * 100 : 0,
+        };
+      });
+
+      this.logger.debug(`Processed ${browsers.length} browsers and ${devices.length} devices`);
+
+      return {
+        browsers,
+        devices,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching browser and device analytics: ${error.message}`, error.stack);
+      return {
+        browsers: [],
+        devices: [],
+      };
     }
   }
 } 
