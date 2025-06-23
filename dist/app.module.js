@@ -15,6 +15,8 @@ const videos_module_1 = require("./videos/videos.module");
 const subscriptions_module_1 = require("./subscriptions/subscriptions.module");
 const analytics_module_1 = require("./analytics/analytics.module");
 const mux_module_1 = require("./providers/mux/mux.module");
+const app_controller_1 = require("./app.controller");
+const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,6 +31,8 @@ exports.AppModule = AppModule = __decorate([
             analytics_module_1.AnalyticsModule,
             mux_module_1.MuxModule,
         ],
+        controllers: [app_controller_1.AppController],
+        providers: [app_service_1.AppService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map
