@@ -48,7 +48,7 @@ async function bootstrap() {
 
   // Configure CORS
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN') || 'https://on-demand-video-frontend.onrender.com/',
+    origin: configService.get<string>('CORS_ORIGIN') || 'https://on-demand-video-frontend.onrender.com',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
