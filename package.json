@@ -19,7 +19,13 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:video-options": "ts-node src/migration/migrate-video-options.ts",
-    "update:mux-credentials": "ts-node src/scripts/update-mux-credentials.ts"
+    "update:mux-credentials": "ts-node src/scripts/update-mux-credentials.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@clerk/backend": "^1.25.8",
