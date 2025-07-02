@@ -125,6 +125,7 @@ export declare class VideosController {
         uploadUrl: string;
         videoId: string;
     }>;
+    removeOrgVideo(id: string, req: AuthenticatedRequest): Promise<void>;
     updateOrgVideo(id: string, updateVideoDto: UpdateVideoDto, req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
@@ -174,7 +175,6 @@ export declare class VideosController {
         currency: string | null;
         muxPlaybackId: string | null;
     }>;
-    removeOrgVideo(id: string, req: AuthenticatedRequest): Promise<void>;
     syncOrgVideoStatus(id: string, req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;

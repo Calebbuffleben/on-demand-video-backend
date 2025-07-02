@@ -28,17 +28,25 @@ let AuthService = class AuthService {
     }
     async verifyToken(token) {
         try {
+            console.log('🔍 Starting token verification...');
+            console.log('🔑 Token length:', token.length);
+            console.log('🔑 Token preview:', token.substring(0, 20) + '...');
             const tokenPayload = await (0, backend_1.verifyToken)(token, {
                 secretKey: this.configService.get('CLERK_SECRET_KEY'),
             });
+            console.log('✅ Token verification successful');
+            console.log('📋 Token payload keys:', Object.keys(tokenPayload || {}));
             if (!tokenPayload || !tokenPayload.sub) {
+                console.error('❌ Token payload is invalid or missing sub field');
                 return null;
             }
             console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
             const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
             if (!clerkUser) {
+                console.error('❌ Could not fetch user from Clerk');
                 return null;
             }
+            console.log('✅ User fetched from Clerk successfully');
             console.log('Clerk user details:', JSON.stringify({
                 id: clerkUser.id,
                 email: clerkUser.emailAddresses[0]?.emailAddress,
@@ -95,7 +103,18 @@ let AuthService = class AuthService {
             };
         }
         catch (error) {
-            console.error('Error verifying token:', error);
+            console.error('❌ Error verifying token:', error);
+            console.error('❌ Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            if (error.message?.includes('jwt')) {
+                console.error('❌ JWT verification failed - token might be invalid or expired');
+            }
+            if (error.message?.includes('secret')) {
+                console.error('❌ Secret key issue - check CLERK_SECRET_KEY environment variable');
+            }
             return null;
         }
     }

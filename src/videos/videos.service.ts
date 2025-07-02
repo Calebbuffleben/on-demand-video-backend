@@ -274,27 +274,40 @@ export class VideosService {
     const video = await this.findOne(id, organizationId);
     
     try {
-      // If we have a MUX asset ID, delete it from MUX
+      // If we have a MUX asset ID, try to delete it from MUX
       if (video.muxAssetId) {
-        // Use organization MUX credentials if available
-        const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
-        
-        // Initialize MUX client
-        const muxClient = new Mux({
-          tokenId,
-          tokenSecret,
-        });
-        
-        // Delete the asset
-        await muxClient.video.assets.delete(video.muxAssetId);
+        try {
+          // Use organization MUX credentials if available
+          const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
+          
+          // Initialize MUX client
+          const muxClient = new Mux({
+            tokenId,
+            tokenSecret,
+          });
+          
+          // Try to delete the asset from MUX
+          await muxClient.video.assets.delete(video.muxAssetId);
+          this.logger.log(`Successfully deleted MUX asset: ${video.muxAssetId}`);
+        } catch (muxError) {
+          // If the asset doesn't exist in MUX (404), that's fine - it might have been deleted already
+          if (muxError.status === 404) {
+            this.logger.warn(`MUX asset ${video.muxAssetId} not found - it may have been deleted already`);
+          } else {
+            // For other MUX errors, log but don't fail the deletion
+            this.logger.error(`Error deleting MUX asset ${video.muxAssetId}:`, muxError.message);
+          }
+        }
       }
       
       // Delete video from database
       await this.prisma.video.delete({
         where: { id },
       });
+      
+      this.logger.log(`Successfully deleted video: ${id}`);
     } catch (error) {
-      console.error('Error removing video:', error);
+      this.logger.error('Error removing video:', error);
       throw new BadRequestException(`Failed to remove video: ${error.message}`);
     }
   }

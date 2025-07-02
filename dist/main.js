@@ -31,7 +31,7 @@ async function bootstrap() {
     app.useGlobalInterceptors(new transform_interceptor_1.TransformInterceptor());
     app.use((0, helmet_1.default)());
     app.enableCors({
-        origin: configService.get('CORS_ORIGIN') || 'http://localhost:3000',
+        origin: configService.get('CORS_ORIGIN') || 'https://on-demand-video-frontend.onrender.com',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
