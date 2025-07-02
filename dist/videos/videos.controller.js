@@ -65,13 +65,13 @@ let VideosController = VideosController_1 = class VideosController {
         const organizationId = req['organization'].id;
         return this.videosService.createDirectUploadUrl(createVideoDto, organizationId);
     }
-    async updateOrgVideo(id, updateVideoDto, req) {
-        const organizationId = req['organization'].id;
-        return this.videosService.update(id, updateVideoDto, organizationId);
-    }
     async removeOrgVideo(id, req) {
         const organizationId = req['organization'].id;
         await this.videosService.remove(id, organizationId);
+    }
+    async updateOrgVideo(id, updateVideoDto, req) {
+        const organizationId = req['organization'].id;
+        return this.videosService.update(id, updateVideoDto, organizationId);
     }
     async syncOrgVideoStatus(id, req) {
         const organizationId = req['organization'].id;
@@ -344,18 +344,6 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "createOrgUploadUrl", null);
 __decorate([
-    (0, common_1.Put)('organization/:id'),
-    (0, swagger_1.ApiOperation)({ summary: 'Update a video in the organization' }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'The video has been successfully updated.' }),
-    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_video_dto_1.UpdateVideoDto, Object]),
-    __metadata("design:returntype", Promise)
-], VideosController.prototype, "updateOrgVideo", null);
-__decorate([
     (0, common_1.Delete)('organization/:id'),
     (0, swagger_1.ApiOperation)({ summary: 'Delete a video from the organization' }),
     (0, swagger_1.ApiResponse)({ status: 204, description: 'The video has been successfully deleted.' }),
@@ -367,6 +355,18 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "removeOrgVideo", null);
+__decorate([
+    (0, common_1.Put)('organization/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update a video in the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'The video has been successfully updated.' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_video_dto_1.UpdateVideoDto, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "updateOrgVideo", null);
 __decorate([
     (0, common_1.Post)('organization/:id/sync'),
     (0, swagger_1.ApiOperation)({ summary: 'Sync video status with Cloudflare for organization video' }),

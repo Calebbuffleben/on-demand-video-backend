@@ -174,19 +174,31 @@ let VideosService = VideosService_1 = class VideosService {
         const video = await this.findOne(id, organizationId);
         try {
             if (video.muxAssetId) {
-                const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
-                const muxClient = new mux_node_1.default({
-                    tokenId,
-                    tokenSecret,
-                });
-                await muxClient.video.assets.delete(video.muxAssetId);
+                try {
+                    const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
+                    const muxClient = new mux_node_1.default({
+                        tokenId,
+                        tokenSecret,
+                    });
+                    await muxClient.video.assets.delete(video.muxAssetId);
+                    this.logger.log(`Successfully deleted MUX asset: ${video.muxAssetId}`);
+                }
+                catch (muxError) {
+                    if (muxError.status === 404) {
+                        this.logger.warn(`MUX asset ${video.muxAssetId} not found - it may have been deleted already`);
+                    }
+                    else {
+                        this.logger.error(`Error deleting MUX asset ${video.muxAssetId}:`, muxError.message);
+                    }
+                }
             }
             await this.prisma.video.delete({
                 where: { id },
             });
+            this.logger.log(`Successfully deleted video: ${id}`);
         }
         catch (error) {
-            console.error('Error removing video:', error);
+            this.logger.error('Error removing video:', error);
             throw new common_1.BadRequestException(`Failed to remove video: ${error.message}`);
         }
     }

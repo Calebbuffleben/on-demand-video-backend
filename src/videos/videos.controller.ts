@@ -85,7 +85,7 @@ export class VideosController {
   async findOrgVideo(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const organizationId = req['organization'].id;
     return this.videosService.findOne(id, organizationId);
-  }
+  } 
 
   @Post('organization/upload-url')
   @ApiOperation({ summary: 'Get a direct upload URL for Cloudflare Stream and save to organization' })
@@ -93,6 +93,16 @@ export class VideosController {
   async createOrgUploadUrl(@Body() createVideoDto: CreateVideoDto, @Req() req: AuthenticatedRequest) {
     const organizationId = req['organization'].id;
     return this.videosService.createDirectUploadUrl(createVideoDto, organizationId);
+  }
+
+  @Delete('organization/:id')
+  @ApiOperation({ summary: 'Delete a video from the organization' })
+  @ApiResponse({ status: 204, description: 'The video has been successfully deleted.' })
+  @ApiResponse({ status: 404, description: 'Video not found.' })
+  @HttpCode(204)
+  async removeOrgVideo(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const organizationId = req['organization'].id;
+    await this.videosService.remove(id, organizationId);
   }
 
   @Put('organization/:id')
@@ -106,16 +116,6 @@ export class VideosController {
   ) {
     const organizationId = req['organization'].id;
     return this.videosService.update(id, updateVideoDto, organizationId);
-  }
-
-  @Delete('organization/:id')
-  @ApiOperation({ summary: 'Delete a video from the organization' })
-  @ApiResponse({ status: 204, description: 'The video has been successfully deleted.' })
-  @ApiResponse({ status: 404, description: 'Video not found.' })
-  @HttpCode(204)
-  async removeOrgVideo(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
-    await this.videosService.remove(id, organizationId);
   }
 
   @Post('organization/:id/sync')
