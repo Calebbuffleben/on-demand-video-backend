@@ -43,6 +43,40 @@ let AuthController = class AuthController {
             role: verification.role,
         };
     }
+    async refreshToken(req) {
+        try {
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                return { success: false, message: 'No token provided' };
+            }
+            const token = authHeader.split(' ')[1];
+            if (!token) {
+                return { success: false, message: 'Invalid token format' };
+            }
+            const verification = await this.authService.verifyToken(token);
+            if (!verification) {
+                return { success: false, message: 'Invalid or expired token' };
+            }
+            return {
+                success: true,
+                message: 'Token is valid, get fresh token from Clerk session',
+                user: {
+                    id: verification.userId,
+                    email: verification.email,
+                },
+                organization: verification.organizationId
+                    ? {
+                        id: verification.organizationId,
+                        name: verification.organizationName,
+                    }
+                    : null,
+            };
+        }
+        catch (error) {
+            console.error('Token refresh error:', error);
+            return { success: false, message: 'Token refresh failed' };
+        }
+    }
     async getProfile(request) {
         return {
             user: request.user,
@@ -90,6 +124,15 @@ __decorate([
     __metadata("design:paramtypes", [verify_token_dto_1.VerifyTokenDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "verifyToken", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('refresh-token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Refresh authentication token' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "refreshToken", null);
 __decorate([
     (0, common_1.Get)('me'),
     (0, swagger_1.ApiBearerAuth)(),

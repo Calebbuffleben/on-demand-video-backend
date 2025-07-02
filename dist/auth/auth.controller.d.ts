@@ -22,6 +22,23 @@ export declare class AuthController {
         role: string | undefined;
         message?: undefined;
     }>;
+    refreshToken(req: any): Promise<{
+        success: boolean;
+        message: string;
+        user?: undefined;
+        organization?: undefined;
+    } | {
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            email: string;
+        };
+        organization: {
+            id: string;
+            name: string | undefined;
+        } | null;
+    }>;
     getProfile(request: any): Promise<{
         user: any;
         organization: any;
