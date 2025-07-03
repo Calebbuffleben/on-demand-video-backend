@@ -26,6 +26,7 @@ exports.AppConfigModule = AppConfigModule = __decorate([
                     DATABASE_URL: Joi.string().required(),
                     CLERK_SECRET_KEY: Joi.string().required(),
                     CLERK_PUBLISHABLE_KEY: Joi.string().required(),
+                    CLERK_WEBHOOK_SECRET: Joi.string().required(),
                     STRIPE_SECRET_KEY: Joi.string().required(),
                     STRIPE_WEBHOOK_SECRET: Joi.string().required(),
                     STRIPE_PRICE_ID_BASIC: Joi.string().required(),

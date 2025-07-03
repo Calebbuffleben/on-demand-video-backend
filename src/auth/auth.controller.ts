@@ -53,6 +53,62 @@ export class AuthController {
   }
 
   /**
+   * Refresh authentication token
+   * 
+   * This method:
+   * - Allows public access for token refresh
+   * - Validates the current token
+   * - Returns a new token if the current one is valid
+   * 
+   * @param req Request object containing the current token
+   * @returns New token or error message
+   */
+  @Public()
+  @Post('refresh-token')
+  @ApiOperation({ summary: 'Refresh authentication token' })
+  async refreshToken(@Req() req: any) {
+    try {
+      // Extract the current token from the request
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return { success: false, message: 'No token provided' };
+      }
+
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        return { success: false, message: 'Invalid token format' };
+      }
+
+      // Verify the current token
+      const verification = await this.authService.verifyToken(token);
+      if (!verification) {
+        return { success: false, message: 'Invalid or expired token' };
+      }
+
+      // For Clerk, we don't actually generate new tokens on the backend
+      // Instead, we return success to indicate the token is still valid
+      // The frontend should get a fresh token from Clerk's session
+      return {
+        success: true,
+        message: 'Token is valid, get fresh token from Clerk session',
+        user: {
+          id: verification.userId,
+          email: verification.email,
+        },
+        organization: verification.organizationId
+          ? {
+              id: verification.organizationId,
+              name: verification.organizationName,
+            }
+          : null,
+      };
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return { success: false, message: 'Token refresh failed' };
+    }
+  }
+
+  /**
    * Get authenticated user's profile
    * 
    * This method:

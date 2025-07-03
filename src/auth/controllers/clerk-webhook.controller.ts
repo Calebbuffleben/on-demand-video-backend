@@ -49,8 +49,12 @@ export class ClerkWebhookController {
       const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
       
       if (!webhookSecret) {
+        this.logger.error('CLERK_WEBHOOK_SECRET is not configured');
         throw new BadRequestException('Webhook secret not configured');
       }
+
+      this.logger.log(`Webhook secret found: ${webhookSecret ? 'Yes' : 'No'}`);
+      this.logger.log(`Webhook secret length: ${webhookSecret?.length || 0}`);
 
       // Extract svix headers
       const svixHeaders = {
@@ -59,8 +63,16 @@ export class ClerkWebhookController {
         'svix-signature': headers['svix-signature'],
       } as WebhookRequiredHeaders;
 
+      // Log headers for debugging
+      this.logger.log(`Svix headers received:`, {
+        'svix-id': svixHeaders['svix-id'] ? 'Present' : 'Missing',
+        'svix-timestamp': svixHeaders['svix-timestamp'] ? 'Present' : 'Missing',
+        'svix-signature': svixHeaders['svix-signature'] ? 'Present' : 'Missing',
+      });
+
       // Validate headers
       if (!svixHeaders['svix-id'] || !svixHeaders['svix-timestamp'] || !svixHeaders['svix-signature']) {
+        this.logger.error('Missing required svix headers');
         throw new UnauthorizedException('Missing svix headers');
       }
 
@@ -70,8 +82,10 @@ export class ClerkWebhookController {
       
       try {
         event = wh.verify(JSON.stringify(body), svixHeaders) as WebhookEvent;
+        this.logger.log(`Webhook signature verification successful for event: ${event.type}`);
       } catch (error) {
         this.logger.error(`Webhook verification failed: ${error.message}`);
+        this.logger.error(`Error details:`, error);
         throw new UnauthorizedException('Invalid webhook signature');
       }
 
