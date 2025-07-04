@@ -203,6 +203,15 @@ export class AuthService {
       where: { clerkId: clerkOrgId },
     });
 
+    // Map Clerk roles to database roles
+    const mapClerkRoleToDbRole = (clerkRole: string): 'ADMIN' | 'OWNER' | 'MEMBER' => {
+      if (clerkRole === 'org:admin' || clerkRole === 'admin') return 'ADMIN';
+      if (clerkRole === 'org:owner' || clerkRole === 'owner') return 'OWNER';
+      return 'MEMBER'; // Default to member for org:member or any other role
+    };
+
+    const dbRole = mapClerkRoleToDbRole(role);
+
     // Create organization if not exists
     if (!organization) {
       organization = await this.prisma.organization.create({
@@ -211,7 +220,7 @@ export class AuthService {
           clerkId: clerkOrgId,
           users: {
             create: {
-              role: role === 'admin' ? 'ADMIN' : role === 'owner' ? 'OWNER' : 'MEMBER',
+              role: dbRole,
               user: {
                 connect: { id: userId },
               },
@@ -234,7 +243,7 @@ export class AuthService {
       if (!userOrg) {
         await this.prisma.userOrganization.create({
           data: {
-            role: role === 'admin' ? 'ADMIN' : role === 'owner' ? 'OWNER' : 'MEMBER',
+            role: dbRole,
             user: {
               connect: { id: userId },
             },

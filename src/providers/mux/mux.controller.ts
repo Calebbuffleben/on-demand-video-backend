@@ -41,6 +41,11 @@ export class MuxController {
     @Body() updateOrgMuxDto: UpdateOrgMuxDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MuxSettingsResponseDto> {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
     
     try {
@@ -71,6 +76,11 @@ export class MuxController {
   @ApiOperation({ summary: 'Get MUX settings for the organization' })
   @ApiResponse({ status: 200, description: 'Settings retrieved.' })
   async getOrgMuxSettings(@Req() req: AuthenticatedRequest): Promise<MuxSettingsResponseDto> {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
     
     try {
@@ -107,6 +117,11 @@ export class MuxController {
   @ApiResponse({ status: 200, description: 'Connection successful.' })
   @ApiResponse({ status: 400, description: 'Connection failed.' })
   async testOrgConnection(@Req() req: AuthenticatedRequest) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
     return this.muxService.testMuxConnection(organizationId);
   }

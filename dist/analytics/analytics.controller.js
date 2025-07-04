@@ -31,6 +31,9 @@ let AnalyticsController = class AnalyticsController {
         this.prisma = prisma;
     }
     async getDashboard(req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const organization = await this.prisma.organization.findUnique({
             where: { id: organizationId },
@@ -41,6 +44,9 @@ let AnalyticsController = class AnalyticsController {
         return this.analyticsService.getDashboardData(organizationId);
     }
     async getPlatformStats(req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const organization = await this.prisma.organization.findUnique({
             where: { id: organizationId },
@@ -51,6 +57,9 @@ let AnalyticsController = class AnalyticsController {
         return this.analyticsService.getPlatformStats(organizationId);
     }
     async getRecentUploads(query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const organization = await this.prisma.organization.findUnique({
             where: { id: organizationId },
@@ -61,6 +70,9 @@ let AnalyticsController = class AnalyticsController {
         return this.analyticsService.getRecentUploads(query.limit, organizationId);
     }
     async getPopularVideos(query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const organization = await this.prisma.organization.findUnique({
             where: { id: organizationId },
@@ -71,6 +83,9 @@ let AnalyticsController = class AnalyticsController {
         return this.analyticsService.getPopularVideos(query.limit, organizationId);
     }
     async getVideoAnalytics(videoId, query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const video = await this.prisma.video.findFirst({
             where: {
@@ -84,6 +99,9 @@ let AnalyticsController = class AnalyticsController {
         return this.muxAnalyticsService.getVideoAnalytics(videoId, organizationId, query);
     }
     async getVideoRetention(videoId, query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const video = await this.prisma.video.findFirst({
             where: {
@@ -100,6 +118,9 @@ let AnalyticsController = class AnalyticsController {
         };
     }
     async getVideoViews(videoId, query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const video = await this.prisma.video.findFirst({
             where: {
@@ -119,6 +140,9 @@ let AnalyticsController = class AnalyticsController {
         };
     }
     async getViewerAnalytics(videoId, query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         const video = await this.prisma.video.findFirst({
             where: {

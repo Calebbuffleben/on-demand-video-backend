@@ -87,27 +87,87 @@ export class AuthGuard implements CanActivate {
       if (requestedOrgId) {
         console.log('X-Organization-Id header present:', requestedOrgId);
         
-        // Verify user has access to the requested organization
-        const userOrg = await this.prisma.userOrganization.findFirst({
-          where: {
-            userId: user.id,
-            organization: {
-              clerkId: requestedOrgId
-            }
-          },
-          include: {
-            organization: true
-          }
+        // First, check if the organization exists in our database
+        let organization = await this.prisma.organization.findUnique({
+          where: { clerkId: requestedOrgId },
         });
         
-        if (userOrg) {
-          console.log('User has access to requested organization:', 
-            JSON.stringify(userOrg.organization, null, 2));
-          request['organization'] = userOrg.organization;
+        // If organization doesn't exist in our database, create it using token info
+        if (!organization) {
+          console.log('Organization not found in database, creating from token info...');
+          
+          // Use organization info from token if available
+          const orgName = verificationResult.organizationName || 'Unknown Organization';
+          const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
+          
+          try {
+            // Create the organization and user membership in one transaction
+            organization = await this.authService.getOrCreateOrganization(
+              requestedOrgId,
+              orgName,
+              user.id,
+              orgRole,
+            );
+            
+            console.log('Organization created in database:', JSON.stringify(organization, null, 2));
+          } catch (error) {
+            console.error('Failed to create organization:', error);
+          }
         } else {
-          console.log('User does not have access to requested organization');
-          // We don't throw here - we'll just not attach the organization
-          // Controllers that require organization context will handle this appropriately
+          // Organization exists, check if user has membership
+          const userOrg = await this.prisma.userOrganization.findFirst({
+            where: {
+              userId: user.id,
+              organizationId: organization.id,
+            },
+          });
+          
+          // If no membership exists, create it
+          if (!userOrg) {
+            console.log('User membership not found, creating...');
+            const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
+            
+            // Map Clerk roles to database roles
+            const mapClerkRoleToDbRole = (clerkRole: string): 'ADMIN' | 'OWNER' | 'MEMBER' => {
+              if (clerkRole === 'org:admin' || clerkRole === 'admin') return 'ADMIN';
+              if (clerkRole === 'org:owner' || clerkRole === 'owner') return 'OWNER';
+              return 'MEMBER'; // Default to member for org:member or any other role
+            };
+            
+            try {
+              await this.prisma.userOrganization.create({
+                data: {
+                  userId: user.id,
+                  organizationId: organization.id,
+                  role: mapClerkRoleToDbRole(orgRole),
+                },
+              });
+              console.log('User membership created successfully');
+            } catch (error) {
+              console.error('Failed to create user membership:', error);
+            }
+          }
+        }
+        
+        // Attach organization to request if we have it
+        if (organization) {
+          console.log('Attaching organization to request:', JSON.stringify(organization, null, 2));
+          request['organization'] = organization;
+        } else {
+          console.log('Could not resolve organization, falling back to token info');
+          
+          // Fallback: create a minimal organization object from token info
+          if (verificationResult.organizationId && verificationResult.organizationName) {
+            console.log('Creating fallback organization object from token info');
+            request['organization'] = {
+              id: verificationResult.organizationId, // Use Clerk ID as fallback
+              clerkId: verificationResult.organizationId,
+              name: verificationResult.organizationName,
+              // Add other required fields with defaults
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+          }
         }
       }
       // If no header but organization info in token, use that

@@ -5,7 +5,7 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { Video } from '@prisma/client';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
-import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
+import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
 import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { MuxService } from '../providers/mux/mux.service';
@@ -49,6 +49,6 @@ export declare class VideosService {
     updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, organizationId: string): Promise<CloudflareSettingsResponseDto>;
     getOrgCloudflareSettings(organizationId: string): Promise<CloudflareSettingsResponseDto>;
     private maskString;
-    private mapVideoToDto;
+    mapVideoToDto(video: Video): VideoDto;
 }
 export {};

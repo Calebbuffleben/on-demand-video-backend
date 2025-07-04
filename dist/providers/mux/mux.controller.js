@@ -39,6 +39,9 @@ let MuxController = MuxController_1 = class MuxController {
         }
     }
     async updateOrgMuxSettings(updateOrgMuxDto, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         try {
             await this.prismaService.organization.update({
@@ -60,6 +63,9 @@ let MuxController = MuxController_1 = class MuxController {
         }
     }
     async getOrgMuxSettings(req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         try {
             const organization = await this.prismaService.organization.findUnique({
@@ -87,6 +93,9 @@ let MuxController = MuxController_1 = class MuxController {
         }
     }
     async testOrgConnection(req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
         const organizationId = req['organization'].id;
         return this.muxService.testMuxConnection(organizationId);
     }

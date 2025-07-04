@@ -21,6 +21,7 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
+import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
@@ -55,11 +56,30 @@ export class VideosController {
   ) {}
 
   @Get('organization')
-  @ApiOperation({ summary: 'Get all videos for an organization' })
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Get all videos for the authenticated organization' })
   @ApiResponse({ status: 200, description: 'Return all videos for the authenticated organization.' })
   async findAllOrganizationVideos(@Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
-    return this.videosService.findAll(organizationId);
+    const organizationId = req.organization.id;
+    const videos = await this.videosService.findAll(organizationId);
+    
+    // Map videos to DTO format and return proper response structure
+    const result = videos.map(video => this.videosService.mapVideoToDto(video));
+    
+    return {
+      success: true,
+      status: 200,
+      message: 'Videos retrieved successfully',
+      data: {
+        result,
+        result_info: {
+          count: result.length,
+          page: 1,
+          per_page: result.length,
+          total_count: result.length,
+        },
+      },
+    };
   }
 
   @Get('test-cloudflare-connection')
@@ -79,33 +99,37 @@ export class VideosController {
   }
 
   @Get('organization/:id')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Get a video by ID from the organization' })
   @ApiResponse({ status: 200, description: 'Return the video with the specified ID.' })
   @ApiResponse({ status: 404, description: 'Video not found.' })
   async findOrgVideo(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.findOne(id, organizationId);
-  } 
+  }
 
   @Post('organization/upload-url')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Get a direct upload URL for Cloudflare Stream and save to organization' })
   @ApiResponse({ status: 201, description: 'Returns an upload URL and video ID.' })
   async createOrgUploadUrl(@Body() createVideoDto: CreateVideoDto, @Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.createDirectUploadUrl(createVideoDto, organizationId);
   }
 
   @Delete('organization/:id')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Delete a video from the organization' })
   @ApiResponse({ status: 204, description: 'The video has been successfully deleted.' })
   @ApiResponse({ status: 404, description: 'Video not found.' })
   @HttpCode(204)
   async removeOrgVideo(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     await this.videosService.remove(id, organizationId);
   }
 
   @Put('organization/:id')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Update a video in the organization' })
   @ApiResponse({ status: 200, description: 'The video has been successfully updated.' })
   @ApiResponse({ status: 404, description: 'Video not found.' })
@@ -114,16 +138,17 @@ export class VideosController {
     @Body() updateVideoDto: UpdateVideoDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.update(id, updateVideoDto, organizationId);
   }
 
   @Post('organization/:id/sync')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Sync video status with Cloudflare for organization video' })
   @ApiResponse({ status: 200, description: 'Video status has been synced.' })
   @ApiResponse({ status: 404, description: 'Video not found.' })
   async syncOrgVideoStatus(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.syncVideoStatus(id, organizationId);
   }
 
@@ -132,11 +157,11 @@ export class VideosController {
   @ApiOperation({ summary: 'Webhook endpoint for Mux Stream events' })
   @ApiResponse({ status: 200, description: 'Webhook processed successfully.' })
   async webhook(
-    @Body() payload: any, 
+    @Body() payload: any,
     @Headers('mux-signature') signature: string
   ) {
     // Here you would typically verify the webhook signature
-    
+
     try {
       await this.videosService.handleMuxWebhook(payload, signature);
       return { success: true };
@@ -193,36 +218,39 @@ export class VideosController {
    * Test Cloudflare connection for organization
    */
   @Post('organization/test-cloudflare')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Test Cloudflare API connection for the organization' })
   @ApiResponse({ status: 200, description: 'Connection successful.' })
   @ApiResponse({ status: 400, description: 'Connection failed.' })
   async testOrgCloudflare(@Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.testCloudflareConnection(organizationId);
   }
-  
+
   /**
    * Update organization Cloudflare settings
    */
   @Post('organization/cloudflare-settings')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Update Cloudflare settings for the organization' })
   @ApiResponse({ status: 200, description: 'Settings updated.' })
   async updateOrgCloudflareSettings(
     @Body() updateOrgCloudflareDto: UpdateOrgCloudflareDto,
     @Req() req: AuthenticatedRequest
   ) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
   }
-  
+
   /**
    * Get organization Cloudflare settings
    */
   @Get('organization/cloudflare-settings')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Get Cloudflare settings for the organization' })
   @ApiResponse({ status: 200, description: 'Settings retrieved.' })
   async getOrgCloudflareSettings(@Req() req: AuthenticatedRequest) {
-    const organizationId = req['organization'].id;
+    const organizationId = req.organization.id;
     return this.videosService.getOrgCloudflareSettings(organizationId);
   }
 
@@ -236,7 +264,7 @@ export class VideosController {
   @ApiResponse({ status: 404, description: 'Video not found.' })
   @ApiParam({ name: 'uid', description: 'The Cloudflare Stream video UID' })
   async getVideoForEmbed(
-    @Param('uid') uid: string, 
+    @Param('uid') uid: string,
     @Req() req: Request
   ): Promise<EmbedVideoResponseDto> {
     // Extract organization ID from request if it exists
@@ -250,13 +278,13 @@ export class VideosController {
   @ApiResponse({ status: 201, description: 'Test upload created successfully.' })
   async testUpload(@Body() dto: GetUploadUrlDto) {
     this.logger.log(`Received test upload request with data: ${JSON.stringify(dto)}`);
-    
+
     try {
       // Ensure we have an organization ID
       if (!dto.organizationId) {
         throw new BadRequestException('Organization ID is required');
       }
-      
+
       // Create direct upload URL and PendingVideo
       const result = await this.videosService.createDirectUploadUrl(
         {
@@ -267,22 +295,22 @@ export class VideosController {
         },
         dto.organizationId
       );
-      
+
       // Log for debugging
       this.logger.log(`Test upload created successfully. PendingVideo ID: ${result.videoId}`);
-      
+
       // Check if the PendingVideo exists
       const pendingVideo = await this.prismaService.pendingVideo.findUnique({
         where: { id: result.videoId },
       });
-      
+
       if (!pendingVideo) {
         this.logger.error(`Failed to find PendingVideo with ID: ${result.videoId}`);
         throw new InternalServerErrorException('Failed to create pending video');
       }
-      
+
       this.logger.log(`PendingVideo verified in database: ${JSON.stringify(pendingVideo)}`);
-      
+
       // Format response
       return {
         success: true,
@@ -303,31 +331,31 @@ export class VideosController {
   async testPendingVideo(@Body() body: any) {
     try {
       this.logger.log(`Received request to create test pending video: ${JSON.stringify(body)}`);
-      
+
       // Check for organization ID
       if (!body.organizationId) {
         throw new BadRequestException('Organization ID is required');
       }
-      
+
       // Verify organization exists
       const organization = await this.prismaService.organization.findUnique({
         where: { id: body.organizationId },
       });
-      
+
       if (!organization) {
         this.logger.error(`Organization with ID ${body.organizationId} not found`);
         throw new BadRequestException(`Organization not found`);
       }
-      
+
       // Generate ID for the pending video
       const id = body.id || randomUUID();
       const name = body.name || 'Test Video';
       const muxUploadId = `test-upload-${Date.now()}`;
-      
+
       // Create a pending video record with READY status
       try {
         this.logger.log(`Creating pending video with ID: ${id}`);
-        
+
         const pendingVideo = await this.prismaService.pendingVideo.create({
           data: {
             id,
@@ -341,13 +369,13 @@ export class VideosController {
             status: 'READY', // Mark as READY to simulate an already processed upload
           },
         });
-        
+
         this.logger.log(`Created pending video: ${pendingVideo.id}`);
-        
+
         // Simulate webhook for processing the video
         try {
           this.logger.log(`Simulating webhook for test video ${pendingVideo.id}`);
-          
+
           // Create a simulated webhook payload
           const webhookPayload = {
             type: 'video.asset.ready',
@@ -362,15 +390,15 @@ export class VideosController {
               }),
             },
           };
-          
+
           // Send the webhook payload to the MUX webhook endpoint
           await this.muxWebhookController.handleSimulatedWebhook(webhookPayload);
-          
+
           this.logger.log(`Webhook simulation completed for test video ${pendingVideo.id}`);
         } catch (webhookError) {
           this.logger.error(`Error simulating webhook: ${webhookError.message}`, webhookError.stack);
         }
-        
+
         return {
           success: true,
           pendingVideoId: pendingVideo.id,
@@ -393,22 +421,22 @@ export class VideosController {
   async testCreateVideo(@Body() body: any) {
     try {
       this.logger.log(`Received request to manually create video: ${JSON.stringify(body)}`);
-      
+
       // Check for required fields
       if (!body.organizationId) {
         throw new BadRequestException('Organization ID is required');
       }
-      
+
       // Verify organization exists
       const organization = await this.prismaService.organization.findUnique({
         where: { id: body.organizationId },
       });
-      
+
       if (!organization) {
         this.logger.error(`Organization with ID ${body.organizationId} not found`);
         throw new BadRequestException(`Organization not found`);
       }
-      
+
       // Create a Video record
       try {
         const videoData = {
@@ -426,9 +454,9 @@ export class VideosController {
           visibility: body.visibility || 'PUBLIC',
           duration: body.duration || 0,
         };
-        
+
         this.logger.log(`Creating video with data: ${JSON.stringify(videoData)}`);
-        
+
         // Delete existing PendingVideo with same ID if it exists
         if (body.id) {
           try {
@@ -440,14 +468,14 @@ export class VideosController {
             this.logger.log(`No existing PendingVideo with ID ${body.id} found to delete`);
           }
         }
-        
+
         // Create the Video
         const video = await this.prismaService.video.create({
           data: videoData,
         });
-        
+
         this.logger.log(`Created video with ID: ${video.id}`);
-        
+
         return {
           success: true,
           message: 'Video created successfully',
@@ -464,6 +492,7 @@ export class VideosController {
   }
 
   @Post(':videoId/cover')
+  @OrganizationScoped()
   @UseInterceptors(AnyFilesInterceptor({
     fileFilter: (req, file, cb) => {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -487,25 +516,21 @@ export class VideosController {
     @Req() req: AuthenticatedRequest,
   ) {
     this.logger.log(`Received request to upload cover for video ${videoId}. Files received: ${files?.length}`);
-    
+
     const coverFile = files?.find(file => file.fieldname === 'cover');
-    
+
     if (!coverFile) {
       this.logger.error('No cover image file with fieldname \'cover\' was uploaded.');
       throw new BadRequestException('No cover image file with fieldname \'cover\' uploaded.');
     }
     this.logger.log(`Processing cover file: ${coverFile.originalname}, size: ${coverFile.size}`);
-    
-    const organizationId = req['organization']?.id;
-    if (!organizationId) {
-      this.logger.error('Organization ID not found in authenticated request.');
-      throw new BadRequestException('Organization ID not found in request.');
-    }
-    
+
+    const organizationId = req.organization.id;
     return this.uploadService.uploadCoverImage(coverFile, videoId, organizationId);
   }
 
   @Delete(':videoId/cover')
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Remove the cover image for a video' })
   @ApiResponse({ status: 200, description: 'Cover image removed.' })
   @ApiParam({ name: 'videoId', description: 'The ID of the video' })
@@ -513,8 +538,7 @@ export class VideosController {
     @Param('videoId') videoId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    const organizationId = req['organization']?.id;
-    if (!organizationId) throw new BadRequestException('Organization ID is required');
+    const organizationId = req.organization.id;
     return this.uploadService.removeCoverImage(videoId, organizationId);
   }
 } 
