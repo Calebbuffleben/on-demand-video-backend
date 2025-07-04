@@ -21,6 +21,7 @@ const create_video_dto_1 = require("./dto/create-video.dto");
 const update_video_dto_1 = require("./dto/update-video.dto");
 const swagger_1 = require("@nestjs/swagger");
 const public_decorator_1 = require("../auth/decorators/public.decorator");
+const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 const get_upload_url_dto_1 = require("./dto/get-upload-url.dto");
 const update_org_cloudflare_dto_1 = require("./dto/update-org-cloudflare.dto");
 const client_1 = require("@prisma/client");
@@ -42,8 +43,23 @@ let VideosController = VideosController_1 = class VideosController {
         this.uploadService = uploadService;
     }
     async findAllOrganizationVideos(req) {
-        const organizationId = req['organization'].id;
-        return this.videosService.findAll(organizationId);
+        const organizationId = req.organization.id;
+        const videos = await this.videosService.findAll(organizationId);
+        const result = videos.map(video => this.videosService.mapVideoToDto(video));
+        return {
+            success: true,
+            status: 200,
+            message: 'Videos retrieved successfully',
+            data: {
+                result,
+                result_info: {
+                    count: result.length,
+                    page: 1,
+                    per_page: result.length,
+                    total_count: result.length,
+                },
+            },
+        };
     }
     async testCloudflareConnection() {
         try {
@@ -58,23 +74,23 @@ let VideosController = VideosController_1 = class VideosController {
         }
     }
     async findOrgVideo(id, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.findOne(id, organizationId);
     }
     async createOrgUploadUrl(createVideoDto, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.createDirectUploadUrl(createVideoDto, organizationId);
     }
     async removeOrgVideo(id, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         await this.videosService.remove(id, organizationId);
     }
     async updateOrgVideo(id, updateVideoDto, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.update(id, updateVideoDto, organizationId);
     }
     async syncOrgVideoStatus(id, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.syncVideoStatus(id, organizationId);
     }
     async webhook(payload, signature) {
@@ -103,15 +119,15 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.getVideoByUid(uid);
     }
     async testOrgCloudflare(req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.testCloudflareConnection(organizationId);
     }
     async updateOrgCloudflareSettings(updateOrgCloudflareDto, req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
     }
     async getOrgCloudflareSettings(req) {
-        const organizationId = req['organization'].id;
+        const organizationId = req.organization.id;
         return this.videosService.getOrgCloudflareSettings(organizationId);
     }
     async getVideoForEmbed(uid, req) {
@@ -289,24 +305,19 @@ let VideosController = VideosController_1 = class VideosController {
             throw new common_1.BadRequestException('No cover image file with fieldname \'cover\' uploaded.');
         }
         this.logger.log(`Processing cover file: ${coverFile.originalname}, size: ${coverFile.size}`);
-        const organizationId = req['organization']?.id;
-        if (!organizationId) {
-            this.logger.error('Organization ID not found in authenticated request.');
-            throw new common_1.BadRequestException('Organization ID not found in request.');
-        }
+        const organizationId = req.organization.id;
         return this.uploadService.uploadCoverImage(coverFile, videoId, organizationId);
     }
     async removeCoverImage(videoId, req) {
-        const organizationId = req['organization']?.id;
-        if (!organizationId)
-            throw new common_1.BadRequestException('Organization ID is required');
+        const organizationId = req.organization.id;
         return this.uploadService.removeCoverImage(videoId, organizationId);
     }
 };
 exports.VideosController = VideosController;
 __decorate([
     (0, common_1.Get)('organization'),
-    (0, swagger_1.ApiOperation)({ summary: 'Get all videos for an organization' }),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all videos for the authenticated organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Return all videos for the authenticated organization.' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -324,6 +335,7 @@ __decorate([
 ], VideosController.prototype, "testCloudflareConnection", null);
 __decorate([
     (0, common_1.Get)('organization/:id'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get a video by ID from the organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Return the video with the specified ID.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
@@ -335,6 +347,7 @@ __decorate([
 ], VideosController.prototype, "findOrgVideo", null);
 __decorate([
     (0, common_1.Post)('organization/upload-url'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get a direct upload URL for Cloudflare Stream and save to organization' }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Returns an upload URL and video ID.' }),
     __param(0, (0, common_1.Body)()),
@@ -345,6 +358,7 @@ __decorate([
 ], VideosController.prototype, "createOrgUploadUrl", null);
 __decorate([
     (0, common_1.Delete)('organization/:id'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Delete a video from the organization' }),
     (0, swagger_1.ApiResponse)({ status: 204, description: 'The video has been successfully deleted.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
@@ -357,6 +371,7 @@ __decorate([
 ], VideosController.prototype, "removeOrgVideo", null);
 __decorate([
     (0, common_1.Put)('organization/:id'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Update a video in the organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'The video has been successfully updated.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
@@ -369,6 +384,7 @@ __decorate([
 ], VideosController.prototype, "updateOrgVideo", null);
 __decorate([
     (0, common_1.Post)('organization/:id/sync'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Sync video status with Cloudflare for organization video' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Video status has been synced.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
@@ -434,6 +450,7 @@ __decorate([
 ], VideosController.prototype, "getVideoByUid", null);
 __decorate([
     (0, common_1.Post)('organization/test-cloudflare'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Test Cloudflare API connection for the organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Connection successful.' }),
     (0, swagger_1.ApiResponse)({ status: 400, description: 'Connection failed.' }),
@@ -444,6 +461,7 @@ __decorate([
 ], VideosController.prototype, "testOrgCloudflare", null);
 __decorate([
     (0, common_1.Post)('organization/cloudflare-settings'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Update Cloudflare settings for the organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Settings updated.' }),
     __param(0, (0, common_1.Body)()),
@@ -454,6 +472,7 @@ __decorate([
 ], VideosController.prototype, "updateOrgCloudflareSettings", null);
 __decorate([
     (0, common_1.Get)('organization/cloudflare-settings'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get Cloudflare settings for the organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Settings retrieved.' }),
     __param(0, (0, common_1.Req)()),
@@ -506,6 +525,7 @@ __decorate([
 ], VideosController.prototype, "testCreateVideo", null);
 __decorate([
     (0, common_1.Post)(':videoId/cover'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, common_1.UseInterceptors)((0, platform_express_1.AnyFilesInterceptor)({
         fileFilter: (req, file, cb) => {
             const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -533,6 +553,7 @@ __decorate([
 ], VideosController.prototype, "uploadCoverImage", null);
 __decorate([
     (0, common_1.Delete)(':videoId/cover'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Remove the cover image for a video' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Cover image removed.' }),
     (0, swagger_1.ApiParam)({ name: 'videoId', description: 'The ID of the video' }),

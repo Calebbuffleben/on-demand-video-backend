@@ -136,6 +136,14 @@ let AuthService = class AuthService {
         let organization = await this.prisma.organization.findUnique({
             where: { clerkId: clerkOrgId },
         });
+        const mapClerkRoleToDbRole = (clerkRole) => {
+            if (clerkRole === 'org:admin' || clerkRole === 'admin')
+                return 'ADMIN';
+            if (clerkRole === 'org:owner' || clerkRole === 'owner')
+                return 'OWNER';
+            return 'MEMBER';
+        };
+        const dbRole = mapClerkRoleToDbRole(role);
         if (!organization) {
             organization = await this.prisma.organization.create({
                 data: {
@@ -143,7 +151,7 @@ let AuthService = class AuthService {
                     clerkId: clerkOrgId,
                     users: {
                         create: {
-                            role: role === 'admin' ? 'ADMIN' : role === 'owner' ? 'OWNER' : 'MEMBER',
+                            role: dbRole,
                             user: {
                                 connect: { id: userId },
                             },
@@ -164,7 +172,7 @@ let AuthService = class AuthService {
             if (!userOrg) {
                 await this.prisma.userOrganization.create({
                     data: {
-                        role: role === 'admin' ? 'ADMIN' : role === 'owner' ? 'OWNER' : 'MEMBER',
+                        role: dbRole,
                         user: {
                             connect: { id: userId },
                         },

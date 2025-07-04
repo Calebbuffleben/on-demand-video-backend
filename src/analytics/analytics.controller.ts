@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Req, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req, Param, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { 
   GetVideosLimitDto, 
@@ -46,6 +46,11 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   async getDashboard(@Req() req: AuthenticatedRequest) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
     
     // Verify organization exists
@@ -72,6 +77,11 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   async getPlatformStats(@Req() req: AuthenticatedRequest) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify organization exists
@@ -101,6 +111,11 @@ export class AnalyticsController {
     @Query() query: GetVideosLimitDto,
     @Req() req: AuthenticatedRequest
   ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify organization exists
@@ -130,6 +145,11 @@ export class AnalyticsController {
     @Query() query: GetVideosLimitDto,
     @Req() req: AuthenticatedRequest
   ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify organization exists
@@ -153,6 +173,11 @@ export class AnalyticsController {
     @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MuxAnalyticsResponseDto> {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify video ownership
@@ -183,6 +208,11 @@ export class AnalyticsController {
     @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
     
     // Verify video ownership
@@ -216,6 +246,11 @@ export class AnalyticsController {
     @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify video ownership
@@ -263,6 +298,11 @@ export class AnalyticsController {
     @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
     const organizationId = req['organization'].id;
 
     // Verify video ownership

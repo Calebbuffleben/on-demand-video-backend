@@ -54,23 +54,69 @@ let AuthGuard = class AuthGuard {
             const requestedOrgId = request.headers['x-organization-id'];
             if (requestedOrgId) {
                 console.log('X-Organization-Id header present:', requestedOrgId);
-                const userOrg = await this.prisma.userOrganization.findFirst({
-                    where: {
-                        userId: user.id,
-                        organization: {
-                            clerkId: requestedOrgId
-                        }
-                    },
-                    include: {
-                        organization: true
-                    }
+                let organization = await this.prisma.organization.findUnique({
+                    where: { clerkId: requestedOrgId },
                 });
-                if (userOrg) {
-                    console.log('User has access to requested organization:', JSON.stringify(userOrg.organization, null, 2));
-                    request['organization'] = userOrg.organization;
+                if (!organization) {
+                    console.log('Organization not found in database, creating from token info...');
+                    const orgName = verificationResult.organizationName || 'Unknown Organization';
+                    const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
+                    try {
+                        organization = await this.authService.getOrCreateOrganization(requestedOrgId, orgName, user.id, orgRole);
+                        console.log('Organization created in database:', JSON.stringify(organization, null, 2));
+                    }
+                    catch (error) {
+                        console.error('Failed to create organization:', error);
+                    }
                 }
                 else {
-                    console.log('User does not have access to requested organization');
+                    const userOrg = await this.prisma.userOrganization.findFirst({
+                        where: {
+                            userId: user.id,
+                            organizationId: organization.id,
+                        },
+                    });
+                    if (!userOrg) {
+                        console.log('User membership not found, creating...');
+                        const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
+                        const mapClerkRoleToDbRole = (clerkRole) => {
+                            if (clerkRole === 'org:admin' || clerkRole === 'admin')
+                                return 'ADMIN';
+                            if (clerkRole === 'org:owner' || clerkRole === 'owner')
+                                return 'OWNER';
+                            return 'MEMBER';
+                        };
+                        try {
+                            await this.prisma.userOrganization.create({
+                                data: {
+                                    userId: user.id,
+                                    organizationId: organization.id,
+                                    role: mapClerkRoleToDbRole(orgRole),
+                                },
+                            });
+                            console.log('User membership created successfully');
+                        }
+                        catch (error) {
+                            console.error('Failed to create user membership:', error);
+                        }
+                    }
+                }
+                if (organization) {
+                    console.log('Attaching organization to request:', JSON.stringify(organization, null, 2));
+                    request['organization'] = organization;
+                }
+                else {
+                    console.log('Could not resolve organization, falling back to token info');
+                    if (verificationResult.organizationId && verificationResult.organizationName) {
+                        console.log('Creating fallback organization object from token info');
+                        request['organization'] = {
+                            id: verificationResult.organizationId,
+                            clerkId: verificationResult.organizationId,
+                            name: verificationResult.organizationName,
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        };
+                    }
                 }
             }
             else if (verificationResult.organizationId && verificationResult.organizationName) {

@@ -1270,7 +1270,7 @@ export class VideosService {
   /**
    * Map database video to VideoDto with explicit display and embed options
    */
-  private mapVideoToDto(video: Video): VideoDto {
+  public mapVideoToDto(video: Video): VideoDto {
     // Create display options object from explicit fields
     const displayOptions: VideoDisplayOptionsDto = {
       showProgressBar: video.showProgressBar === false ? false : true,
