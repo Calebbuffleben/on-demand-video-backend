@@ -12,6 +12,12 @@ export PRISMA_SCHEMA_ENGINE_TYPE=binary
 echo "📦 Attempt 1: Standard Prisma generate..."
 if npx prisma generate; then
     echo "✅ Prisma client generated successfully!"
+    # Fix the import path in the generated index.d.ts
+    if [ -f "node_modules/@prisma/client/index.d.ts" ]; then
+        echo "🔧 Fixing import path in Prisma client..."
+        sed -i '' 's|export \* from '\''\.prisma/client/default'\''|export \* from '\''\.prisma/client'\''|g' node_modules/@prisma/client/index.d.ts
+        echo "✅ Import path fixed!"
+    fi
     exit 0
 fi
 
@@ -23,6 +29,12 @@ export PRISMA_SCHEMA_ENGINE_TYPE=library
 
 if npx prisma generate; then
     echo "✅ Prisma client generated successfully with library engine!"
+    # Fix the import path in the generated index.d.ts
+    if [ -f "node_modules/@prisma/client/index.d.ts" ]; then
+        echo "🔧 Fixing import path in Prisma client..."
+        sed -i '' 's|export \* from '\''\.prisma/client/default'\''|export \* from '\''\.prisma/client'\''|g' node_modules/@prisma/client/index.d.ts
+        echo "✅ Import path fixed!"
+    fi
     exit 0
 fi
 
@@ -34,6 +46,12 @@ export PRISMA_SCHEMA_ENGINE_TYPE=wasm
 
 if npx prisma generate; then
     echo "✅ Prisma client generated successfully with wasm engine!"
+    # Fix the import path in the generated index.d.ts
+    if [ -f "node_modules/@prisma/client/index.d.ts" ]; then
+        echo "🔧 Fixing import path in Prisma client..."
+        sed -i '' 's|export \* from '\''\.prisma/client/default'\''|export \* from '\''\.prisma/client'\''|g' node_modules/@prisma/client/index.d.ts
+        echo "✅ Import path fixed!"
+    fi
     exit 0
 fi
 

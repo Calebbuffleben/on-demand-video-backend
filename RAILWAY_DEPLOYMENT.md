@@ -73,7 +73,7 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ### ✅ Prisma Engine Checksum Error
 - **Problem**: Prisma failing to download engine binaries due to network restrictions
-- **Solution**: Created robust generation script that tries multiple engine types (binary, library, wasm)
+- **Solution**: Created robust generation script that tries multiple engine types and fixes import paths
 - **Status**: Fixed ✅
 
 ### ✅ Node.js Version Compatibility
@@ -157,6 +157,7 @@ To fix Prisma engine checksum errors, a robust generation script has been create
 
 **Generation Script (`scripts/generate-prisma.sh`):**
 - Tries multiple engine types: binary → library → wasm
+- Automatically fixes import path issues in generated files
 - Falls back to creating minimal type definitions if all fail
 - Handles network restrictions gracefully
 
@@ -169,7 +170,7 @@ PRISMA_SCHEMA_ENGINE_TYPE=library
 
 **Build Process:**
 1. Install dependencies with Prisma environment variables
-2. Run robust Prisma generation script
+2. Run robust Prisma generation script (includes import path fix)
 3. Build NestJS application
 4. Prisma client is available for TypeScript compilation
 
@@ -177,11 +178,16 @@ PRISMA_SCHEMA_ENGINE_TYPE=library
 - Prisma client is regenerated at startup if needed
 - Ensures fresh client for production environment
 
+**Import Path Fix:**
+- Automatically corrects `export * from '.prisma/client/default'` to `export * from '.prisma/client'`
+- Ensures TypeScript can properly import Prisma types
+
 This approach ensures:
 - Build process completes successfully
 - TypeScript compilation works with proper types
 - Multiple fallback options for different environments
 - Graceful handling of network restrictions
+- Automatic fixing of common Prisma generation issues
 
 ## Troubleshooting
 
