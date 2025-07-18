@@ -12,6 +12,7 @@ restartPolicyMaxRetries = 10
 NODE_ENV = "production"
 PORT = "4000"
 PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1"
+CORS_ORIGIN = "https://on-demand-video-frontend-production.up.railway.app"
 
 # Build configuration
 [build.envs]

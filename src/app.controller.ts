@@ -24,4 +24,27 @@ export class AppController {
   getHello() {
     return { message: this.appService.getHello() };
   }
+
+  @Public()
+  @Get('cors-test')
+  @ApiOperation({ summary: 'Test CORS configuration' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns CORS test data',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        timestamp: { type: 'string' },
+        cors: { type: 'boolean' }
+      }
+    }
+  })
+  corsTest() {
+    return { 
+      message: 'CORS is working!', 
+      timestamp: new Date().toISOString(),
+      cors: true
+    };
+  }
 }
