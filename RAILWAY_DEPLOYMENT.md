@@ -44,10 +44,27 @@ CORS_ORIGIN=https://your-frontend-domain.com
 3. **Deploy**
    - Railway will automatically detect the Node.js project
    - The build process will:
-     - Install dependencies (`npm ci`)
+     - Install dependencies (`npm install --production=false`)
      - Generate Prisma client (`npx prisma generate`)
      - Build the application (`npm run build`)
      - Start the application (`npm run start:prod`)
+
+## Recent Fixes Applied
+
+### ✅ Package Lock File Sync Issue
+- **Problem**: `npm ci` was failing due to out-of-sync `package-lock.json`
+- **Solution**: Updated to use `npm install --production=false` in Nixpacks configuration
+- **Status**: Fixed ✅
+
+### ✅ Node.js Version Compatibility
+- **Problem**: Engine warnings about Node.js version requirements
+- **Solution**: Updated `engines` field in `package.json` to `>=20.11.0`
+- **Status**: Fixed ✅
+
+### ✅ Security Vulnerabilities
+- **Problem**: 2 high severity vulnerabilities detected
+- **Solution**: Ran `npm audit fix` to resolve all issues
+- **Status**: Fixed ✅
 
 ## Troubleshooting
 
@@ -55,9 +72,10 @@ CORS_ORIGIN=https://your-frontend-domain.com
 
 If the build gets stuck or fails:
 
-1. **Check Node.js version**: Ensure you're using Node.js 20.x
+1. **Check Node.js version**: Ensure you're using Node.js >=20.11.0
 2. **Clear cache**: Try redeploying with cache cleared
 3. **Check logs**: Review Railway build logs for specific errors
+4. **Package lock issues**: If you see `npm ci` errors, the lock file may be out of sync
 
 ### Database Issues
 
@@ -73,6 +91,24 @@ If the build gets stuck or fails:
 1. **Memory limits**: The app is configured with `--max-old-space-size=512`
 2. **Port binding**: Ensure `PORT` environment variable is set
 3. **CORS**: Verify `CORS_ORIGIN` is set correctly
+
+## Local Testing
+
+Before deploying, test locally:
+
+```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Build the application
+npm run build
+
+# Test the build output
+ls -la dist/
+```
 
 ## Health Check
 
