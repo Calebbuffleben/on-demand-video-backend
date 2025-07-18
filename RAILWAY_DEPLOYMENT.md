@@ -26,6 +26,7 @@ STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 # Application Configuration
 NODE_ENV=production
 PORT=4000
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 
 # CORS Configuration (IMPORTANT!)
 CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://localhost:3000,http://localhost:3001
@@ -43,6 +44,7 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
    - Add all required environment variables in Railway dashboard
    - Ensure `DATABASE_URL` points to a PostgreSQL database
    - **CRITICAL**: Set `CORS_ORIGIN` to include your frontend URL
+   - **CRITICAL**: Set `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1` to fix Prisma build issues
 
 3. **Deploy**
    - Railway will automatically detect the Node.js project
@@ -67,6 +69,11 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 ### ✅ CORS Configuration
 - **Problem**: Frontend requests blocked by CORS policy
 - **Solution**: Updated CORS to support multiple origins including Railway frontend URL
+- **Status**: Fixed ✅
+
+### ✅ Prisma Engine Checksum Error
+- **Problem**: Prisma failing to download engine binaries due to checksum verification
+- **Solution**: Added `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1` environment variable
 - **Status**: Fixed ✅
 
 ### ✅ Node.js Version Compatibility
@@ -96,10 +103,12 @@ restartPolicyMaxRetries = 10
 [deploy.envs]
 NODE_ENV = "production"
 PORT = "4000"
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1"
 
 [build.envs]
 NODE_ENV = "production"
 NIXPACKS_NODE_PACKAGE_MANAGER = "npm"
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1"
 ```
 
 ### nixpacks.toml
@@ -119,7 +128,7 @@ cmd = "npm run start:prod"
 
 ### package.json (build script)
 ```json
-"build:railway": "npm install --production=false && npx prisma generate && npm run build"
+"build:railway": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm install --production=false && PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma generate && npm run build"
 ```
 
 ## CORS Configuration
@@ -140,6 +149,19 @@ const allowedOrigins = corsOrigin
 ```bash
 CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://localhost:3000,http://localhost:3001
 ```
+
+## Prisma Configuration
+
+To fix Prisma engine checksum errors, set the following environment variable:
+
+```bash
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+```
+
+This environment variable is automatically set in:
+- Railway configuration files
+- Build scripts
+- Postinstall script
 
 ## Troubleshooting
 
@@ -176,14 +198,16 @@ If the build gets stuck or fails:
    - No spaces around commas
    - Include protocol (http:// or https://)
 
-### Database Issues
+### Prisma Issues
 
-1. **Prisma migrations**: Run migrations manually if needed:
-   ```bash
-   npx prisma migrate deploy
-   ```
+1. **Engine checksum errors**:
+   - Ensure `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1` is set
+   - This is automatically handled in build scripts
+   - Check Railway environment variables
 
-2. **Database connection**: Verify `DATABASE_URL` is correct and accessible
+2. **Database connection**:
+   - Verify `DATABASE_URL` is correct and accessible
+   - Run migrations if needed: `npx prisma migrate deploy`
 
 ### Runtime Issues
 
