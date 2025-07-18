@@ -11,8 +11,10 @@ restartPolicyMaxRetries = 10
 [deploy.envs]
 NODE_ENV = "production"
 PORT = "4000"
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1"
 
 # Build configuration
 [build.envs]
 NODE_ENV = "production"
-NIXPACKS_NODE_PACKAGE_MANAGER = "npm" 
+NIXPACKS_NODE_PACKAGE_MANAGER = "npm"
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1" 
