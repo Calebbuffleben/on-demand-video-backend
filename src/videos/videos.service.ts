@@ -16,42 +16,6 @@ import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 import { VideoDisplayOptionsDto } from './dto/video-display-options.dto';
 import { VideoEmbedOptionsDto } from './dto/video-embed-options.dto';
 
-// Keeping these interfaces for backward compatibility in responses
-interface CloudflareResponse {
-  success: boolean;
-  errors: { message: string }[];
-  result: any[];
-  result_info?: {
-    page: number;
-    per_page: number;
-    total_count: number;
-    count: number;
-  };
-}
-
-interface CloudflareDirectUploadResponse {
-  success: boolean;
-  errors?: { message: string }[];
-  result: {
-    uid: string;
-    uploadURL: string;
-    [key: string]: any;
-  };
-}
-
-interface CloudflareVideoStatusResponse {
-  success: boolean;
-  errors?: { message: string }[];
-  result: {
-    uid: string;
-    readyToStream: boolean;
-    duration?: number;
-    thumbnail?: string;
-    preview?: string;
-    [key: string]: any;
-  };
-}
-
 interface CloudflareWebhookPayload {
   uid: string;
   status?: string;

@@ -3,14 +3,31 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
-import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
-import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
+import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
+import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
 import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 import { UploadService } from './upload.service';
 import { Request } from 'express';
+declare global {
+    namespace Express {
+        namespace Multer {
+            interface File {
+                fieldname: string;
+                originalname: string;
+                encoding: string;
+                mimetype: string;
+                size: number;
+                destination: string;
+                filename: string;
+                path: string;
+                buffer: Buffer;
+            }
+        }
+    }
+}
 interface AuthenticatedRequest extends Request {
     organization: any;
     user: any;
@@ -27,7 +44,7 @@ export declare class VideosController {
         status: number;
         message: string;
         data: {
-            result: VideoDto[];
+            result: import("./dto/video-response.dto").VideoDto[];
             result_info: {
                 count: number;
                 page: number;
@@ -197,8 +214,8 @@ export declare class VideosController {
     getAllCloudflareVideos(): Promise<VideoListResponseDto>;
     getVideoByUid(uid: string): Promise<SingleVideoResponseDto>;
     testOrgCloudflare(req: AuthenticatedRequest): Promise<any>;
-    updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, req: AuthenticatedRequest): Promise<CloudflareSettingsResponseDto>;
-    getOrgCloudflareSettings(req: AuthenticatedRequest): Promise<CloudflareSettingsResponseDto>;
+    updateOrgCloudflareSettings(updateOrgCloudflareDto: UpdateOrgCloudflareDto, req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
+    getOrgCloudflareSettings(req: AuthenticatedRequest): Promise<import("./dto/update-org-cloudflare.dto").CloudflareSettingsResponseDto>;
     getVideoForEmbed(uid: string, req: Request): Promise<EmbedVideoResponseDto>;
     testUpload(dto: GetUploadUrlDto): Promise<{
         success: boolean;

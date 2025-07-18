@@ -13,7 +13,6 @@ import {
   InternalServerErrorException,
   UploadedFiles,
   UseInterceptors,
-  Patch,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
@@ -23,19 +22,36 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 import { Public } from '../auth/decorators/public.decorator';
 import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
-import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
-import { VideoDto, VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
-import { UpdateOrgCloudflareDto, CloudflareSettingsResponseDto } from './dto/update-org-cloudflare.dto';
-import { EmbedVideoDto, EmbedVideoResponseDto } from './dto/embed-video-response.dto';
+import { VideoListResponseDto, SingleVideoResponseDto } from './dto/video-response.dto';
+import { UpdateOrgCloudflareDto } from './dto/update-org-cloudflare.dto';
+import { EmbedVideoResponseDto } from './dto/embed-video-response.dto';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
-import { Visibility, VideoStatus } from '@prisma/client';
+import { Visibility } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 import { UploadService } from './upload.service';
 import { Request } from 'express';
+
+declare global {
+  namespace Express {
+    namespace Multer {
+      interface File {
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        size: number;
+        destination: string;
+        filename: string;
+        path: string;
+        buffer: Buffer;
+      }
+    }
+  }
+}
 
 interface AuthenticatedRequest extends Request {
   organization: any;
