@@ -165,18 +165,19 @@ A custom Prisma client generator has been created to work in Railway's restricte
 - Creates necessary directory structure
 - Generates type definitions from schema
 - Sets up runtime client without engine downloads
+- Installs dependencies
+- Builds the NestJS application
 - Works in environments with network restrictions
 
 **Build Process:**
-1. Install dependencies
-2. Run custom Prisma client generator
-3. Build NestJS application
+1. Run custom Prisma client generator (handles everything)
 
 **Benefits:**
 - No engine downloads required
 - Works in restricted environments
 - Complete type safety
 - Fast and reliable builds
+- Consolidated into a single script
 
 This approach ensures:
 - Build process completes successfully
