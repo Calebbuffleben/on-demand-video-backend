@@ -21,8 +21,6 @@ import * as Joi from 'joi';
         STRIPE_PRICE_ID_PRO: Joi.string().required(),
         STRIPE_PRICE_ID_ENTERPRISE: Joi.string().required(),
         FRONTEND_URL: Joi.string().required(),
-        CLOUDFLARE_ACCOUNT_ID: Joi.string().required(),
-        CLOUDFLARE_API_TOKEN: Joi.string().required(),
         CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
       }),
     }),
