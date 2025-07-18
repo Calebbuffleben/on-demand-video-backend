@@ -12,6 +12,29 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   
+  // Configure CORS first, before other middleware
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const allowedOrigins = corsOrigin 
+    ? corsOrigin.split(',').map(origin => origin.trim())
+    : [
+        'https://on-demand-video-frontend-production.up.railway.app',
+        'http://localhost:3000',
+        'http://localhost:3001'
+      ];
+  
+  console.log('CORS Configuration:', {
+    corsOrigin,
+    allowedOrigins,
+    nodeEnv: configService.get<string>('NODE_ENV')
+  });
+  
+  app.enableCors({
+    origin: allowedOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  });
+  
   // Configure raw body parser for webhooks
   app.use(json({
     verify: (req: any, res, buf) => {
@@ -44,23 +67,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
 
   // Configure security with helmet
-  app.use(helmet());
-
-  // Configure CORS
-  const corsOrigin = configService.get<string>('CORS_ORIGIN');
-  const allowedOrigins = corsOrigin 
-    ? corsOrigin.split(',').map(origin => origin.trim())
-    : [
-        'https://on-demand-video-frontend-production.up.railway.app',
-        'http://localhost:3000',
-        'http://localhost:3001'
-      ];
-  
-  app.enableCors({
-    origin: allowedOrigins,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-  });
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  }));
 
   // Setup Swagger
   const config = new DocumentBuilder()
