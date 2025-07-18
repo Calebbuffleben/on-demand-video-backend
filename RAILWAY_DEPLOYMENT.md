@@ -72,8 +72,8 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 - **Status**: Fixed ✅
 
 ### ✅ Prisma Engine Checksum Error
-- **Problem**: Prisma failing to download engine binaries due to checksum verification
-- **Solution**: Added `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1` environment variable
+- **Problem**: Prisma failing to download engine binaries due to network restrictions
+- **Solution**: Moved Prisma generation to runtime instead of build time
 - **Status**: Fixed ✅
 
 ### ✅ Node.js Version Compatibility
@@ -128,7 +128,8 @@ cmd = "npm run start:prod"
 
 ### package.json (build script)
 ```json
-"build:railway": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm install --production=false && PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma generate && npm run build"
+"build:railway": "npm install --production=false && npm run build",
+"start:prod": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma generate && node --max-old-space-size=512 dist/main"
 ```
 
 ## CORS Configuration
@@ -152,16 +153,24 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ## Prisma Configuration
 
-To fix Prisma engine checksum errors, set the following environment variable:
+To fix Prisma engine checksum errors, the build process has been modified:
 
+1. **Build Time**: Prisma generation is skipped during build to avoid network issues
+2. **Runtime**: Prisma client is generated when the application starts
+
+**Environment Variable:**
 ```bash
 PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ```
 
-This environment variable is automatically set in:
-- Railway configuration files
-- Build scripts
-- Postinstall script
+**Build Script Changes:**
+- `build:railway`: Only installs dependencies and builds the application
+- `start:prod`: Generates Prisma client before starting the application
+
+This approach ensures that:
+- Build process completes successfully without network dependencies
+- Prisma client is available when the application starts
+- Network issues during build are avoided
 
 ## Troubleshooting
 
