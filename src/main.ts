@@ -47,8 +47,17 @@ async function bootstrap() {
   app.use(helmet());
 
   // Configure CORS
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const allowedOrigins = corsOrigin 
+    ? corsOrigin.split(',').map(origin => origin.trim())
+    : [
+        'https://on-demand-video-frontend-production.up.railway.app',
+        'http://localhost:3000',
+        'http://localhost:3001'
+      ];
+  
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN') || 'https://on-demand-video-frontend-production.up.railway.app',
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

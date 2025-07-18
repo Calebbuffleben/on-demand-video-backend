@@ -26,7 +26,9 @@ STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 # Application Configuration
 NODE_ENV=production
 PORT=4000
-CORS_ORIGIN=https://your-frontend-domain.com
+
+# CORS Configuration (IMPORTANT!)
+CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://localhost:3000,http://localhost:3001
 ```
 
 ## Deployment Steps
@@ -40,6 +42,7 @@ CORS_ORIGIN=https://your-frontend-domain.com
 2. **Configure Environment Variables**
    - Add all required environment variables in Railway dashboard
    - Ensure `DATABASE_URL` points to a PostgreSQL database
+   - **CRITICAL**: Set `CORS_ORIGIN` to include your frontend URL
 
 3. **Deploy**
    - Railway will automatically detect the Node.js project
@@ -59,6 +62,11 @@ CORS_ORIGIN=https://your-frontend-domain.com
 ### ✅ Custom Build Script
 - **Problem**: Railway was still using `npm ci` despite Nixpacks configuration
 - **Solution**: Created custom `build:railway` script that handles npm install properly
+- **Status**: Fixed ✅
+
+### ✅ CORS Configuration
+- **Problem**: Frontend requests blocked by CORS policy
+- **Solution**: Updated CORS to support multiple origins including Railway frontend URL
 - **Status**: Fixed ✅
 
 ### ✅ Node.js Version Compatibility
@@ -114,6 +122,25 @@ cmd = "npm run start:prod"
 "build:railway": "npm install --production=false && npx prisma generate && npm run build"
 ```
 
+## CORS Configuration
+
+The backend now supports multiple origins for CORS:
+
+```typescript
+const allowedOrigins = corsOrigin 
+  ? corsOrigin.split(',').map(origin => origin.trim())
+  : [
+      'https://on-demand-video-frontend-production.up.railway.app',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+```
+
+**Environment Variable Setup:**
+```bash
+CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://localhost:3000,http://localhost:3001
+```
+
 ## Troubleshooting
 
 ### Build Issues
@@ -136,6 +163,18 @@ If the build gets stuck or fails:
    - The custom `build:railway` script should handle this
    - Check that Railway is using the Nixpacks builder
    - Verify environment variables are set correctly
+
+### CORS Issues
+
+1. **Frontend requests blocked**:
+   - Ensure `CORS_ORIGIN` environment variable is set correctly
+   - Include both production and development URLs
+   - Redeploy backend after updating CORS configuration
+
+2. **Multiple origins**:
+   - Use comma-separated values: `origin1,origin2,origin3`
+   - No spaces around commas
+   - Include protocol (http:// or https://)
 
 ### Database Issues
 
