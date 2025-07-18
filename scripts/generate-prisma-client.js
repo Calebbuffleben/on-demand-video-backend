@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 // Ensure directories exist
 const prismaClientDir = path.join(process.cwd(), 'node_modules', '.prisma', 'client');
@@ -248,4 +249,14 @@ module.exports = { PrismaClient };
 
 fs.writeFileSync(path.join(prismaDir, 'index.js'), runtimeClient);
 
-console.log('✅ Generated Prisma client successfully'); 
+console.log('✅ Generated Prisma client successfully');
+
+// Install dependencies
+console.log('📦 Installing dependencies...');
+execSync('npm install --production=false', { stdio: 'inherit' });
+
+// Build the NestJS application
+console.log('🏗️ Building NestJS application...');
+execSync('npm run build', { stdio: 'inherit' });
+
+console.log('🚀 Application built successfully!'); 
