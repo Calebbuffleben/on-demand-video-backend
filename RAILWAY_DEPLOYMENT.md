@@ -73,7 +73,7 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ### ✅ Prisma Engine Checksum Error
 - **Problem**: Prisma failing to download engine binaries due to network restrictions
-- **Solution**: Moved Prisma generation to runtime instead of build time
+- **Solution**: Created robust generation script that tries multiple engine types (binary, library, wasm)
 - **Status**: Fixed ✅
 
 ### ✅ Node.js Version Compatibility
@@ -128,7 +128,7 @@ cmd = "npm run start:prod"
 
 ### package.json (build script)
 ```json
-"build:railway": "npm install --production=false && npm run build",
+"build:railway": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm install --production=false && ./scripts/generate-prisma.sh && npm run build",
 "start:prod": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma generate && node --max-old-space-size=512 dist/main"
 ```
 
@@ -153,24 +153,35 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ## Prisma Configuration
 
-To fix Prisma engine checksum errors, the build process has been modified:
+To fix Prisma engine checksum errors, a robust generation script has been created:
 
-1. **Build Time**: Prisma generation is skipped during build to avoid network issues
-2. **Runtime**: Prisma client is generated when the application starts
+**Generation Script (`scripts/generate-prisma.sh`):**
+- Tries multiple engine types: binary → library → wasm
+- Falls back to creating minimal type definitions if all fail
+- Handles network restrictions gracefully
 
-**Environment Variable:**
+**Environment Variables:**
 ```bash
 PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+PRISMA_QUERY_ENGINE_TYPE=library
+PRISMA_SCHEMA_ENGINE_TYPE=library
 ```
 
-**Build Script Changes:**
-- `build:railway`: Only installs dependencies and builds the application
-- `start:prod`: Generates Prisma client before starting the application
+**Build Process:**
+1. Install dependencies with Prisma environment variables
+2. Run robust Prisma generation script
+3. Build NestJS application
+4. Prisma client is available for TypeScript compilation
 
-This approach ensures that:
-- Build process completes successfully without network dependencies
-- Prisma client is available when the application starts
-- Network issues during build are avoided
+**Runtime Process:**
+- Prisma client is regenerated at startup if needed
+- Ensures fresh client for production environment
+
+This approach ensures:
+- Build process completes successfully
+- TypeScript compilation works with proper types
+- Multiple fallback options for different environments
+- Graceful handling of network restrictions
 
 ## Troubleshooting
 
