@@ -56,6 +56,11 @@ CORS_ORIGIN=https://your-frontend-domain.com
 - **Solution**: Updated to use `npm install --production=false` in Nixpacks configuration
 - **Status**: Fixed ✅
 
+### ✅ Custom Build Script
+- **Problem**: Railway was still using `npm ci` despite Nixpacks configuration
+- **Solution**: Created custom `build:railway` script that handles npm install properly
+- **Status**: Fixed ✅
+
 ### ✅ Node.js Version Compatibility
 - **Problem**: Engine warnings about Node.js version requirements
 - **Solution**: Updated `engines` field in `package.json` to `>=20.11.0`
@@ -65,6 +70,49 @@ CORS_ORIGIN=https://your-frontend-domain.com
 - **Problem**: 2 high severity vulnerabilities detected
 - **Solution**: Ran `npm audit fix` to resolve all issues
 - **Status**: Fixed ✅
+
+## Configuration Files
+
+### railway.toml
+```toml
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm run start:prod"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[deploy.envs]
+NODE_ENV = "production"
+PORT = "4000"
+
+[build.envs]
+NODE_ENV = "production"
+NIXPACKS_NODE_PACKAGE_MANAGER = "npm"
+```
+
+### nixpacks.toml
+```toml
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+cmds = ["npm install --production=false"]
+
+[phases.build]
+cmds = ["npm run build:railway"]
+
+[start]
+cmd = "npm run start:prod"
+```
+
+### package.json (build script)
+```json
+"build:railway": "npm install --production=false && npx prisma generate && npm run build"
+```
 
 ## Troubleshooting
 
@@ -76,6 +124,18 @@ If the build gets stuck or fails:
 2. **Clear cache**: Try redeploying with cache cleared
 3. **Check logs**: Review Railway build logs for specific errors
 4. **Package lock issues**: If you see `npm ci` errors, the lock file may be out of sync
+
+### Railway-Specific Issues
+
+1. **Railway ignoring Nixpacks**: 
+   - Ensure `railway.toml` and `nixpacks.toml` are in the root of the backend directory
+   - Try using `railway.json` as an alternative configuration format
+   - Clear Railway build cache and redeploy
+
+2. **Persistent npm ci errors**:
+   - The custom `build:railway` script should handle this
+   - Check that Railway is using the Nixpacks builder
+   - Verify environment variables are set correctly
 
 ### Database Issues
 
@@ -105,6 +165,9 @@ npx prisma generate
 
 # Build the application
 npm run build
+
+# Test the custom build script
+npm run build:railway
 
 # Test the build output
 ls -la dist/
