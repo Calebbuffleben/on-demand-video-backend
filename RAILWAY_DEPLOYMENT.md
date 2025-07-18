@@ -72,9 +72,14 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 - **Status**: Fixed ✅
 
 ### ✅ Prisma Engine Checksum Error
-- **Problem**: Prisma failing to download engine binaries due to network restrictions
-- **Solution**: Created robust generation script that tries multiple engine types and fixes import paths
+- **Problem**: Prisma failing to download engine binaries due to Railway's strict network restrictions
+- **Solution**: Created robust generation script with comprehensive fallback type definitions
 - **Status**: Fixed ✅
+
+**Why this happens in Railway but not locally:**
+- Local environment: Library engine works even when binary fails
+- Railway environment: All engine types (binary, library, wasm) are blocked by network restrictions
+- Solution: Comprehensive fallback type definitions ensure build succeeds in all environments
 
 ### ✅ Node.js Version Compatibility
 - **Problem**: Engine warnings about Node.js version requirements
