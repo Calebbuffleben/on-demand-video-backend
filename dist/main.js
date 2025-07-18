@@ -30,8 +30,16 @@ async function bootstrap() {
     app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter(), new http_exception_filter_1.AllExceptionsFilter());
     app.useGlobalInterceptors(new transform_interceptor_1.TransformInterceptor());
     app.use((0, helmet_1.default)());
+    const corsOrigin = configService.get('CORS_ORIGIN');
+    const allowedOrigins = corsOrigin
+        ? corsOrigin.split(',').map(origin => origin.trim())
+        : [
+            'https://on-demand-video-frontend-production.up.railway.app',
+            'http://localhost:3000',
+            'http://localhost:3001'
+        ];
     app.enableCors({
-        origin: configService.get('CORS_ORIGIN') || 'https://on-demand-video-frontend.onrender.com',
+        origin: allowedOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
