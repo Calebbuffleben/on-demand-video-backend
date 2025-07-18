@@ -73,13 +73,14 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ### ✅ Prisma Engine Checksum Error
 - **Problem**: Prisma failing to download engine binaries due to Railway's strict network restrictions
-- **Solution**: Created robust generation script with comprehensive fallback type definitions
+- **Solution**: Created custom Prisma client generator that works without engine downloads
 - **Status**: Fixed ✅
 
-**Why this happens in Railway but not locally:**
-- Local environment: Library engine works even when binary fails
-- Railway environment: All engine types (binary, library, wasm) are blocked by network restrictions
-- Solution: Comprehensive fallback type definitions ensure build succeeds in all environments
+**Why this works:**
+- Avoids downloading Prisma engines entirely
+- Creates type definitions directly from schema
+- Uses runtime library for client functionality
+- Works in restricted network environments
 
 ### ✅ Node.js Version Compatibility
 - **Problem**: Engine warnings about Node.js version requirements
@@ -158,41 +159,30 @@ CORS_ORIGIN=https://on-demand-video-frontend-production.up.railway.app,http://lo
 
 ## Prisma Configuration
 
-To fix Prisma engine checksum errors, a robust generation script has been created:
+A custom Prisma client generator has been created to work in Railway's restricted environment:
 
-**Generation Script (`scripts/generate-prisma.sh`):**
-- Tries multiple engine types: binary → library → wasm
-- Automatically fixes import path issues in generated files
-- Falls back to creating minimal type definitions if all fail
-- Handles network restrictions gracefully
-
-**Environment Variables:**
-```bash
-PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
-PRISMA_QUERY_ENGINE_TYPE=library
-PRISMA_SCHEMA_ENGINE_TYPE=library
-```
+**Custom Generator (`scripts/generate-prisma-client.js`):**
+- Creates necessary directory structure
+- Generates type definitions from schema
+- Sets up runtime client without engine downloads
+- Works in environments with network restrictions
 
 **Build Process:**
-1. Install dependencies with Prisma environment variables
-2. Run robust Prisma generation script (includes import path fix)
+1. Install dependencies
+2. Run custom Prisma client generator
 3. Build NestJS application
-4. Prisma client is available for TypeScript compilation
 
-**Runtime Process:**
-- Prisma client is regenerated at startup if needed
-- Ensures fresh client for production environment
-
-**Import Path Fix:**
-- Automatically corrects `export * from '.prisma/client/default'` to `export * from '.prisma/client'`
-- Ensures TypeScript can properly import Prisma types
+**Benefits:**
+- No engine downloads required
+- Works in restricted environments
+- Complete type safety
+- Fast and reliable builds
 
 This approach ensures:
 - Build process completes successfully
 - TypeScript compilation works with proper types
-- Multiple fallback options for different environments
-- Graceful handling of network restrictions
-- Automatic fixing of common Prisma generation issues
+- No network dependencies
+- Reliable deployment in Railway
 
 ## Troubleshooting
 
