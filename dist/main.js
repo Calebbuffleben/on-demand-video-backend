@@ -54,8 +54,8 @@ async function bootstrap() {
         crossOriginEmbedderPolicy: false,
     }));
     const config = new swagger_1.DocumentBuilder()
-        .setTitle('Cloudflare Stream Video API')
-        .setDescription('API for managing video uploads and status with Cloudflare Stream')
+        .setTitle('Scale Video API')
+        .setDescription('API for managing video uploads and status with Scale')
         .setVersion('1.0')
         .addTag('videos')
         .addBearerAuth()

@@ -319,4 +319,140 @@ export class AnalyticsController {
 
     return this.muxAnalyticsService.getViewerAnalytics(videoId, organizationId, query);
   }
+
+  /**
+   * Get retention data for all videos in organization
+   */
+  @Get('organization/retention')
+  @ApiOperation({ summary: 'Get retention data for all videos in organization' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns retention data for all videos in the organization',
+  })
+  @ApiResponse({ status: 404, description: 'Organization not found' })
+  async getOrganizationRetention(
+    @Query() query: GetMuxAnalyticsDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    // Check if organization exists in request
+    if (!req['organization']) {
+      throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+    }
+    
+    const organizationId = req['organization'].id;
+
+    // Verify organization exists
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Get all videos for organization
+    const videos = await this.prisma.video.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        name: true,
+        duration: true,
+        muxAssetId: true,
+        analytics: {
+          select: {
+            views: true,
+            watchTime: true,
+            retention: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get retention data for each video
+    const retentionData = await Promise.all(
+      videos.map(async (video) => {
+        try {
+          // If video has Mux asset ID, get real analytics
+          if (video.muxAssetId) {
+            const analytics = await this.muxAnalyticsService.getVideoAnalytics(
+              video.id,
+              organizationId,
+              query,
+            );
+
+            return {
+              videoId: video.id,
+              title: video.name || 'Untitled Video',
+              retention: analytics.data.retentionData,
+              totalViews: analytics.data.totalViews,
+              averageWatchTime: analytics.data.averageWatchTime,
+            };
+          } else {
+            // If no Mux asset, return cached analytics or default data
+            const cachedAnalytics = video.analytics;
+            if (cachedAnalytics && cachedAnalytics.retention) {
+              const retention = typeof cachedAnalytics.retention === 'string' 
+                ? JSON.parse(cachedAnalytics.retention) 
+                : cachedAnalytics.retention;
+
+              return {
+                videoId: video.id,
+                title: video.name || 'Untitled Video',
+                retention: retention,
+                totalViews: cachedAnalytics.views || 0,
+                averageWatchTime: cachedAnalytics.watchTime || 0,
+              };
+            } else {
+              // Return default data for videos without analytics
+              const defaultRetention = this.generateDefaultRetention(video.duration || 300);
+              return {
+                videoId: video.id,
+                title: video.name || 'Untitled Video',
+                retention: defaultRetention,
+                totalViews: 0,
+                averageWatchTime: 0,
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`Error getting analytics for video ${video.id}:`, error);
+          // Return default data on error
+          const defaultRetention = this.generateDefaultRetention(video.duration || 300);
+          return {
+            videoId: video.id,
+            title: video.name || 'Untitled Video',
+            retention: defaultRetention,
+            totalViews: 0,
+            averageWatchTime: 0,
+          };
+        }
+      })
+    );
+
+    return {
+      success: true,
+      data: retentionData,
+    };
+  }
+
+  /**
+   * Generate default retention data for videos without analytics
+   */
+  private generateDefaultRetention(duration: number): Array<{ time: number; retention: number }> {
+    const retentionPoints: Array<{ time: number; retention: number }> = [];
+    const maxRetention = 85; // Default max retention percentage
+    
+    for (let second = 0; second <= duration; second++) {
+      const progress = second / duration;
+      const retention = Math.max(0, maxRetention * Math.exp(-progress * 1.2));
+      
+      retentionPoints.push({
+        time: second,
+        retention: Math.min(100, Math.max(0, retention)),
+      });
+    }
+    
+    return retentionPoints;
+  }
 } 

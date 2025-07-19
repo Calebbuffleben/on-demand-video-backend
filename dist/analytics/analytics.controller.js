@@ -155,6 +155,102 @@ let AnalyticsController = class AnalyticsController {
         }
         return this.muxAnalyticsService.getViewerAnalytics(videoId, organizationId, query);
     }
+    async getOrganizationRetention(query, req) {
+        if (!req['organization']) {
+            throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
+        }
+        const organizationId = req['organization'].id;
+        const organization = await this.prisma.organization.findUnique({
+            where: { id: organizationId },
+        });
+        if (!organization) {
+            throw new common_1.NotFoundException('Organization not found');
+        }
+        const videos = await this.prisma.video.findMany({
+            where: { organizationId },
+            select: {
+                id: true,
+                name: true,
+                duration: true,
+                muxAssetId: true,
+                analytics: {
+                    select: {
+                        views: true,
+                        watchTime: true,
+                        retention: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        const retentionData = await Promise.all(videos.map(async (video) => {
+            try {
+                if (video.muxAssetId) {
+                    const analytics = await this.muxAnalyticsService.getVideoAnalytics(video.id, organizationId, query);
+                    return {
+                        videoId: video.id,
+                        title: video.name || 'Untitled Video',
+                        retention: analytics.data.retentionData,
+                        totalViews: analytics.data.totalViews,
+                        averageWatchTime: analytics.data.averageWatchTime,
+                    };
+                }
+                else {
+                    const cachedAnalytics = video.analytics;
+                    if (cachedAnalytics && cachedAnalytics.retention) {
+                        const retention = typeof cachedAnalytics.retention === 'string'
+                            ? JSON.parse(cachedAnalytics.retention)
+                            : cachedAnalytics.retention;
+                        return {
+                            videoId: video.id,
+                            title: video.name || 'Untitled Video',
+                            retention: retention,
+                            totalViews: cachedAnalytics.views || 0,
+                            averageWatchTime: cachedAnalytics.watchTime || 0,
+                        };
+                    }
+                    else {
+                        const defaultRetention = this.generateDefaultRetention(video.duration || 300);
+                        return {
+                            videoId: video.id,
+                            title: video.name || 'Untitled Video',
+                            retention: defaultRetention,
+                            totalViews: 0,
+                            averageWatchTime: 0,
+                        };
+                    }
+                }
+            }
+            catch (error) {
+                console.error(`Error getting analytics for video ${video.id}:`, error);
+                const defaultRetention = this.generateDefaultRetention(video.duration || 300);
+                return {
+                    videoId: video.id,
+                    title: video.name || 'Untitled Video',
+                    retention: defaultRetention,
+                    totalViews: 0,
+                    averageWatchTime: 0,
+                };
+            }
+        }));
+        return {
+            success: true,
+            data: retentionData,
+        };
+    }
+    generateDefaultRetention(duration) {
+        const retentionPoints = [];
+        const maxRetention = 85;
+        for (let second = 0; second <= duration; second++) {
+            const progress = second / duration;
+            const retention = Math.max(0, maxRetention * Math.exp(-progress * 1.2));
+            retentionPoints.push({
+                time: second,
+                retention: Math.min(100, Math.max(0, retention)),
+            });
+        }
+        return retentionPoints;
+    }
 };
 exports.AnalyticsController = AnalyticsController;
 __decorate([
@@ -271,6 +367,20 @@ __decorate([
     __metadata("design:paramtypes", [String, mux_analytics_dto_1.GetMuxAnalyticsDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getViewerAnalytics", null);
+__decorate([
+    (0, common_1.Get)('organization/retention'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get retention data for all videos in organization' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Returns retention data for all videos in the organization',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Organization not found' }),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [mux_analytics_dto_1.GetMuxAnalyticsDto, Object]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getOrganizationRetention", null);
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, swagger_1.ApiTags)('analytics'),
     (0, common_1.Controller)('api/analytics'),

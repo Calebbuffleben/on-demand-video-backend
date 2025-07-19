@@ -36,5 +36,16 @@ export declare class AnalyticsController {
         }[];
     }>;
     getViewerAnalytics(videoId: string, query: GetMuxAnalyticsDto, req: AuthenticatedRequest): Promise<import("./interfaces/analytics.interfaces").ViewerAnalytics>;
+    getOrganizationRetention(query: GetMuxAnalyticsDto, req: AuthenticatedRequest): Promise<{
+        success: boolean;
+        data: {
+            videoId: string;
+            title: string;
+            retention: any;
+            totalViews: number;
+            averageWatchTime: number;
+        }[];
+    }>;
+    private generateDefaultRetention;
 }
 export {};
