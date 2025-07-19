@@ -12,6 +12,20 @@ const express_1 = require("express");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
+    const corsOrigin = configService.get('CORS_ORIGIN');
+    const allowedOrigins = corsOrigin
+        ? corsOrigin.split(',').map(origin => origin.trim())
+        : [
+            'https://on-demand-video-frontend-production.up.railway.app',
+            'http://localhost:3000',
+            'http://localhost:3001'
+        ];
+    app.enableCors({
+        origin: allowedOrigins,
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Organization-Id'],
+    });
     app.use((0, express_1.json)({
         verify: (req, res, buf) => {
             if (req.url.includes('/api/webhooks/mux')) {
@@ -29,20 +43,10 @@ async function bootstrap() {
     }));
     app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter(), new http_exception_filter_1.AllExceptionsFilter());
     app.useGlobalInterceptors(new transform_interceptor_1.TransformInterceptor());
-    app.use((0, helmet_1.default)());
-    const corsOrigin = configService.get('CORS_ORIGIN');
-    const allowedOrigins = corsOrigin
-        ? corsOrigin.split(',').map(origin => origin.trim())
-        : [
-            'https://on-demand-video-frontend-production.up.railway.app',
-            'http://localhost:3000',
-            'http://localhost:3001'
-        ];
-    app.enableCors({
-        origin: allowedOrigins,
-        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-        credentials: true,
-    });
+    app.use((0, helmet_1.default)({
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+        crossOriginEmbedderPolicy: false,
+    }));
     const config = new swagger_1.DocumentBuilder()
         .setTitle('Cloudflare Stream Video API')
         .setDescription('API for managing video uploads and status with Cloudflare Stream')
