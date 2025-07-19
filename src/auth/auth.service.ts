@@ -47,6 +47,14 @@ export class AuthService {
       }
 
       console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
+      console.log('🔍 Organization fields in token:', {
+        organizationId: tokenPayload.organizationId,
+        organizationName: tokenPayload.organizationName,
+        organizationRole: tokenPayload.organizationRole,
+        org_id: tokenPayload.org_id,
+        organization: tokenPayload.organization,
+        organizations: tokenPayload.organizations
+      });
 
       // Get user details from Clerk
       const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
@@ -118,8 +126,7 @@ export class AuthService {
           : [tokenPayload.organizations];
       }
 
-      // Return verified user and organization information
-      return {
+      const result = {
         userId: clerkUser.id,
         email: clerkUser.emailAddresses[0]?.emailAddress || '',
         organizationId,
@@ -128,6 +135,9 @@ export class AuthService {
         role,          // Keep for backward compatibility
         organizations,
       };
+      
+      console.log('✅ Returning verification result:', JSON.stringify(result, null, 2));
+      return result;
     } catch (error) {
       console.error('❌ Error verifying token:', error);
       console.error('❌ Error details:', {
