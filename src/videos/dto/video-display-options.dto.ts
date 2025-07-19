@@ -45,7 +45,7 @@ export class VideoDisplayOptionsDto {
   @Type(() => Boolean)
   useOriginalProgressBar?: boolean = false;
 
-  @ApiProperty({ description: 'Color of the progress bar', default: '#3B82F6' })
+  @ApiProperty({ description: 'Color of the progress bar', default: '#171717' })
   @IsString()
   @IsOptional()
   progressBarColor?: string;

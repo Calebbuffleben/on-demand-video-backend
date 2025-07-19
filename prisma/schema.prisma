@@ -75,7 +75,7 @@ model Video {
   muted               Boolean?     @default(false)
   loop                Boolean?     @default(false)
   useOriginalProgressBar Boolean?  @default(false)
-  progressBarColor    String?      @default("#3B82F6")
+  progressBarColor    String?      @default("#171717")
   progressEasing      Float?       @default(0.25)
   playButtonColor     String?      @default("#FFFFFF")
   playButtonSize      Int?         @default(60)

@@ -1,4 +1,4 @@
-# NestJS Backend for Video Streaming and Subscription Service
+# Scale Backend API
 
 A NestJS backend application that provides an API for managing video uploads, playback, user authentication, and subscription management.
 
@@ -9,11 +9,11 @@ A NestJS backend application that provides an API for managing video uploads, pl
   - Protected routes and role-based access control
 
 - **Video Management**
-  - Generating one-time upload URLs from Cloudflare Stream's Direct Creator Upload API
+  - Generating one-time upload URLs from Mux's Direct Creator Upload API
   - Checking the status of uploaded videos
   - Managing videos for organizations
-  - Handling Cloudflare Stream webhooks
-  - **Organization-specific Cloudflare integration** - Each organization can use their own Cloudflare account
+  - Handling Mux webhooks
+  - **Organization-specific Mux integration** - Each organization can use their own Mux account
 
 - **Subscription Management**
   - Integration with Stripe for payment processing
@@ -28,7 +28,7 @@ A NestJS backend application that provides an API for managing video uploads, pl
 
 - **Framework**: NestJS
 - **Authentication**: Clerk
-- **Video Streaming**: Cloudflare Stream
+- **Video Streaming**: Mux
 - **Payments**: Stripe
 - **Database**: Prisma ORM
 - **API Documentation**: Swagger/OpenAPI
@@ -43,7 +43,7 @@ A NestJS backend application that provides an API for managing video uploads, pl
 
 ### Video API Endpoints
 1. **Get Upload URL**: `POST /api/videos/get-upload-url`
-   - Generates a direct upload URL from Cloudflare
+   - Generates a direct upload URL from Mux
    - Allows client-side uploading without going through your server
 
 2. **Check Video Status**: `GET /api/videos/status/:videoId`
@@ -51,7 +51,7 @@ A NestJS backend application that provides an API for managing video uploads, pl
    - Returns playback URLs when the video is ready to stream
 
 3. **Get All Videos**: `GET /api/videos`
-   - Lists all videos in your Cloudflare Stream account
+   - Lists all videos in your Mux account
 
 4. **Get Video by UID**: `GET /api/videos/:uid`
    - Gets detailed information about a specific video
@@ -71,8 +71,8 @@ The backend requires the following environment variables:
 CLERK_SECRET_KEY=your_clerk_secret_key
 
 # Video Streaming
-CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
-CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+MUX_TOKEN_ID=your_mux_token_id
+MUX_TOKEN_SECRET=your_mux_token_secret
 
 # Payments
 STRIPE_SECRET_KEY=your_stripe_secret_key
