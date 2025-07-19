@@ -5,10 +5,4 @@ export declare class AppController {
     getHello(): {
         message: string;
     };
-    testAuth(req: any): {
-        message: string;
-        user: any;
-        organization: any;
-        timestamp: string;
-    };
 }

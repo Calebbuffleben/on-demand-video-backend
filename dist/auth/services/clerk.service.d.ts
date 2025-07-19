@@ -8,9 +8,9 @@ export declare class ClerkService {
     private readonly logger;
     constructor(prisma: PrismaService, clerkClient: ClerkClient, configService: ConfigService);
     syncUser(userData: any): Promise<{
-        email: string;
         id: string;
         clerkId: string;
+        email: string;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -28,10 +28,10 @@ export declare class ClerkService {
     syncOrganizationMembership(membershipData: any): Promise<{
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
     }>;
     handleOrganizationMembershipDeleted(membershipData: any): Promise<void>;
     private mapClerkRoleToDbRole;

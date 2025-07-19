@@ -24,9 +24,9 @@ export declare class AuthService {
     } & {
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
     })[]>;
 }
