@@ -41,6 +41,14 @@ let AuthService = class AuthService {
                 return null;
             }
             console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
+            console.log('🔍 Organization fields in token:', {
+                organizationId: tokenPayload.organizationId,
+                organizationName: tokenPayload.organizationName,
+                organizationRole: tokenPayload.organizationRole,
+                org_id: tokenPayload.org_id,
+                organization: tokenPayload.organization,
+                organizations: tokenPayload.organizations
+            });
             const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
             if (!clerkUser) {
                 console.error('❌ Could not fetch user from Clerk');
@@ -92,7 +100,7 @@ let AuthService = class AuthService {
                     ? tokenPayload.organizations
                     : [tokenPayload.organizations];
             }
-            return {
+            const result = {
                 userId: clerkUser.id,
                 email: clerkUser.emailAddresses[0]?.emailAddress || '',
                 organizationId,
@@ -101,6 +109,8 @@ let AuthService = class AuthService {
                 role,
                 organizations,
             };
+            console.log('✅ Returning verification result:', JSON.stringify(result, null, 2));
+            return result;
         }
         catch (error) {
             console.error('❌ Error verifying token:', error);
