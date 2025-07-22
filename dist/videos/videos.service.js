@@ -332,6 +332,11 @@ let VideosService = VideosService_1 = class VideosService {
                 hls: video.playbackUrl,
                 dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
             },
+            ctaText: video.ctaText,
+            ctaButtonText: video.ctaButtonText,
+            ctaLink: video.ctaLink,
+            ctaStartTime: video.ctaStartTime,
+            ctaEndTime: video.ctaEndTime,
         };
         return {
             success: true,
@@ -982,11 +987,11 @@ let VideosService = VideosService_1 = class VideosService {
                 hls: video.playbackUrl || '',
                 dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
             },
-            ctaText: video.ctaText || undefined,
-            ctaButtonText: video.ctaButtonText || undefined,
-            ctaLink: video.ctaLink || undefined,
-            ctaStartTime: video.ctaStartTime ?? undefined,
-            ctaEndTime: video.ctaEndTime ?? undefined,
+            ctaText: video.ctaText,
+            ctaButtonText: video.ctaButtonText,
+            ctaLink: video.ctaLink,
+            ctaStartTime: video.ctaStartTime,
+            ctaEndTime: video.ctaEndTime,
         };
     }
 };

@@ -175,24 +175,24 @@ __decorate([
     __metadata("design:type", Object)
 ], VideoDto.prototype, "playback", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'CTA text to display as a message', required: false }),
-    __metadata("design:type", String)
+    (0, swagger_1.ApiProperty)({ description: 'CTA text to display as a message', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], VideoDto.prototype, "ctaText", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'CTA button text', required: false }),
-    __metadata("design:type", String)
+    (0, swagger_1.ApiProperty)({ description: 'CTA button text', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], VideoDto.prototype, "ctaButtonText", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'CTA link URL', required: false }),
-    __metadata("design:type", String)
+    (0, swagger_1.ApiProperty)({ description: 'CTA link URL', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], VideoDto.prototype, "ctaLink", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'CTA start time in seconds', required: false }),
-    __metadata("design:type", Number)
+    (0, swagger_1.ApiProperty)({ description: 'CTA start time in seconds', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], VideoDto.prototype, "ctaStartTime", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'CTA end time in seconds', required: false }),
-    __metadata("design:type", Number)
+    (0, swagger_1.ApiProperty)({ description: 'CTA end time in seconds', required: false, nullable: true }),
+    __metadata("design:type", Object)
 ], VideoDto.prototype, "ctaEndTime", void 0);
 class ResultInfoDto {
     total_count;

@@ -19,6 +19,11 @@ export declare class EmbedVideoDto {
         hls: string | null;
         dash: string | null;
     };
+    ctaText?: string | null;
+    ctaButtonText?: string | null;
+    ctaLink?: string | null;
+    ctaStartTime?: number | null;
+    ctaEndTime?: number | null;
 }
 export declare class EmbedVideoResponseDto {
     success: boolean;
