@@ -9,12 +9,24 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { ORGANIZATION_SCOPED_KEY } from '../decorators/organization-scoped.decorator';
+import { IS_PUBLIC_KEY } from '../../auth/decorators/public.decorator';
 
 @Injectable()
 export class OrganizationScopeInterceptor implements NestInterceptor {
   constructor(private reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    // Check if the endpoint is public
+    const isPublic = this.reflector.getAllAndOverride<boolean>(
+      IS_PUBLIC_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    // Skip organization scope check for public endpoints
+    if (isPublic) {
+      return next.handle();
+    }
+
     const isOrganizationScoped = this.reflector.getAllAndOverride<boolean>(
       ORGANIZATION_SCOPED_KEY,
       [context.getHandler(), context.getClass()],

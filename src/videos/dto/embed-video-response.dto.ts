@@ -53,6 +53,21 @@ export class EmbedVideoDto {
     hls: string | null;
     dash: string | null;
   };
+
+  @ApiProperty({ description: 'CTA text', required: false, nullable: true })
+  ctaText?: string | null;
+
+  @ApiProperty({ description: 'CTA button text', required: false, nullable: true })
+  ctaButtonText?: string | null;
+
+  @ApiProperty({ description: 'CTA link', required: false, nullable: true })
+  ctaLink?: string | null;
+
+  @ApiProperty({ description: 'CTA start time in seconds', required: false, nullable: true })
+  ctaStartTime?: number | null;
+
+  @ApiProperty({ description: 'CTA end time in seconds', required: false, nullable: true })
+  ctaEndTime?: number | null;
 }
 
 export class EmbedVideoResponseDto {

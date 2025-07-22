@@ -51,6 +51,11 @@ class EmbedVideoDto {
     meta;
     duration;
     playback;
+    ctaText;
+    ctaButtonText;
+    ctaLink;
+    ctaStartTime;
+    ctaEndTime;
 }
 exports.EmbedVideoDto = EmbedVideoDto;
 __decorate([
@@ -85,6 +90,26 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Playback URLs for different streaming formats' }),
     __metadata("design:type", Object)
 ], EmbedVideoDto.prototype, "playback", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA text', required: false, nullable: true }),
+    __metadata("design:type", Object)
+], EmbedVideoDto.prototype, "ctaText", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA button text', required: false, nullable: true }),
+    __metadata("design:type", Object)
+], EmbedVideoDto.prototype, "ctaButtonText", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA link', required: false, nullable: true }),
+    __metadata("design:type", Object)
+], EmbedVideoDto.prototype, "ctaLink", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA start time in seconds', required: false, nullable: true }),
+    __metadata("design:type", Object)
+], EmbedVideoDto.prototype, "ctaStartTime", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'CTA end time in seconds', required: false, nullable: true }),
+    __metadata("design:type", Object)
+], EmbedVideoDto.prototype, "ctaEndTime", void 0);
 class EmbedVideoResponseDto {
     success;
     result;
