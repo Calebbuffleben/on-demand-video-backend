@@ -130,9 +130,37 @@ let VideosController = VideosController_1 = class VideosController {
         const organizationId = req.organization.id;
         return this.videosService.getOrgCloudflareSettings(organizationId);
     }
-    async getVideoForEmbed(uid, req) {
+    async getVideoForEmbed(uid, req, res) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+        res.header('Access-Control-Allow-Headers', '*');
+        res.header('Access-Control-Allow-Credentials', 'false');
+        res.header('X-Frame-Options', 'ALLOWALL');
+        res.header('Content-Security-Policy', 'frame-ancestors *;');
+        res.header('X-Embed-API', 'true');
+        res.header('X-Cross-Domain-Ready', 'true');
         const organizationId = req['organization']?.id;
-        return this.videosService.getVideoForEmbed(uid, organizationId);
+        const result = await this.videosService.getVideoForEmbed(uid, organizationId);
+        return res.json(result);
+    }
+    async testEmbedCors(req, res) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+        res.header('Access-Control-Allow-Headers', '*');
+        res.header('Access-Control-Allow-Credentials', 'false');
+        res.header('X-Frame-Options', 'ALLOWALL');
+        res.header('Content-Security-Policy', 'frame-ancestors *;');
+        res.header('X-Embed-Test', 'true');
+        res.header('X-Cross-Domain-Ready', 'true');
+        return res.json({
+            success: true,
+            message: 'CORS test successful',
+            timestamp: new Date().toISOString(),
+            origin: req.headers.origin || 'No origin',
+            userAgent: req.headers['user-agent'] || 'No user agent',
+            method: req.method,
+            url: req.url
+        });
     }
     async testUpload(dto) {
         this.logger.log(`Received test upload request with data: ${JSON.stringify(dto)}`);
@@ -489,10 +517,22 @@ __decorate([
     (0, swagger_1.ApiParam)({ name: 'uid', description: 'The Cloudflare Stream video UID' }),
     __param(0, (0, common_1.Param)('uid')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getVideoForEmbed", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('embed-test'),
+    (0, swagger_1.ApiOperation)({ summary: 'Test endpoint for cross-domain CORS' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'CORS test successful.' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "testEmbedCors", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('test-upload'),

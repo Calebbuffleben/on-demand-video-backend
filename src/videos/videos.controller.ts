@@ -7,6 +7,7 @@ import {
   Delete,
   Put,
   Req,
+  Res,
   HttpCode,
   BadRequestException,
   Headers,
@@ -281,11 +282,50 @@ export class VideosController {
   @ApiParam({ name: 'uid', description: 'The Cloudflare Stream video UID' })
   async getVideoForEmbed(
     @Param('uid') uid: string,
-    @Req() req: Request
+    @Req() req: Request,
+    @Res() res: any
   ): Promise<EmbedVideoResponseDto> {
+    // Set aggressive CORS headers for cross-domain embedding
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Credentials', 'false');
+    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Content-Security-Policy', 'frame-ancestors *;');
+    res.header('X-Embed-API', 'true');
+    res.header('X-Cross-Domain-Ready', 'true');
+    
     // Extract organization ID from request if it exists
     const organizationId = req['organization']?.id;
-    return this.videosService.getVideoForEmbed(uid, organizationId);
+    const result = await this.videosService.getVideoForEmbed(uid, organizationId);
+    
+    return res.json(result);
+  }
+
+  @Public()
+  @Get('embed-test')
+  @ApiOperation({ summary: 'Test endpoint for cross-domain CORS' })
+  @ApiResponse({ status: 200, description: 'CORS test successful.' })
+  async testEmbedCors(@Req() req: Request, @Res() res: any) {
+    // Set aggressive CORS headers for testing
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Credentials', 'false');
+    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Content-Security-Policy', 'frame-ancestors *;');
+    res.header('X-Embed-Test', 'true');
+    res.header('X-Cross-Domain-Ready', 'true');
+    
+    return res.json({
+      success: true,
+      message: 'CORS test successful',
+      timestamp: new Date().toISOString(),
+      origin: req.headers.origin || 'No origin',
+      userAgent: req.headers['user-agent'] || 'No user agent',
+      method: req.method,
+      url: req.url
+    });
   }
 
   @Public()

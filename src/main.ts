@@ -14,6 +14,8 @@ async function bootstrap() {
   
   // Configure CORS first, before other middleware
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  
+  // For cross-domain embedding, allow all origins for embed endpoints
   const allowedOrigins = corsOrigin 
     ? corsOrigin.split(',').map(origin => origin.trim())
     : [
@@ -22,17 +24,57 @@ async function bootstrap() {
         'http://localhost:3001'
       ];
   
+  // Add preflight handler for OPTIONS requests
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Organization-Id, X-DB-Organization-Id, User-Agent');
+    res.header('Access-Control-Allow-Credentials', 'false');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  });
+  
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      // Allow all origins for embed endpoints
+      if (origin && origin.includes('embed')) {
+        return callback(null, true);
+      }
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // For cross-domain embedding, allow all origins
+      if (process.env.NODE_ENV === 'production') {
+        return callback(null, true);
+      }
+      
+      return callback(new Error('Not allowed by CORS'));
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
+    credentials: false, // Changed to false for cross-domain
     allowedHeaders: [
       'Content-Type', 
       'Authorization', 
       'X-Requested-With', 
       'X-Organization-Id',
-      'X-DB-Organization-Id'
+      'X-DB-Organization-Id',
+      'Origin',
+      'Accept',
+      'User-Agent'
     ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   });
   
   // Configure raw body parser for webhooks
