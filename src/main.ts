@@ -26,10 +26,25 @@ async function bootstrap() {
   
   // Add preflight handler for OPTIONS requests
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    
+    // For embed endpoints, allow all origins without credentials
+    if (req.url.includes('/embed') || req.url.includes('/api/embed')) {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Credentials', 'false');
+    } else {
+      // For other endpoints, use specific origin with credentials
+      if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+      } else {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Credentials', 'false');
+      }
+    }
+    
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Organization-Id, X-DB-Organization-Id, User-Agent');
-    res.header('Access-Control-Allow-Credentials', 'false');
     
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -40,29 +55,9 @@ async function bootstrap() {
   });
   
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      // Allow all origins for embed endpoints
-      if (origin && origin.includes('embed')) {
-        return callback(null, true);
-      }
-      
-      // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      
-      // For cross-domain embedding, allow all origins
-      if (process.env.NODE_ENV === 'production') {
-        return callback(null, true);
-      }
-      
-      return callback(new Error('Not allowed by CORS'));
-    },
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: false, // Changed to false for cross-domain
+    credentials: true,
     allowedHeaders: [
       'Content-Type', 
       'Authorization', 

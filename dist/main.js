@@ -21,10 +21,23 @@ async function bootstrap() {
             'http://localhost:3001'
         ];
     app.use((req, res, next) => {
-        res.header('Access-Control-Allow-Origin', '*');
+        const origin = req.headers.origin;
+        if (req.url.includes('/embed') || req.url.includes('/api/embed')) {
+            res.header('Access-Control-Allow-Origin', '*');
+            res.header('Access-Control-Allow-Credentials', 'false');
+        }
+        else {
+            if (origin && allowedOrigins.includes(origin)) {
+                res.header('Access-Control-Allow-Origin', origin);
+                res.header('Access-Control-Allow-Credentials', 'true');
+            }
+            else {
+                res.header('Access-Control-Allow-Origin', '*');
+                res.header('Access-Control-Allow-Credentials', 'false');
+            }
+        }
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
         res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Organization-Id, X-DB-Organization-Id, User-Agent');
-        res.header('Access-Control-Allow-Credentials', 'false');
         if (req.method === 'OPTIONS') {
             res.sendStatus(200);
         }
@@ -33,22 +46,9 @@ async function bootstrap() {
         }
     });
     app.enableCors({
-        origin: (origin, callback) => {
-            if (!origin)
-                return callback(null, true);
-            if (origin && origin.includes('embed')) {
-                return callback(null, true);
-            }
-            if (allowedOrigins.includes(origin)) {
-                return callback(null, true);
-            }
-            if (process.env.NODE_ENV === 'production') {
-                return callback(null, true);
-            }
-            return callback(new Error('Not allowed by CORS'));
-        },
+        origin: allowedOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-        credentials: false,
+        credentials: true,
         allowedHeaders: [
             'Content-Type',
             'Authorization',
