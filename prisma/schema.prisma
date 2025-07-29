@@ -15,12 +15,12 @@ model Organization {
   updatedAt      DateTime           @updatedAt
   muxTokenId     String?
   muxTokenSecret String?
+  analyticsCache AnalyticsCache[]
   pendingVideos  PendingVideo[]
   subscription   Subscription?
   users          UserOrganization[]
   videos         Video[]
-  analyticsCache AnalyticsCache[]
-  
+
   @@index([clerkId])
 }
 
@@ -47,62 +47,55 @@ model UserOrganization {
 }
 
 model Video {
-  id                  String       @id @default(uuid())
-  name                String
-  description         String?
-  organizationId      String
-  status              VideoStatus  @default(PROCESSING)
-  duration            Int?
-  thumbnailUrl        String?
-  playbackUrl         String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  isLive              Boolean      @default(false)
-  visibility          Visibility   @default(PUBLIC)
-  tags                String[]
-  price               Float?
-  currency            String?      @default("USD")
-  muxAssetId          String?
-  muxPlaybackId       String?
-  muxUploadId         String?
-  analytics           VideoAnalytics?
-  
-  // Display options
-  showProgressBar     Boolean?     @default(true)
-  showTitle           Boolean?     @default(true)
-  showPlaybackControls Boolean?    @default(true)
-  autoPlay            Boolean?     @default(false)
-  muted               Boolean?     @default(false)
-  loop                Boolean?     @default(false)
-  useOriginalProgressBar Boolean?  @default(false)
-  progressBarColor    String?      @default("#171717")
-  progressEasing      Float?       @default(0.25)
-  playButtonColor     String?      @default("#FFFFFF")
-  playButtonSize      Int?         @default(60)
-  playButtonBgColor   String?      @default("rgba(0,0,0,0.6)")
-  soundControlText    String?      @default("Sound")
-  soundControlColor   String?      @default("#FFFFFF")
-  soundControlOpacity Float?       @default(0.8)
-  soundControlSize    Int?         @default(64)
-  showSoundControl    Boolean?     @default(false)
-  
-  // Embed options
-  showVideoTitle      Boolean?     @default(true)
-  showUploadDate      Boolean?     @default(true)
-  showMetadata        Boolean?     @default(true)
-  allowFullscreen     Boolean?     @default(true)
-  responsive          Boolean?     @default(true)
-  showBranding        Boolean?     @default(true)
-  showTechnicalInfo   Boolean?     @default(false)
-  
-  // CTA fields
-  ctaText        String?
-  ctaButtonText  String?
-  ctaLink        String?
-  ctaStartTime   Int?
-  ctaEndTime     Int?
-  
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                     String          @id @default(uuid())
+  name                   String
+  description            String?
+  organizationId         String
+  status                 VideoStatus     @default(PROCESSING)
+  duration               Int?
+  thumbnailUrl           String?
+  playbackUrl            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  isLive                 Boolean         @default(false)
+  visibility             Visibility      @default(PUBLIC)
+  tags                   String[]
+  price                  Float?
+  currency               String?         @default("USD")
+  muxAssetId             String?
+  muxPlaybackId          String?
+  muxUploadId            String?
+  allowFullscreen        Boolean?        @default(true)
+  autoPlay               Boolean?        @default(false)
+  loop                   Boolean?        @default(false)
+  muted                  Boolean?        @default(false)
+  responsive             Boolean?        @default(true)
+  showBranding           Boolean?        @default(true)
+  showMetadata           Boolean?        @default(true)
+  showPlaybackControls   Boolean?        @default(true)
+  showProgressBar        Boolean?        @default(true)
+  showTechnicalInfo      Boolean?        @default(false)
+  showTitle              Boolean?        @default(true)
+  showUploadDate         Boolean?        @default(true)
+  showVideoTitle         Boolean?        @default(true)
+  useOriginalProgressBar Boolean?        @default(false)
+  playButtonBgColor      String?         @default("rgba(0,0,0,0.6)")
+  playButtonColor        String?         @default("#FFFFFF")
+  playButtonSize         Int?            @default(60)
+  progressBarColor       String?         @default("#171717")
+  progressEasing         Float?          @default(0.25)
+  ctaButtonText          String?
+  ctaEndTime             Int?
+  ctaLink                String?
+  ctaStartTime           Int?
+  ctaText                String?
+  soundControlColor      String?         @default("#FFFFFF")
+  soundControlOpacity    Float?          @default(0.8)
+  soundControlSize       Int?            @default(64)
+  soundControlText       String?         @default("Sound")
+  showSoundControl       Boolean?        @default(false)
+  organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  analytics              VideoAnalytics?
 }
 
 model PendingVideo {
@@ -137,29 +130,29 @@ model Subscription {
 }
 
 model VideoAnalytics {
-  id            String   @id @default(uuid())
-  videoId       String   @unique
-  views         Int      @default(0)
-  watchTime     Int      @default(0)
-  retention     Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  dailyStats    VideoAnalyticsDaily[]
-  hourlyStats   VideoAnalyticsHourly[]
-  viewerStats   VideoViewerStats[]
+  id          String                 @id @default(uuid())
+  videoId     String                 @unique
+  views       Int                    @default(0)
+  watchTime   Int                    @default(0)
+  retention   Json
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  video       Video                  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  dailyStats  VideoAnalyticsDaily[]
+  hourlyStats VideoAnalyticsHourly[]
+  viewerStats VideoViewerStats[]
 }
 
 model VideoAnalyticsDaily {
-  id            String   @id @default(uuid())
-  videoId       String
-  date          DateTime
-  views         Int      @default(0)
-  watchTime     Int      @default(0)
-  uniqueViewers Int      @default(0)
-  retention     Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String         @id @default(uuid())
+  videoId        String
+  date           DateTime
+  views          Int            @default(0)
+  watchTime      Int            @default(0)
+  uniqueViewers  Int            @default(0)
+  retention      Json
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
 
   @@unique([videoId, date])
@@ -167,14 +160,14 @@ model VideoAnalyticsDaily {
 }
 
 model VideoAnalyticsHourly {
-  id            String   @id @default(uuid())
-  videoId       String
-  timestamp     DateTime
-  views         Int      @default(0)
-  watchTime     Int      @default(0)
-  uniqueViewers Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String         @id @default(uuid())
+  videoId        String
+  timestamp      DateTime
+  views          Int            @default(0)
+  watchTime      Int            @default(0)
+  uniqueViewers  Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
 
   @@unique([videoId, timestamp])
@@ -182,14 +175,14 @@ model VideoAnalyticsHourly {
 }
 
 model VideoViewerStats {
-  id            String   @id @default(uuid())
-  videoId       String
-  viewerId      String   // Can be IP hash or user ID
-  watchTime     Int      @default(0)
-  lastWatched   DateTime @default(now())
-  watchCount    Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String         @id @default(uuid())
+  videoId        String
+  viewerId       String
+  watchTime      Int            @default(0)
+  lastWatched    DateTime       @default(now())
+  watchCount     Int            @default(1)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   videoAnalytics VideoAnalytics @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
 
   @@unique([videoId, viewerId])
@@ -197,14 +190,14 @@ model VideoViewerStats {
 }
 
 model AnalyticsCache {
-  id            String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
-  cacheKey      String
-  data          Json
-  expiresAt     DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cacheKey       String
+  data           Json
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, cacheKey])
   @@index([expiresAt])
