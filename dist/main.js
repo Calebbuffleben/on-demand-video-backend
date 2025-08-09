@@ -9,6 +9,8 @@ const http_exception_filter_1 = require("./common/exceptions/http-exception.filt
 const transform_interceptor_1 = require("./common/interceptors/transform.interceptor");
 const helmet_1 = require("helmet");
 const express_1 = require("express");
+const cookieParser = require("cookie-parser");
+const express_rate_limit_1 = require("express-rate-limit");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
@@ -62,6 +64,22 @@ async function bootstrap() {
         preflightContinue: false,
         optionsSuccessStatus: 204
     });
+    app.use(cookieParser());
+    const authLimiter = (0, express_rate_limit_1.default)({
+        windowMs: 15 * 60 * 1000,
+        max: 100,
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    const sensitiveLimiter = (0, express_rate_limit_1.default)({
+        windowMs: 15 * 60 * 1000,
+        max: 20,
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    app.use('/api/auth', authLimiter);
+    app.use('/api/auth/login', sensitiveLimiter);
+    app.use('/api/auth/register', sensitiveLimiter);
     app.use((0, express_1.json)({
         verify: (req, res, buf) => {
             if (req.url.includes('/api/webhooks/mux')) {

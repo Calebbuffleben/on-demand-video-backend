@@ -19,10 +19,10 @@ export declare class SubscriptionsController {
     getSubscription(organizationId: string, req: AuthenticatedRequest): Promise<{
         status: string;
         subscription: {
-            organizationId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            organizationId: string;
             status: import(".prisma/client").$Enums.SubscriptionStatus;
             planType: import(".prisma/client").$Enums.PlanType;
             stripeCustomerId: string | null;
@@ -35,7 +35,6 @@ export declare class SubscriptionsController {
         organization: {
             id: string;
             name: string;
-            clerkId: string;
         };
         message?: undefined;
     } | {
@@ -44,10 +43,18 @@ export declare class SubscriptionsController {
         organization: {
             id: string;
             name: string;
-            clerkId: string;
         };
         subscription?: undefined;
     }>;
+    listMembers(organizationId: string, req: AuthenticatedRequest): Promise<{
+        id: string;
+        role: import(".prisma/client").$Enums.Role;
+        userId: string;
+        firstName: string | undefined;
+        lastName: string | undefined;
+        email: string;
+        createdAt: Date;
+    }[]>;
     handleWebhook(signature: string, req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
     getCurrentSubscription(req: AuthenticatedRequest): Promise<{
         status: string;
@@ -76,10 +83,10 @@ export declare class SubscriptionsController {
     } | {
         status: string;
         subscription: {
-            organizationId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            organizationId: string;
             status: import(".prisma/client").$Enums.SubscriptionStatus;
             planType: import(".prisma/client").$Enums.PlanType;
             stripeCustomerId: string | null;

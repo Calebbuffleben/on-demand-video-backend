@@ -15,128 +15,145 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
+const register_dto_1 = require("./dto/register.dto");
+const login_dto_1 = require("./dto/login.dto");
+const auth_guard_1 = require("./guards/auth.guard");
 const public_decorator_1 = require("./decorators/public.decorator");
-const verify_token_dto_1 = require("./dto/verify-token.dto");
 const swagger_1 = require("@nestjs/swagger");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
         this.authService = authService;
     }
-    async verifyToken(verifyTokenDto) {
-        const verification = await this.authService.verifyToken(verifyTokenDto.token);
+    async register(registerDto, res) {
+        const result = await this.authService.register(registerDto);
+        res.cookie('scale_token', result.token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+            domain: process.env.COOKIE_DOMAIN || undefined,
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        res.status(common_1.HttpStatus.CREATED).json({
+            user: result.user,
+            organization: result.organization,
+            token: result.token,
+            message: 'User registered successfully'
+        });
+    }
+    async login(loginDto, res) {
+        try {
+            const result = await this.authService.login(loginDto);
+            res.cookie('scale_token', result.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+                domain: process.env.COOKIE_DOMAIN || undefined,
+                path: '/',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+            res.json({
+                user: result.user,
+                organization: result.organization,
+                token: result.token,
+                message: 'Login successful'
+            });
+        }
+        catch (err) {
+            if (err instanceof common_1.BadRequestException) {
+                const msg = err.getResponse()?.message || String(err.message || '');
+                if (typeof msg === 'string' && msg.toLowerCase().includes('password setup required')) {
+                    return res.status(common_1.HttpStatus.OK).json({
+                        requiresPasswordSetup: true,
+                        message: 'Password setup required. We sent a reset link to your email.',
+                    });
+                }
+            }
+            throw err;
+        }
+    }
+    async logout(res) {
+        res.clearCookie('scale_token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+            domain: process.env.COOKIE_DOMAIN || undefined,
+            path: '/',
+        });
+        res.json({ message: 'Logged out successfully' });
+    }
+    async getProfile(req) {
+        return {
+            user: req.user,
+            organization: req.organization,
+            userRole: req.userRole,
+        };
+    }
+    async verifyToken(body) {
+        const verification = await this.authService.verifyToken(body.token);
         if (!verification) {
             return { success: false, message: 'Invalid token' };
         }
         return {
             success: true,
-            user: {
-                id: verification.userId,
-                email: verification.email,
-            },
-            organization: verification.organizationId
-                ? {
-                    id: verification.organizationId,
-                    name: verification.organizationName,
-                }
-                : null,
-            role: verification.role,
+            userId: verification.userId,
+            organizationId: verification.organizationId,
         };
     }
-    async refreshToken(req) {
-        try {
-            const authHeader = req.headers.authorization;
-            if (!authHeader) {
-                return { success: false, message: 'No token provided' };
-            }
-            const token = authHeader.split(' ')[1];
-            if (!token) {
-                return { success: false, message: 'Invalid token format' };
-            }
-            const verification = await this.authService.verifyToken(token);
-            if (!verification) {
-                return { success: false, message: 'Invalid or expired token' };
-            }
-            return {
-                success: true,
-                message: 'Token is valid, get fresh token from Clerk session',
-                user: {
-                    id: verification.userId,
-                    email: verification.email,
-                },
-                organization: verification.organizationId
-                    ? {
-                        id: verification.organizationId,
-                        name: verification.organizationName,
-                    }
-                    : null,
-            };
+    async requestEmailVerification(body) {
+        return this.authService.requestEmailVerification(body.email);
+    }
+    async verifyEmail(token, res) {
+        const ok = await this.authService.verifyEmailToken(token);
+        if (!ok) {
+            return res.status(common_1.HttpStatus.BAD_REQUEST).json({ success: false, message: 'Invalid or expired token' });
         }
-        catch (error) {
-            console.error('Token refresh error:', error);
-            return { success: false, message: 'Token refresh failed' };
-        }
+        return res.json({ success: true });
     }
-    async getProfile(request) {
-        return {
-            user: request.user,
-            organization: request.organization || null,
-            message: 'You are authenticated',
-        };
+    async requestPasswordReset(body) {
+        return this.authService.requestPasswordReset(body.email);
     }
-    async testDebug() {
-        return {
-            message: 'Debug endpoint working',
-            timestamp: new Date().toISOString()
-        };
-    }
-    async debugAuth(req) {
-        const authHeader = req.headers.authorization;
-        const token = authHeader ? authHeader.split(' ')[1] : null;
-        let tokenInfo = null;
-        if (token) {
-            try {
-                tokenInfo = await this.authService.verifyToken(token);
-            }
-            catch (error) {
-                console.error('Token verification error:', error);
-            }
-        }
-        return {
-            auth: {
-                hasToken: !!token,
-                tokenValid: !!tokenInfo,
-                user: req.user || null,
-                currentOrganization: req.organization || null,
-                rawOrganizations: req.rawOrganizations || null,
-                tokenInfo: tokenInfo,
-            }
-        };
+    async resetPassword(body) {
+        return this.authService.resetPassword(body.token, body.password);
     }
 };
 exports.AuthController = AuthController;
 __decorate([
     (0, public_decorator_1.Public)(),
-    (0, common_1.Post)('verify'),
-    (0, swagger_1.ApiOperation)({ summary: 'Verify a Clerk JWT token' }),
+    (0, common_1.Post)('register'),
+    (0, swagger_1.ApiOperation)({ summary: 'Register a new user' }),
+    (0, swagger_1.ApiBody)({ type: register_dto_1.RegisterDto }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [verify_token_dto_1.VerifyTokenDto]),
+    __metadata("design:paramtypes", [register_dto_1.RegisterDto, Object]),
     __metadata("design:returntype", Promise)
-], AuthController.prototype, "verifyToken", null);
+], AuthController.prototype, "register", null);
 __decorate([
     (0, public_decorator_1.Public)(),
-    (0, common_1.Post)('refresh-token'),
-    (0, swagger_1.ApiOperation)({ summary: 'Refresh authentication token' }),
-    __param(0, (0, common_1.Req)()),
+    (0, common_1.Post)('login'),
+    (0, swagger_1.ApiOperation)({ summary: 'Login user' }),
+    (0, swagger_1.ApiBody)({ type: login_dto_1.LoginDto }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "login", null);
+__decorate([
+    (0, common_1.Post)('logout'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, swagger_1.ApiOperation)({ summary: 'Logout user' }),
+    __param(0, (0, common_1.Res)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], AuthController.prototype, "refreshToken", null);
+], AuthController.prototype, "logout", null);
 __decorate([
     (0, common_1.Get)('me'),
-    (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Get authenticated user profile' }),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, swagger_1.ApiOperation)({ summary: 'Get current user profile' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -144,21 +161,50 @@ __decorate([
 ], AuthController.prototype, "getProfile", null);
 __decorate([
     (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('test-debug'),
-    (0, swagger_1.ApiOperation)({ summary: 'Test debug endpoint' }),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "testDebug", null);
-__decorate([
-    (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('debug'),
-    (0, swagger_1.ApiOperation)({ summary: 'Debug token and organization access' }),
-    __param(0, (0, common_1.Req)()),
+    (0, common_1.Post)('verify'),
+    (0, swagger_1.ApiOperation)({ summary: 'Verify JWT token' }),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], AuthController.prototype, "debugAuth", null);
+], AuthController.prototype, "verifyToken", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('email/request-verification'),
+    (0, swagger_1.ApiOperation)({ summary: 'Request email verification (sends email)' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "requestEmailVerification", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('email/verify'),
+    (0, swagger_1.ApiOperation)({ summary: 'Verify email with token' }),
+    __param(0, (0, common_1.Query)('token')),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "verifyEmail", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('password/forgot'),
+    (0, swagger_1.ApiOperation)({ summary: 'Request password reset email' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "requestPasswordReset", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('password/reset'),
+    (0, swagger_1.ApiOperation)({ summary: 'Reset password with token' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "resetPassword", null);
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, common_1.Controller)('api/auth'),

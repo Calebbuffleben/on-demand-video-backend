@@ -21,6 +21,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import getRawBody from 'raw-body';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 
 // Extend the Request type to include the user property
 interface AuthenticatedRequest extends Request {
@@ -39,6 +40,8 @@ export class SubscriptionsController {
   ) {}
 
   @Post('create-checkout')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Create a Stripe checkout session' })
   @ApiResponse({ status: 200, description: 'Return the checkout session information.' })
   async createCheckout(@Body() createCheckoutDto: CreateCheckoutDto, @Req() req: Request) {
@@ -58,6 +61,8 @@ export class SubscriptionsController {
   }
 
   @Get(':organizationId')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
   @ApiOperation({ summary: 'Get subscription details for an organization' })
   @ApiResponse({ status: 200, description: 'Return the subscription details.' })
   @ApiResponse({ status: 404, description: 'Subscription not found.' })
@@ -86,14 +91,13 @@ export class SubscriptionsController {
       userOrganizations.map(org => ({
         id: org.organization.id,
         name: org.organization.name,
-        clerkId: org.organization.clerkId,
         role: org.role
       }))
     );
     
     // Find the requested organization
     const matchingOrg = userOrganizations.find(
-      org => org.organization.id === organizationId || org.organization.clerkId === organizationId
+      org => org.organization.id === organizationId
     );
     
     if (!matchingOrg) {
@@ -115,8 +119,7 @@ export class SubscriptionsController {
         subscription,
         organization: {
           id: organization.id,
-          name: organization.name,
-          clerkId: organization.clerkId
+          name: organization.name
         }
       };
     } catch (error) {
@@ -126,13 +129,42 @@ export class SubscriptionsController {
           message: 'No active subscription found for this organization',
           organization: {
             id: organization.id,
-            name: organization.name,
-            clerkId: organization.clerkId
+            name: organization.name
           }
         };
       }
       throw error;
     }
+  }
+
+  @Get('members/:organizationId')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'List organization members' })
+  async listMembers(@Param('organizationId') organizationId: string, @Req() req: AuthenticatedRequest) {
+    const requesterId = req.user?.id;
+    if (!requesterId) throw new BadRequestException('Unauthorized');
+
+    // Ensure requester belongs to org
+    const membership = await this.prismaService.userOrganization.findFirst({
+      where: { userId: requesterId, organizationId },
+    });
+    if (!membership) throw new BadRequestException('You do not have access to this organization');
+
+    const rows = await this.prismaService.userOrganization.findMany({
+      where: { organizationId },
+      include: { user: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(r => ({
+      id: r.id,
+      role: r.role,
+      userId: r.userId,
+      firstName: r.user.firstName ?? undefined,
+      lastName: r.user.lastName ?? undefined,
+      email: r.user.email,
+      createdAt: r.createdAt,
+    }));
   }
 
   @Public()
@@ -213,6 +245,8 @@ export class SubscriptionsController {
    * @returns The user's current subscription details
    */
   @Get('current')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the current user\'s subscription' })
   async getCurrentSubscription(@Req() req: AuthenticatedRequest) {

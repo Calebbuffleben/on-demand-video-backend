@@ -12,9 +12,8 @@ import * as Joi from 'joi';
           .default('development'),
         PORT: Joi.number().default(4000),
         DATABASE_URL: Joi.string().required(),
-        CLERK_SECRET_KEY: Joi.string().required(),
-        CLERK_PUBLISHABLE_KEY: Joi.string().required(),
-        CLERK_WEBHOOK_SECRET: Joi.string().required(),
+        JWT_SECRET: Joi.string().required(),
+        JWT_EXPIRES_IN: Joi.string().default('7d'),
         STRIPE_SECRET_KEY: Joi.string().required(),
         STRIPE_WEBHOOK_SECRET: Joi.string().required(),
         STRIPE_PRICE_ID_BASIC: Joi.string().required(),
@@ -22,6 +21,10 @@ import * as Joi from 'joi';
         STRIPE_PRICE_ID_ENTERPRISE: Joi.string().required(),
         FRONTEND_URL: Joi.string().required(),
         CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
+        COOKIE_DOMAIN: Joi.string().optional(),
+        COOKIE_SAMESITE: Joi.string()
+          .valid('lax', 'strict', 'none', 'LAX', 'STRICT', 'NONE')
+          .default('lax'),
       }),
     }),
   ],

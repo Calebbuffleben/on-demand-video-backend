@@ -1,7 +1,6 @@
 /**
- * Clerk webhook event interface
- * 
- * This interface represents the structure of events received from Clerk webhooks
+ * Legacy Clerk webhook event interface (no longer used).
+ * Kept temporarily for reference; consider removing in a later phase.
  */
 export interface WebhookEvent {
   /**

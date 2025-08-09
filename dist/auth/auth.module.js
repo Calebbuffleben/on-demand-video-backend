@@ -12,32 +12,24 @@ const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
 const core_1 = require("@nestjs/core");
 const auth_guard_1 = require("./guards/auth.guard");
-const passport_1 = require("@nestjs/passport");
-const clerk_strategy_1 = require("./strategies/clerk.strategy");
-const clerk_client_provider_1 = require("../providers/clerk-client.provider");
 const config_1 = require("@nestjs/config");
 const prisma_module_1 = require("../prisma/prisma.module");
-const clerk_webhook_controller_1 = require("./controllers/clerk-webhook.controller");
-const clerk_service_1 = require("./services/clerk.service");
+const mail_module_1 = require("../mail/mail.module");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            passport_1.PassportModule.register({ defaultStrategy: 'clerk' }),
             config_1.ConfigModule,
             prisma_module_1.PrismaModule,
+            mail_module_1.MailModule,
         ],
         controllers: [
             auth_controller_1.AuthController,
-            clerk_webhook_controller_1.ClerkWebhookController,
         ],
         providers: [
             auth_service_1.AuthService,
-            clerk_service_1.ClerkService,
-            clerk_strategy_1.ClerkStrategy,
-            clerk_client_provider_1.ClerkClientProvider,
             {
                 provide: core_1.APP_GUARD,
                 useClass: auth_guard_1.AuthGuard,
@@ -45,7 +37,6 @@ exports.AuthModule = AuthModule = __decorate([
         ],
         exports: [
             auth_service_1.AuthService,
-            clerk_service_1.ClerkService,
         ],
     })
 ], AuthModule);

@@ -10,7 +10,9 @@ datasource db {
 model Organization {
   id             String             @id @default(uuid())
   name           String
-  clerkId        String             @unique
+  clerkId        String?            @unique
+  slug           String?            @unique
+  description    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   muxTokenId     String?
@@ -22,15 +24,23 @@ model Organization {
   videos         Video[]
 
   @@index([clerkId])
+  @@index([slug])
 }
 
 model User {
   id            String             @id @default(uuid())
-  clerkId       String             @unique
+  clerkId       String?            @unique
   email         String             @unique
+  password      String?
+  firstName     String?
+  lastName      String?
+  emailVerified Boolean            @default(false)
+  lastLogin     DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   organizations UserOrganization[]
+  emailTokens   EmailVerificationToken[]
+  passwordTokens PasswordResetToken[]
 }
 
 model UserOrganization {
@@ -235,4 +245,30 @@ enum Visibility {
   PUBLIC
   PRIVATE
   ORGANIZATION
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
