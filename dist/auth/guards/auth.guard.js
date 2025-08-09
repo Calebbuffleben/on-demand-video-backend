@@ -33,107 +33,41 @@ let AuthGuard = class AuthGuard {
             return true;
         }
         const request = context.switchToHttp().getRequest();
-        const token = this.extractTokenFromHeader(request);
+        const token = this.extractToken(request);
         if (!token) {
             throw new common_1.UnauthorizedException('Authentication token is missing');
         }
         try {
-            console.log('Verifying token...');
             const verificationResult = await this.authService.verifyToken(token);
             if (!verificationResult) {
-                console.log('Token verification failed');
                 throw new common_1.UnauthorizedException('Invalid authentication token');
             }
-            console.log('Token verification successful:', JSON.stringify(verificationResult, null, 2));
-            const user = await this.authService.getOrCreateUser(verificationResult.userId, verificationResult.email);
-            console.log('User from database:', JSON.stringify(user, null, 2));
-            if (verificationResult.organizations) {
-                console.log('Attaching organizations array to request:', JSON.stringify(verificationResult.organizations, null, 2));
-                request['rawOrganizations'] = verificationResult.organizations;
+            const user = await this.prisma.user.findUnique({
+                where: { id: verificationResult.userId }
+            });
+            if (!user) {
+                throw new common_1.UnauthorizedException('User not found');
             }
-            const requestedOrgId = request.headers['x-organization-id'];
-            if (requestedOrgId) {
-                console.log('X-Organization-Id header present:', requestedOrgId);
-                let organization = await this.prisma.organization.findUnique({
-                    where: { clerkId: requestedOrgId },
-                });
-                if (!organization) {
-                    console.log('Organization not found in database, creating from token info...');
-                    const orgName = verificationResult.organizationName || 'Unknown Organization';
-                    const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
-                    try {
-                        organization = await this.authService.getOrCreateOrganization(requestedOrgId, orgName, user.id, orgRole);
-                        console.log('Organization created in database:', JSON.stringify(organization, null, 2));
-                    }
-                    catch (error) {
-                        console.error('Failed to create organization:', error);
-                    }
-                }
-                else {
-                    const userOrg = await this.prisma.userOrganization.findFirst({
-                        where: {
-                            userId: user.id,
-                            organizationId: organization.id,
-                        },
-                    });
-                    if (!userOrg) {
-                        console.log('User membership not found, creating...');
-                        const orgRole = verificationResult.organizationRole || verificationResult.role || 'member';
-                        const mapClerkRoleToDbRole = (clerkRole) => {
-                            if (clerkRole === 'org:admin' || clerkRole === 'admin')
-                                return 'ADMIN';
-                            if (clerkRole === 'org:owner' || clerkRole === 'owner')
-                                return 'OWNER';
-                            return 'MEMBER';
-                        };
-                        try {
-                            await this.prisma.userOrganization.create({
-                                data: {
-                                    userId: user.id,
-                                    organizationId: organization.id,
-                                    role: mapClerkRoleToDbRole(orgRole),
-                                },
-                            });
-                            console.log('User membership created successfully');
-                        }
-                        catch (error) {
-                            console.error('Failed to create user membership:', error);
-                        }
-                    }
-                }
-                if (organization) {
-                    console.log('Attaching organization to request:', JSON.stringify(organization, null, 2));
-                    request['organization'] = organization;
-                }
-                else {
-                    console.log('Could not resolve organization, falling back to token info');
-                    if (verificationResult.organizationId && verificationResult.organizationName) {
-                        console.log('Creating fallback organization object from token info');
-                        request['organization'] = {
-                            id: verificationResult.organizationId,
-                            clerkId: verificationResult.organizationId,
-                            name: verificationResult.organizationName,
-                            createdAt: new Date(),
-                            updatedAt: new Date(),
-                        };
-                    }
-                }
+            const organization = await this.prisma.organization.findUnique({
+                where: { id: verificationResult.organizationId }
+            });
+            if (!organization) {
+                throw new common_1.UnauthorizedException('Organization not found');
             }
-            else if (verificationResult.organizationId && verificationResult.organizationName) {
-                console.log('Organization info from token:', verificationResult.organizationId, verificationResult.organizationName, verificationResult.organizationRole || 'No role specified');
-                const organization = await this.authService.getOrCreateOrganization(verificationResult.organizationId, verificationResult.organizationName, user.id, verificationResult.organizationRole || verificationResult.role || 'member');
-                console.log('Organization from database:', JSON.stringify(organization, null, 2));
-                request['organization'] = organization;
-            }
-            else {
-                console.log('No specific organization info in token or headers');
+            const userOrg = await this.prisma.userOrganization.findUnique({
+                where: {
+                    userId_organizationId: {
+                        userId: user.id,
+                        organizationId: organization.id,
+                    }
+                }
+            });
+            if (!userOrg) {
+                throw new common_1.UnauthorizedException('User does not belong to organization');
             }
             request['user'] = user;
-            console.log('Request user and organization attached:', {
-                user: !!request['user'],
-                organization: !!request['organization'],
-                rawOrganizations: !!request['rawOrganizations']
-            });
+            request['organization'] = organization;
+            request['userRole'] = userOrg.role;
             return true;
         }
         catch (error) {
@@ -141,9 +75,16 @@ let AuthGuard = class AuthGuard {
             throw new common_1.UnauthorizedException('Authentication failed');
         }
     }
-    extractTokenFromHeader(request) {
-        const [type, token] = request.headers.authorization?.split(' ') ?? [];
-        return type === 'Bearer' ? token : undefined;
+    extractToken(request) {
+        const cookieToken = request.cookies?.scale_token || request.cookies?.token;
+        if (cookieToken) {
+            return cookieToken;
+        }
+        const authHeader = request.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            return authHeader.substring(7);
+        }
+        return undefined;
     }
 };
 exports.AuthGuard = AuthGuard;

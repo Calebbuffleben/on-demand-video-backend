@@ -7,6 +7,8 @@ import { HttpExceptionFilter, AllExceptionsFilter } from './common/exceptions/ht
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import helmet from 'helmet';
 import { json } from 'express';
+import * as cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -71,6 +73,26 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204
   });
+  
+  // Configure cookie parser
+  app.use(cookieParser());
+
+  // Basic rate limiting for auth endpoints
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const sensitiveLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/auth', authLimiter);
+  app.use('/api/auth/login', sensitiveLimiter);
+  app.use('/api/auth/register', sensitiveLimiter);
   
   // Configure raw body parser for webhooks
   app.use(json({

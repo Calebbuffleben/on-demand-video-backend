@@ -8,5 +8,5 @@ export declare class AuthGuard implements CanActivate {
     private prisma;
     constructor(authService: AuthService, reflector: Reflector, prisma: PrismaService);
     canActivate(context: ExecutionContext): Promise<boolean>;
-    private extractTokenFromHeader;
+    private extractToken;
 }

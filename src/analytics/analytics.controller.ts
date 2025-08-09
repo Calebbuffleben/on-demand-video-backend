@@ -9,7 +9,8 @@ import {
   ViewerAnalyticsDto,
 } from './dto/analytics.dto';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { AuthGuard as AppAuthGuard } from '../auth/guards/auth.guard';
+import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 import { MuxAnalyticsService } from './services/mux-analytics.service';
 import { GetMuxAnalyticsDto, MuxAnalyticsResponseDto } from './dto/mux-analytics.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,7 +26,8 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('analytics')
 @Controller('api/analytics')
-@UseGuards(AuthGuard('clerk'))
+@OrganizationScoped()
+@UseGuards(AppAuthGuard)
 @ApiBearerAuth()
 export class AnalyticsController {
   constructor(

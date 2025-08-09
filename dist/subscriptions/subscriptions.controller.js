@@ -20,7 +20,9 @@ const create_checkout_dto_1 = require("./dto/create-checkout.dto");
 const public_decorator_1 = require("../auth/decorators/public.decorator");
 const swagger_1 = require("@nestjs/swagger");
 const raw_body_1 = require("raw-body");
+const auth_guard_1 = require("../auth/guards/auth.guard");
 const prisma_service_1 = require("../prisma/prisma.service");
+const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 let SubscriptionsController = class SubscriptionsController {
     subscriptionsService;
     stripeService;
@@ -54,10 +56,9 @@ let SubscriptionsController = class SubscriptionsController {
         console.log(`User is a member of ${userOrganizations.length} organizations:`, userOrganizations.map(org => ({
             id: org.organization.id,
             name: org.organization.name,
-            clerkId: org.organization.clerkId,
             role: org.role
         })));
-        const matchingOrg = userOrganizations.find(org => org.organization.id === organizationId || org.organization.clerkId === organizationId);
+        const matchingOrg = userOrganizations.find(org => org.organization.id === organizationId);
         if (!matchingOrg) {
             console.error(`User has no access to organization ${organizationId}`);
             console.error(`User's organizations: ${userOrganizations.map(o => o.organization.id).join(', ')}`);
@@ -72,8 +73,7 @@ let SubscriptionsController = class SubscriptionsController {
                 subscription,
                 organization: {
                     id: organization.id,
-                    name: organization.name,
-                    clerkId: organization.clerkId
+                    name: organization.name
                 }
             };
         }
@@ -84,13 +84,36 @@ let SubscriptionsController = class SubscriptionsController {
                     message: 'No active subscription found for this organization',
                     organization: {
                         id: organization.id,
-                        name: organization.name,
-                        clerkId: organization.clerkId
+                        name: organization.name
                     }
                 };
             }
             throw error;
         }
+    }
+    async listMembers(organizationId, req) {
+        const requesterId = req.user?.id;
+        if (!requesterId)
+            throw new common_1.BadRequestException('Unauthorized');
+        const membership = await this.prismaService.userOrganization.findFirst({
+            where: { userId: requesterId, organizationId },
+        });
+        if (!membership)
+            throw new common_1.BadRequestException('You do not have access to this organization');
+        const rows = await this.prismaService.userOrganization.findMany({
+            where: { organizationId },
+            include: { user: true },
+            orderBy: { createdAt: 'asc' },
+        });
+        return rows.map(r => ({
+            id: r.id,
+            role: r.role,
+            userId: r.userId,
+            firstName: r.user.firstName ?? undefined,
+            lastName: r.user.lastName ?? undefined,
+            email: r.user.email,
+            createdAt: r.createdAt,
+        }));
     }
     async handleWebhook(signature, req, res) {
         if (!signature) {
@@ -215,6 +238,8 @@ let SubscriptionsController = class SubscriptionsController {
 exports.SubscriptionsController = SubscriptionsController;
 __decorate([
     (0, common_1.Post)('create-checkout'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Create a Stripe checkout session' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Return the checkout session information.' }),
     __param(0, (0, common_1.Body)()),
@@ -225,6 +250,8 @@ __decorate([
 ], SubscriptionsController.prototype, "createCheckout", null);
 __decorate([
     (0, common_1.Get)(':organizationId'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get subscription details for an organization' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Return the subscription details.' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Subscription not found.' }),
@@ -234,6 +261,17 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getSubscription", null);
+__decorate([
+    (0, common_1.Get)('members/:organizationId'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'List organization members' }),
+    __param(0, (0, common_1.Param)('organizationId')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "listMembers", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('webhook'),
@@ -249,6 +287,8 @@ __decorate([
 ], SubscriptionsController.prototype, "handleWebhook", null);
 __decorate([
     (0, common_1.Get)('current'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get the current user\'s subscription' }),
     __param(0, (0, common_1.Req)()),

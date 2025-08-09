@@ -1,32 +1,72 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { User, Organization } from '@prisma/client';
-import { ClerkVerificationResponse } from './interfaces/clerk-verification.interface';
 import { ConfigService } from '@nestjs/config';
-import { ClerkClient } from '@clerk/backend';
+import { User, Organization } from '@prisma/client';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { MailService } from '../mail/mail.service';
+interface JwtPayload {
+    userId: string;
+    organizationId: string;
+    type: 'access';
+}
+interface AuthResponse {
+    user: {
+        id: string;
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+    };
+    organization: {
+        id: string;
+        name: string;
+        slug: string | null;
+    };
+    token: string;
+}
 export declare class AuthService {
     private prisma;
     private configService;
-    private clerkClient;
-    constructor(prisma: PrismaService, configService: ConfigService, clerkClient: ClerkClient);
-    verifyToken(token: string): Promise<ClerkVerificationResponse | null>;
-    getOrCreateUser(clerkId: string, email: string): Promise<User>;
-    getOrCreateOrganization(clerkOrgId: string, name: string, userId: string, role: string): Promise<Organization>;
+    private mail;
+    constructor(prisma: PrismaService, configService: ConfigService, mail: MailService);
+    private hashPassword;
+    private comparePassword;
+    private generateToken;
+    private generateSlug;
+    private buildFrontendUrl;
+    register(registerDto: RegisterDto): Promise<AuthResponse>;
+    login(loginDto: LoginDto): Promise<AuthResponse>;
+    requestEmailVerification(email: string): Promise<{
+        success: boolean;
+    }>;
+    verifyEmailToken(token: string): Promise<boolean>;
+    requestPasswordReset(email: string): Promise<{
+        success: boolean;
+    }>;
+    resetPassword(token: string, newPassword: string): Promise<{
+        success: boolean;
+    }>;
+    verifyToken(token: string): Promise<JwtPayload | null>;
+    getOrCreateUser(userId: string, email: string): Promise<User>;
+    getOrCreateOrganization(organizationId: string, name: string, userId: string): Promise<Organization>;
     getUserOrganizations(userId: string): Promise<({
         organization: {
-            name: string;
+            description: string | null;
             id: string;
-            clerkId: string;
+            clerkId: string | null;
             createdAt: Date;
             updatedAt: Date;
+            name: string;
+            slug: string | null;
             muxTokenId: string | null;
             muxTokenSecret: string | null;
         };
     } & {
-        organizationId: string;
-        role: import(".prisma/client").$Enums.Role;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         userId: string;
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
     })[]>;
 }
+export {};

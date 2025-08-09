@@ -17,7 +17,8 @@ const common_1 = require("@nestjs/common");
 const analytics_service_1 = require("./analytics.service");
 const analytics_dto_1 = require("./dto/analytics.dto");
 const swagger_1 = require("@nestjs/swagger");
-const passport_1 = require("@nestjs/passport");
+const auth_guard_1 = require("../auth/guards/auth.guard");
+const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 const mux_analytics_service_1 = require("./services/mux-analytics.service");
 const mux_analytics_dto_1 = require("./dto/mux-analytics.dto");
 const prisma_service_1 = require("../prisma/prisma.service");
@@ -384,7 +385,8 @@ __decorate([
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, swagger_1.ApiTags)('analytics'),
     (0, common_1.Controller)('api/analytics'),
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('clerk')),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
     (0, swagger_1.ApiBearerAuth)(),
     __metadata("design:paramtypes", [analytics_service_1.AnalyticsService,
         mux_analytics_service_1.MuxAnalyticsService,

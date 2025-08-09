@@ -1,278 +1,349 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User, Organization } from '@prisma/client';
-import { ClerkVerificationResponse } from './interfaces/clerk-verification.interface';
 import { ConfigService } from '@nestjs/config';
-import { verifyToken, ClerkClient } from '@clerk/backend';
+import { User, Organization } from '@prisma/client';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
+import { MailService } from '../mail/mail.service';
+
+interface JwtPayload {
+  userId: string;
+  organizationId: string;
+  type: 'access';
+}
+
+interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+  organization: {
+    id: string;
+    name: string;
+    slug: string | null;
+  };
+  token: string;
+}
 
 @Injectable()
 export class AuthService {
   constructor(
-    // Prisma service for database operations
     private prisma: PrismaService,
-    // Configuration service to access environment variables
     private configService: ConfigService,
-    // Clerk client for authentication and user management
-    @Inject('ClerkClient') private clerkClient: ClerkClient,
+    private mail: MailService,
   ) {}
 
   /**
-   * Verifies the authentication token using Clerk
-   * 
-   * This method:
-   * - Validates the token with Clerk's verification service
-   * - Retrieves user details
-   * - Extracts organization information if available
-   * 
-   * @param token Authentication token to verify
-   * @returns Verified user and organization information or null
+   * Hash a password using bcrypt
    */
-  async verifyToken(token: string): Promise<ClerkVerificationResponse | null> {
-    try {
-      console.log('🔍 Starting token verification...');
-      console.log('🔑 Token length:', token.length);
-      console.log('🔑 Token preview:', token.substring(0, 20) + '...');
-      
-      // Verify token with Clerk API
-      const tokenPayload = await verifyToken(token, {
-        secretKey: this.configService.get('CLERK_SECRET_KEY'),
-      });
+  private async hashPassword(password: string): Promise<string> {
+    const saltRounds = 12;
+    return bcrypt.hash(password, saltRounds);
+  }
 
-      console.log('✅ Token verification successful');
-      console.log('📋 Token payload keys:', Object.keys(tokenPayload || {}));
+  /**
+   * Compare a password with its hash
+   */
+  private async comparePassword(password: string, hash: string): Promise<boolean> {
+    return bcrypt.compare(password, hash);
+  }
 
-      if (!tokenPayload || !tokenPayload.sub) {
-        console.error('❌ Token payload is invalid or missing sub field');
-        return null;
+  /**
+   * Generate a JWT token
+   */
+  private generateToken(userId: string, organizationId: string): string {
+    const payload: JwtPayload = {
+      userId,
+      organizationId,
+      type: 'access'
+    };
+
+    const secret = this.configService.get('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+
+    return jwt.sign(
+      payload,
+      secret,
+      { 
+        expiresIn: this.configService.get('JWT_EXPIRES_IN', '7d') 
       }
+    );
+  }
 
-      console.log('Token payload from Clerk:', JSON.stringify(tokenPayload, null, 2));
-      console.log('🔍 Organization fields in token:', {
-        organizationId: tokenPayload.organizationId,
-        organizationName: tokenPayload.organizationName,
-        organizationRole: tokenPayload.organizationRole,
-        org_id: tokenPayload.org_id,
-        organization: tokenPayload.organization,
-        organizations: tokenPayload.organizations
-      });
+  /**
+   * Generate a unique slug for organization
+   */
+  private generateSlug(email: string): string {
+    const base = email.split('@')[0];
+    const timestamp = Date.now().toString(36);
+    return `${base}-${timestamp}`;
+  }
 
-      // Get user details from Clerk
-      const clerkUser = await this.clerkClient.users.getUser(tokenPayload.sub);
+  /**
+   * Build a frontend URL ensuring there are no double slashes
+   */
+  private buildFrontendUrl(path: string): string {
+    const base = (this.configService.get('FRONTEND_URL') || '').replace(/\/$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${normalizedPath}`;
+  }
 
-      if (!clerkUser) {
-        console.error('❌ Could not fetch user from Clerk');
-        return null;
-      }
+  /**
+   * Register a new user and create their organization
+   */
+  async register(registerDto: RegisterDto): Promise<AuthResponse> {
+    // Check if email already exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: registerDto.email }
+    });
 
-      console.log('✅ User fetched from Clerk successfully');
-      console.log('Clerk user details:', JSON.stringify({
-        id: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-      }, null, 2));
+    if (existingUser) {
+      throw new ConflictException('Email already registered');
+    }
 
-      // Extract organization info from token claims
-      // These fields now come directly from the token with the new structure
-      let organizationId: string | undefined = tokenPayload.organizationId as string | undefined;
-      let organizationName: string | undefined = tokenPayload.organizationName as string | undefined;
-      let organizationRole: string | undefined = tokenPayload.organizationRole as string | undefined;
-      let role: string | undefined;
-      let organizations: any[] | undefined;
+    // Hash the password
+    const hashedPassword = await this.hashPassword(registerDto.password);
 
-      // For backward compatibility, use org_id if organizationId is not present
-      if (!organizationId && tokenPayload.org_id) {
-        organizationId = tokenPayload.org_id;
-        
-        try {
-          // Fetch organization details from Clerk if not in token
-          if (!organizationName) {
-            const org = await this.clerkClient.organizations.getOrganization({
-              organizationId: tokenPayload.org_id,
-            });
-            organizationName = org.name;
-          }
-          
-          // Get user's role if not provided
-          if (!organizationRole) {
-            const membershipsResponse = await this.clerkClient.organizations.getOrganizationMembershipList({
-              organizationId: tokenPayload.org_id,
-            });
-            
-            const userMembership = membershipsResponse.data.find(
-              membership => membership.publicUserData?.userId === tokenPayload.sub
-            );
-            organizationRole = userMembership?.role;
-          }
-        } catch (error) {
-          console.error('Error fetching organization details:', error);
+    // Create user and organization in a transaction
+    const result = await this.prisma.$transaction(async (prisma) => {
+      // 1. Create user
+      const user = await prisma.user.create({
+        data: {
+          email: registerDto.email,
+          password: hashedPassword,
+          firstName: registerDto.firstName,
+          lastName: registerDto.lastName,
+          emailVerified: false,
         }
-      }
-      
-      // Assign role from organizationRole for backward compatibility
-      role = organizationRole || role;
-
-      // Extract organizations array if available in token
-      if (tokenPayload.organization) {
-        console.log('Organizations found in token payload:', tokenPayload.organization);
-        organizations = Array.isArray(tokenPayload.organization) 
-          ? tokenPayload.organization 
-          : [tokenPayload.organization];
-      } else if (tokenPayload.organizations) {
-        // Check old field name for backward compatibility
-        console.log('Organizations found in token payload (old field name):', tokenPayload.organizations);
-        organizations = Array.isArray(tokenPayload.organizations) 
-          ? tokenPayload.organizations 
-          : [tokenPayload.organizations];
-      }
-
-      const result = {
-        userId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress || '',
-        organizationId,
-        organizationName,
-        organizationRole,
-        role,          // Keep for backward compatibility
-        organizations,
-      };
-      
-      console.log('✅ Returning verification result:', JSON.stringify(result, null, 2));
-      return result;
-    } catch (error) {
-      console.error('❌ Error verifying token:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
       });
-      
-      // Check if it's a specific Clerk error
-      if (error.message?.includes('jwt')) {
-        console.error('❌ JWT verification failed - token might be invalid or expired');
+
+      // 2. Create organization
+      const organization = await prisma.organization.create({
+        data: {
+          name: `${registerDto.firstName}'s Organization`,
+          slug: this.generateSlug(registerDto.email),
+          description: `Organization created for ${registerDto.firstName} ${registerDto.lastName}`,
+        }
+      });
+
+      // 3. Create user-organization relationship
+      await prisma.userOrganization.create({
+        data: {
+          userId: user.id,
+          organizationId: organization.id,
+          role: 'OWNER'
+        }
+      });
+
+      return { user, organization };
+    });
+
+    // 4. Generate JWT token
+    const token = this.generateToken(result.user.id, result.organization.id);
+
+    return {
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+      },
+      organization: {
+        id: result.organization.id,
+        name: result.organization.name,
+        slug: result.organization.slug,
+      },
+      token
+    };
+  }
+
+  /**
+   * Login user
+   */
+  async login(loginDto: LoginDto): Promise<AuthResponse> {
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email: loginDto.email }
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check if user has password (migrated users might not have password yet)
+    if (!user.password) {
+      // Automatically issue a password reset to help user set a password
+      try {
+        await this.requestPasswordReset(user.email);
+      } catch {}
+      throw new BadRequestException('Password setup required. We sent a reset link to your email.');
+    }
+
+    // Verify password
+    const isPasswordValid = await this.comparePassword(loginDto.password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Do not block login for unverified emails; frontend will redirect to verify-email flow
+
+    // Find user's organization
+    const userOrg = await this.prisma.userOrganization.findFirst({
+      where: { userId: user.id },
+      include: { organization: true }
+    });
+
+    if (!userOrg) {
+      throw new UnauthorizedException('User has no organization');
+    }
+
+    // Update last login
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
+    });
+
+    // Generate JWT token
+    const token = this.generateToken(user.id, userOrg.organization.id);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      organization: {
+        id: userOrg.organization.id,
+        name: userOrg.organization.name,
+        slug: userOrg.organization.slug,
+      },
+      token
+    };
+  }
+
+  /**
+   * Email verification: issue token and (placeholder) send email
+   */
+  async requestEmailVerification(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.emailVerified) return { success: true };
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+
+    const record = await this.prisma.emailVerificationToken.create({
+      data: { userId: user.id, token, expiresAt },
+    });
+
+    const link = this.buildFrontendUrl(`/verify-email?token=${token}`);
+    await this.mail.sendVerificationEmail(user.email, link);
+    return { success: true };
+  }
+
+  /**
+   * Verify email token and mark user as verified
+   */
+  async verifyEmailToken(token: string): Promise<boolean> {
+    const record = await this.prisma.emailVerificationToken.findUnique({ where: { token } });
+    if (!record) return false;
+    if (record.usedAt) return false;
+    if (record.expiresAt < new Date()) return false;
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: record.userId }, data: { emailVerified: true } }),
+      this.prisma.emailVerificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    ]);
+
+    return true;
+  }
+
+  /**
+   * Password reset: issue token and send (placeholder) email
+   */
+  async requestPasswordReset(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return { success: true }; // do not reveal user existence
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30); // 30m
+    await this.prisma.passwordResetToken.create({ data: { userId: user.id, token, expiresAt } });
+    const link = this.buildFrontendUrl(`/reset-password?token=${token}`);
+    await this.mail.sendPasswordResetEmail(user.email, link);
+    return { success: true };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const record = await this.prisma.passwordResetToken.findUnique({ where: { token } });
+    if (!record || record.usedAt || record.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    const hash = await this.hashPassword(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: record.userId }, data: { password: hash } }),
+      this.prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    ]);
+    return { success: true };
+  }
+
+  /**
+   * Verify JWT token
+   */
+  async verifyToken(token: string): Promise<JwtPayload | null> {
+    try {
+      const secret = this.configService.get('JWT_SECRET');
+      if (!secret) {
+        throw new Error('JWT_SECRET is not configured');
       }
-      if (error.message?.includes('secret')) {
-        console.error('❌ Secret key issue - check CLERK_SECRET_KEY environment variable');
-      }
-      
+
+      const decoded = jwt.verify(token, secret) as any;
+      return decoded;
+    } catch (error) {
       return null;
     }
   }
 
   /**
-   * Retrieves an existing user or creates a new one in the database
-   * 
-   * This method:
-   * - Checks if a user exists by Clerk ID
-   * - Creates a new user if not found
-   * 
-   * @param clerkId Unique identifier from Clerk
-   * @param email User's email address
-   * @returns User entity from the database
+   * Get or create user (for backward compatibility)
    */
-  async getOrCreateUser(clerkId: string, email: string): Promise<User> {
-    // Find user by Clerk ID
+  async getOrCreateUser(userId: string, email: string): Promise<User> {
     let user = await this.prisma.user.findUnique({
-      where: { clerkId },
+      where: { id: userId }
     });
 
-    // Create user if not exists
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          clerkId,
-          email,
-        },
-      });
+      throw new UnauthorizedException('User not found');
     }
 
     return user;
   }
 
   /**
-   * Retrieves an existing organization or creates a new one
-   * 
-   * This method:
-   * - Checks if an organization exists by Clerk ID
-   * - Creates a new organization if not found
-   * - Adds user to the organization with specified role
-   * 
-   * @param clerkOrgId Unique organization identifier from Clerk
-   * @param name Organization name
-   * @param userId User's database ID
-   * @param role User's role in the organization
-   * @returns Organization entity from the database
+   * Get or create organization (for backward compatibility)
    */
-  async getOrCreateOrganization(
-    clerkOrgId: string,
-    name: string,
-    userId: string,
-    role: string,
-  ): Promise<Organization> {
-    // Find organization by Clerk ID
+  async getOrCreateOrganization(organizationId: string, name: string, userId: string): Promise<Organization> {
     let organization = await this.prisma.organization.findUnique({
-      where: { clerkId: clerkOrgId },
+      where: { id: organizationId }
     });
 
-    // Map Clerk roles to database roles
-    const mapClerkRoleToDbRole = (clerkRole: string): 'ADMIN' | 'OWNER' | 'MEMBER' => {
-      if (clerkRole === 'org:admin' || clerkRole === 'admin') return 'ADMIN';
-      if (clerkRole === 'org:owner' || clerkRole === 'owner') return 'OWNER';
-      return 'MEMBER'; // Default to member for org:member or any other role
-    };
-
-    const dbRole = mapClerkRoleToDbRole(role);
-
-    // Create organization if not exists
     if (!organization) {
-      organization = await this.prisma.organization.create({
-        data: {
-          name,
-          clerkId: clerkOrgId,
-          users: {
-            create: {
-              role: dbRole,
-              user: {
-                connect: { id: userId },
-              },
-            },
-          },
-        },
-      });
-    } else {
-      // Check if user is already part of organization
-      const userOrg = await this.prisma.userOrganization.findUnique({
-        where: {
-          userId_organizationId: {
-            userId,
-            organizationId: organization.id,
-          },
-        },
-      });
-
-      // Add user to organization if not already a member
-      if (!userOrg) {
-        await this.prisma.userOrganization.create({
-          data: {
-            role: dbRole,
-            user: {
-              connect: { id: userId },
-            },
-            organization: {
-              connect: { id: organization.id },
-            },
-          },
-        });
-      }
+      throw new UnauthorizedException('Organization not found');
     }
 
     return organization;
   }
 
   /**
-   * Gets all organizations that a user is a member of
-   * 
-   * @param userId The user's ID in the database
-   * @returns Array of user-organization relationships with organization details
+   * Get user organizations
    */
   async getUserOrganizations(userId: string) {
     return this.prisma.userOrganization.findMany({
