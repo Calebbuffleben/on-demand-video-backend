@@ -12,7 +12,6 @@
   },
   "envs": {
     "NODE_ENV": "production",
-    "PORT": "4000",
     "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING": "1"
   }
 } 
