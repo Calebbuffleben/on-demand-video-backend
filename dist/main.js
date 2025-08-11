@@ -15,9 +15,11 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
     const trustProxy = configService.get('TRUST_PROXY');
+    const trustProxyHops = configService.get('TRUST_PROXY_HOPS') ?? 0;
     if (trustProxy) {
         const expressApp = app.getHttpAdapter().getInstance();
-        expressApp.set('trust proxy', true);
+        const value = Math.max(0, Number(trustProxyHops || 1));
+        expressApp.set('trust proxy', value);
     }
     const corsOrigin = configService.get('CORS_ORIGIN');
     const allowedOrigins = corsOrigin

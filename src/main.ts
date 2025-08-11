@@ -15,9 +15,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   // Trust reverse proxy (e.g., Railway, Vercel, Nginx) to use X-Forwarded-* correctly
   const trustProxy = configService.get<boolean>('TRUST_PROXY');
+  const trustProxyHops = configService.get<number>('TRUST_PROXY_HOPS') ?? 0;
   if (trustProxy) {
     const expressApp = app.getHttpAdapter().getInstance();
-    expressApp.set('trust proxy', true);
+    // Use a hops-limited trust proxy to avoid permissive config.
+    // 1 hop is typical for a single reverse proxy (Railway/NGINX). Adjust via TRUST_PROXY_HOPS.
+    const value = Math.max(0, Number(trustProxyHops || 1));
+    expressApp.set('trust proxy', value);
   }
   
   // Configure CORS first, before other middleware

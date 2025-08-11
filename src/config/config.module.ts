@@ -27,6 +27,7 @@ import * as Joi from 'joi';
           .default('lax'),
         // Proxy / networking
         TRUST_PROXY: Joi.boolean().default(false),
+        TRUST_PROXY_HOPS: Joi.number().min(0).default(0),
         // Email/SMTP (SendGrid SMTP compatible)
         SMTP_HOST: Joi.string().default('smtp.sendgrid.net'),
         SMTP_PORT: Joi.number().default(587),
