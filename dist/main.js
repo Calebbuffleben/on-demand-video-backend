@@ -14,6 +14,11 @@ const express_rate_limit_1 = require("express-rate-limit");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
+    const trustProxy = configService.get('TRUST_PROXY');
+    if (trustProxy) {
+        const expressApp = app.getHttpAdapter().getInstance();
+        expressApp.set('trust proxy', true);
+    }
     const corsOrigin = configService.get('CORS_ORIGIN');
     const allowedOrigins = corsOrigin
         ? corsOrigin.split(',').map(origin => origin.trim())

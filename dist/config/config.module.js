@@ -37,6 +37,7 @@ exports.AppConfigModule = AppConfigModule = __decorate([
                     COOKIE_SAMESITE: Joi.string()
                         .valid('lax', 'strict', 'none', 'LAX', 'STRICT', 'NONE')
                         .default('lax'),
+                    TRUST_PROXY: Joi.boolean().default(false),
                     SMTP_HOST: Joi.string().default('smtp.sendgrid.net'),
                     SMTP_PORT: Joi.number().default(587),
                     SMTP_SECURE: Joi.boolean().default(false),
