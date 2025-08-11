@@ -13,6 +13,12 @@ import rateLimit from 'express-rate-limit';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  // Trust reverse proxy (e.g., Railway, Vercel, Nginx) to use X-Forwarded-* correctly
+  const trustProxy = configService.get<boolean>('TRUST_PROXY');
+  if (trustProxy) {
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', true);
+  }
   
   // Configure CORS first, before other middleware
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
