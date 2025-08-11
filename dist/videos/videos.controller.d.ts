@@ -57,10 +57,10 @@ export declare class VideosController {
     findOrgVideo(id: string, req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
+        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
@@ -111,10 +111,10 @@ export declare class VideosController {
     updateOrgVideo(id: string, updateVideoDto: UpdateVideoDto, req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
+        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
@@ -160,10 +160,10 @@ export declare class VideosController {
     syncOrgVideoStatus(id: string, req: AuthenticatedRequest): Promise<{
         tags: string[];
         description: string | null;
+        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
@@ -235,10 +235,10 @@ export declare class VideosController {
         video: {
             tags: string[];
             description: string | null;
+            name: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             organizationId: string;
             visibility: import(".prisma/client").$Enums.Visibility;
             ctaText: string | null;
@@ -289,10 +289,10 @@ export declare class VideosController {
             result: {
                 tags: string[];
                 description: string | null;
+                name: string;
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
-                name: string;
                 organizationId: string;
                 visibility: import(".prisma/client").$Enums.Visibility;
                 ctaText: string | null;

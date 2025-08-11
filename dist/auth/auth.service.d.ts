@@ -51,11 +51,11 @@ export declare class AuthService {
     getUserOrganizations(userId: string): Promise<({
         organization: {
             description: string | null;
+            name: string;
             id: string;
             clerkId: string | null;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             slug: string | null;
             muxTokenId: string | null;
             muxTokenSecret: string | null;
