@@ -1,17 +1,20 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 
 @Injectable()
 export class StripeService {
   private stripe: Stripe;
+  private readonly logger = new Logger(StripeService.name);
 
   constructor(private configService: ConfigService) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
-      throw new InternalServerErrorException('STRIPE_SECRET_KEY is not defined');
+      this.logger.warn('Stripe disabled: STRIPE_SECRET_KEY not set');
+      // @ts-expect-error Intentionally undefined; guard at call sites
+      this.stripe = undefined;
+      return;
     }
-    
     this.stripe = new Stripe(stripeSecretKey);
   }
 
@@ -22,6 +25,9 @@ export class StripeService {
     successUrl: string,
     cancelUrl: string,
   ) {
+    if (!this.stripe) {
+      throw new InternalServerErrorException('Stripe is not configured');
+    }
     let priceId: string;
 
     switch (planType) {
@@ -76,6 +82,9 @@ export class StripeService {
   }
 
   async handleWebhook(signature: string, payload: Buffer) {
+    if (!this.stripe) {
+      throw new InternalServerErrorException('Stripe is not configured');
+    }
     const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!webhookSecret) {
       throw new InternalServerErrorException('STRIPE_WEBHOOK_SECRET is not defined');
