@@ -60,10 +60,10 @@ export declare class MuxController {
         pendingVideo: {
             tags: string[];
             description: string | null;
+            name: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             organizationId: string;
             visibility: import(".prisma/client").$Enums.Visibility;
             status: import(".prisma/client").$Enums.VideoStatus;
