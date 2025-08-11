@@ -8,23 +8,30 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var StripeService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StripeService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const stripe_1 = require("stripe");
-let StripeService = class StripeService {
+let StripeService = StripeService_1 = class StripeService {
     configService;
     stripe;
+    logger = new common_1.Logger(StripeService_1.name);
     constructor(configService) {
         this.configService = configService;
         const stripeSecretKey = this.configService.get('STRIPE_SECRET_KEY');
         if (!stripeSecretKey) {
-            throw new common_1.InternalServerErrorException('STRIPE_SECRET_KEY is not defined');
+            this.logger.warn('Stripe disabled: STRIPE_SECRET_KEY not set');
+            this.stripe = undefined;
+            return;
         }
         this.stripe = new stripe_1.default(stripeSecretKey);
     }
     async createCheckoutSession(organizationId, planType, customerEmail, successUrl, cancelUrl) {
+        if (!this.stripe) {
+            throw new common_1.InternalServerErrorException('Stripe is not configured');
+        }
         let priceId;
         switch (planType) {
             case 'BASIC': {
@@ -75,6 +82,9 @@ let StripeService = class StripeService {
         return session;
     }
     async handleWebhook(signature, payload) {
+        if (!this.stripe) {
+            throw new common_1.InternalServerErrorException('Stripe is not configured');
+        }
         const webhookSecret = this.configService.get('STRIPE_WEBHOOK_SECRET');
         if (!webhookSecret) {
             throw new common_1.InternalServerErrorException('STRIPE_WEBHOOK_SECRET is not defined');
@@ -92,7 +102,7 @@ let StripeService = class StripeService {
     }
 };
 exports.StripeService = StripeService;
-exports.StripeService = StripeService = __decorate([
+exports.StripeService = StripeService = StripeService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService])
 ], StripeService);

@@ -26,16 +26,17 @@ exports.AppConfigModule = AppConfigModule = __decorate([
                     DATABASE_URL: Joi.string().required(),
                     JWT_SECRET: Joi.string().required(),
                     JWT_EXPIRES_IN: Joi.string().default('7d'),
-                    STRIPE_SECRET_KEY: Joi.string().required(),
-                    STRIPE_WEBHOOK_SECRET: Joi.string().required(),
-                    STRIPE_PRICE_ID_BASIC: Joi.string().required(),
-                    STRIPE_PRICE_ID_PRO: Joi.string().required(),
-                    STRIPE_PRICE_ID_ENTERPRISE: Joi.string().required(),
+                    STRIPE_SECRET_KEY: Joi.string().optional(),
+                    STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
+                    STRIPE_PRICE_ID_BASIC: Joi.string().optional(),
+                    STRIPE_PRICE_ID_PRO: Joi.string().optional(),
+                    STRIPE_PRICE_ID_ENTERPRISE: Joi.string().optional(),
                     FRONTEND_URL: Joi.string().required(),
                     CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
                     COOKIE_DOMAIN: Joi.string().optional(),
                     COOKIE_SAMESITE: Joi.string()
-                        .valid('lax', 'strict', 'none', 'LAX', 'STRICT', 'NONE')
+                        .valid('lax', 'strict', 'none')
+                        .insensitive()
                         .default('lax'),
                     TRUST_PROXY: Joi.boolean().default(false),
                     TRUST_PROXY_HOPS: Joi.number().min(0).default(0),
