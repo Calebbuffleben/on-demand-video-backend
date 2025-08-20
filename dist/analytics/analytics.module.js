@@ -11,10 +11,7 @@ const common_1 = require("@nestjs/common");
 const analytics_controller_1 = require("./analytics.controller");
 const analytics_service_1 = require("./analytics.service");
 const prisma_module_1 = require("../prisma/prisma.module");
-const mux_module_1 = require("../providers/mux/mux.module");
-const mux_analytics_service_1 = require("./services/mux-analytics.service");
 const cache_manager_1 = require("@nestjs/cache-manager");
-const mux_service_1 = require("./mux.service");
 const auth_module_1 = require("../auth/auth.module");
 let AnalyticsModule = class AnalyticsModule {
 };
@@ -23,12 +20,11 @@ exports.AnalyticsModule = AnalyticsModule = __decorate([
     (0, common_1.Module)({
         imports: [
             prisma_module_1.PrismaModule,
-            mux_module_1.MuxModule,
             cache_manager_1.CacheModule.register(),
             auth_module_1.AuthModule,
         ],
         controllers: [analytics_controller_1.AnalyticsController],
-        providers: [analytics_service_1.AnalyticsService, mux_analytics_service_1.MuxAnalyticsService, mux_service_1.MuxService],
+        providers: [analytics_service_1.AnalyticsService],
         exports: [analytics_service_1.AnalyticsService],
     })
 ], AnalyticsModule);

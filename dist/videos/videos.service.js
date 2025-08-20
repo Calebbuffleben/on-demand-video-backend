@@ -14,41 +14,71 @@ exports.VideosService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_1 = require("@nestjs/config");
+const r2_service_1 = require("../storage/r2.service");
 const client_1 = require("@prisma/client");
+const crypto_1 = require("crypto");
 const mux_service_1 = require("../providers/mux/mux.service");
 const mux_node_1 = require("@mux/mux-node");
+const transcode_queue_1 = require("../queue/transcode.queue");
+const jwt_playback_service_1 = require("./jwt-playback.service");
+const video_provider_factory_1 = require("./providers/video-provider.factory");
 let VideosService = VideosService_1 = class VideosService {
     prisma;
     configService;
     muxService;
+    r2;
+    transcodeQueue;
+    jwtPlayback;
+    providerFactory;
     logger = new common_1.Logger(VideosService_1.name);
-    constructor(prisma, configService, muxService) {
+    constructor(prisma, configService, muxService, r2, transcodeQueue, jwtPlayback, providerFactory) {
         this.prisma = prisma;
         this.configService = configService;
         this.muxService = muxService;
+        this.r2 = r2;
+        this.transcodeQueue = transcodeQueue;
+        this.jwtPlayback = jwtPlayback;
+        this.providerFactory = providerFactory;
     }
     async testCloudflareConnection(organizationId) {
         try {
-            const response = await this.muxService.testMuxConnection(organizationId);
-            return {
-                success: response.success,
-                status: response.status,
-                message: 'Successfully connected to Video API',
-                data: {
-                    result: response.data.result,
-                    resultInfo: {
-                        count: response.data.result.length,
-                        page: 1,
-                        per_page: response.data.result.length,
-                        total_count: response.data.result.length,
+            if (organizationId) {
+                const results = await this.testAllProviders(organizationId);
+                return {
+                    success: Object.values(results).some(r => r.success),
+                    status: 200,
+                    message: 'Provider connection test completed',
+                    data: { result: results },
+                };
+            }
+            else {
+                const response = await this.muxService.testMuxConnection(organizationId);
+                return {
+                    success: response.success,
+                    status: response.status,
+                    message: 'Successfully connected to Video API',
+                    data: {
+                        result: response.data.result,
+                        resultInfo: {
+                            count: response.data.result.length,
+                            page: 1,
+                            per_page: response.data.result.length,
+                            total_count: response.data.result.length,
+                        },
                     },
-                },
-            };
+                };
+            }
         }
         catch (error) {
             console.error('Error connecting to Video API:', error);
             throw new common_1.BadRequestException(`Failed to connect to Video API: ${error.message}`);
         }
+    }
+    async getAvailableProviders(organizationId) {
+        return this.providerFactory.getAvailableProviders(organizationId);
+    }
+    async testAllProviders(organizationId) {
+        return this.providerFactory.testAllProviders(organizationId);
     }
     async findAll(organizationId) {
         return this.prisma.video.findMany({
@@ -267,6 +297,21 @@ let VideosService = VideosService_1 = class VideosService {
     isVideo(value) {
         return value !== null && typeof value === 'object' && 'id' in value;
     }
+    generatePlaybackUrls(video) {
+        if (video.provider === 'INTERNAL') {
+            const appUrl = this.configService.get('APP_URL') || 'http://localhost:4000';
+            const hlsUrl = `${appUrl}/api/videos/stream/${video.id}/master.m3u8`;
+            const dashUrl = hlsUrl.replace('.m3u8', '.mpd');
+            return {
+                hls: hlsUrl,
+                dash: dashUrl,
+            };
+        }
+        return {
+            hls: video.playbackUrl || null,
+            dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
+        };
+    }
     async getVideoForEmbed(videoId, organizationId) {
         const video = await this.prisma.video.findFirst({
             where: {
@@ -328,10 +373,7 @@ let VideosService = VideosService_1 = class VideosService {
                 embedOptions,
             },
             duration: video.duration,
-            playback: {
-                hls: video.playbackUrl,
-                dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
-            },
+            playback: this.generatePlaybackUrls(video),
             ctaText: video.ctaText,
             ctaButtonText: video.ctaButtonText,
             ctaLink: video.ctaLink,
@@ -489,39 +531,27 @@ let VideosService = VideosService_1 = class VideosService {
                 throw new common_1.BadRequestException('Organization ID is required');
             }
             this.logger.log(`getUploadUrl called with organizationId: ${dto.organizationId}`);
-            const organization = await this.prisma.organization.findUnique({
-                where: { id: dto.organizationId },
+            const provider = await this.providerFactory.getProvider(dto.organizationId);
+            this.logger.log(`Using ${provider.name} provider for organization: ${dto.organizationId}`);
+            const result = await provider.createUploadUrl({
+                organizationId: dto.organizationId,
+                name: dto.name || 'Untitled',
+                description: dto.description || '',
+                visibility: dto.requireSignedURLs ? client_1.Visibility.PRIVATE : client_1.Visibility.PUBLIC,
+                tags: [],
+                requireSignedURLs: dto.requireSignedURLs,
+                maxDurationSeconds: dto.maxDurationSeconds,
             });
-            if (!organization) {
-                this.logger.error(`Organization with ID ${dto.organizationId} not found`);
-                throw new common_1.BadRequestException(`Organization with ID ${dto.organizationId} not found`);
-            }
-            this.logger.log(`Creating upload URL for organization: ${organization.name}`);
-            try {
-                const result = await this.muxService.createDirectUploadUrl(dto.name || 'Untitled', dto.description || '', dto.requireSignedURLs ? client_1.Visibility.PRIVATE : client_1.Visibility.PUBLIC, [], dto.organizationId);
-                const pendingVideo = await this.prisma.pendingVideo.findUnique({
-                    where: { id: result.videoId },
-                });
-                if (!pendingVideo) {
-                    this.logger.error(`PendingVideo with ID ${result.videoId} was not created`);
-                    throw new common_1.InternalServerErrorException('Failed to create pending video record');
-                }
-                this.logger.log(`Upload URL created successfully. PendingVideo ID: ${result.videoId}`);
-                return {
-                    success: true,
-                    status: 200,
-                    message: 'Upload URL created successfully',
-                    data: {
-                        success: true,
-                        uploadURL: result.uploadUrl,
-                        uid: result.videoId,
-                    },
-                };
-            }
-            catch (error) {
-                this.logger.error(`Error in muxService.createDirectUploadUrl: ${error.message}`, error.stack);
-                throw error;
-            }
+            return {
+                success: true,
+                status: 200,
+                message: 'Upload URL created successfully',
+                data: {
+                    success: result.success,
+                    uploadURL: result.uploadURL,
+                    uid: result.uid,
+                },
+            };
         }
         catch (error) {
             this.logger.error(`Error getting upload URL: ${error.message}`, error.stack);
@@ -530,6 +560,202 @@ let VideosService = VideosService_1 = class VideosService {
             }
             throw new common_1.BadRequestException(`Failed to get upload URL: ${error.message}`);
         }
+    }
+    async multipartInit(dto) {
+        if (!dto.organizationId)
+            throw new common_1.BadRequestException('Organization ID is required');
+        const org = await this.prisma.organization.findUnique({ where: { id: dto.organizationId } });
+        if (!org)
+            throw new common_1.BadRequestException('Organization not found');
+        const id = (0, crypto_1.randomUUID)();
+        const assetKey = `org/${dto.organizationId}/video/${id}`;
+        const sourceKey = `${assetKey}/uploads/input.mp4`;
+        await this.prisma.pendingVideo.create({
+            data: {
+                id,
+                name: dto.name || 'Untitled',
+                description: dto.description || '',
+                organizationId: dto.organizationId,
+                status: client_1.VideoStatus.PROCESSING,
+                tags: [],
+                visibility: client_1.Visibility.PUBLIC,
+            },
+        });
+        const { uploadId } = await this.r2.createMultipartUpload(sourceKey, dto.contentType || 'video/mp4');
+        return { success: true, data: { uid: id, key: sourceKey, uploadId } };
+    }
+    async multipartPartUrl(dto) {
+        if (!dto.key || !dto.uploadId || !dto.partNumber)
+            throw new common_1.BadRequestException('Missing fields');
+        const url = await this.r2.getPresignedUploadPartUrl(dto.key, dto.uploadId, dto.partNumber);
+        return { success: true, data: { url } };
+    }
+    async multipartComplete(dto) {
+        if (!dto.key || !dto.uploadId || !dto.parts?.length)
+            throw new common_1.BadRequestException('Missing fields');
+        const parts = dto.parts.map(p => ({ PartNumber: p.partNumber, ETag: p.eTag }));
+        await this.r2.completeMultipartUpload(dto.key, dto.uploadId, parts);
+        const provider = await this.providerFactory.getProvider(dto.organizationId);
+        const assetKey = dto.key.split('/uploads/')[0];
+        await provider.startTranscode({
+            videoId: dto.videoId,
+            organizationId: dto.organizationId,
+            assetKey,
+            sourcePath: dto.key,
+        });
+        return { success: true };
+    }
+    async multipartAbort(dto) {
+        if (!dto.key || !dto.uploadId)
+            throw new common_1.BadRequestException('Missing fields');
+        await this.r2.abortMultipartUpload(dto.key, dto.uploadId);
+        return { success: true };
+    }
+    async handleTranscodeCallback(dto) {
+        try {
+            if (!dto?.videoId || !dto?.assetKey || !dto?.hlsMasterPath) {
+                throw new common_1.BadRequestException('Missing required fields');
+            }
+            const normalizedHlsPath = typeof dto.hlsMasterPath === 'string' && dto.hlsMasterPath.includes('/hls/')
+                ? dto.hlsMasterPath.substring(dto.hlsMasterPath.indexOf('hls/'))
+                : dto.hlsMasterPath;
+            const normalizedAssetKey = typeof dto.hlsMasterPath === 'string' && dto.hlsMasterPath.includes('/hls/')
+                ? dto.hlsMasterPath.substring(0, dto.hlsMasterPath.indexOf('/hls/'))
+                : dto.assetKey;
+            let video = await this.prisma.video.findUnique({ where: { id: dto.videoId } });
+            if (!video) {
+                const pending = await this.prisma.pendingVideo.findUnique({ where: { id: dto.videoId } });
+                if (!pending) {
+                    throw new common_1.NotFoundException('Video not found');
+                }
+                video = await this.prisma.video.create({
+                    data: {
+                        id: pending.id,
+                        name: pending.name,
+                        description: pending.description || '',
+                        organizationId: pending.organizationId,
+                        tags: pending.tags,
+                        visibility: pending.visibility,
+                        status: client_1.VideoStatus.PROCESSING,
+                    },
+                });
+                await this.prisma.pendingVideo.delete({ where: { id: pending.id } }).catch(() => undefined);
+            }
+            const updated = await this.prisma.video.update({
+                where: { id: video.id },
+                data: {
+                    provider: 'INTERNAL',
+                    assetKey: normalizedAssetKey,
+                    playbackHlsPath: normalizedHlsPath,
+                    thumbnailPath: dto.thumbnailPath || video.thumbnailUrl || null,
+                    duration: dto.durationSeconds ?? video.duration,
+                    status: client_1.VideoStatus.READY,
+                },
+            });
+            return { success: true, videoId: updated.id };
+        }
+        catch (e) {
+            this.logger.error('handleTranscodeCallback error', e);
+            throw e;
+        }
+    }
+    async serveHlsFile(videoId, filename, res) {
+        try {
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+                this.logger.error(`Video not found or not available: ${videoId}, provider: ${video?.provider}, assetKey: ${video?.assetKey}`);
+                throw new common_1.NotFoundException('Video not found or not available for streaming');
+            }
+            const hlsPath = `${video.assetKey}/hls/${filename}`;
+            this.logger.log(`Attempting to serve HLS file: ${hlsPath}`);
+            const { stream } = await this.r2.getObjectStream(hlsPath);
+            let contentType = 'application/octet-stream';
+            if (filename.endsWith('.m3u8')) {
+                contentType = 'application/vnd.apple.mpegurl';
+            }
+            else if (filename.endsWith('.ts')) {
+                contentType = 'video/mp2t';
+            }
+            res.set({
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': '*'
+            });
+            stream.pipe(res);
+        }
+        catch (error) {
+            this.logger.error(`Error serving HLS file: ${error.message}`);
+            throw new common_1.NotFoundException('HLS file not found');
+        }
+    }
+    async serveThumbnail(videoId, res) {
+        try {
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.thumbnailPath) {
+                throw new common_1.NotFoundException('Thumbnail not found');
+            }
+            const thumbnailPath = `${video.assetKey}/${video.thumbnailPath}`;
+            const { stream } = await this.r2.getObjectStream(thumbnailPath);
+            res.set({
+                'Content-Type': 'image/jpeg',
+                'Cache-Control': 'public, max-age=86400',
+                'Access-Control-Allow-Origin': '*'
+            });
+            stream.pipe(res);
+        }
+        catch (error) {
+            this.logger.error(`Error serving thumbnail: ${error.message}`);
+            throw new common_1.NotFoundException('Thumbnail not found');
+        }
+    }
+    async serveThumbFile(videoId, filename, res) {
+        try {
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+                throw new common_1.NotFoundException('Video not found or not available for streaming');
+            }
+            const thumbPath = `${video.assetKey}/thumbs/${filename}`;
+            const { stream } = await this.r2.getObjectStream(thumbPath);
+            let contentType = 'application/octet-stream';
+            if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+                contentType = 'image/jpeg';
+            }
+            else if (filename.endsWith('.vtt')) {
+                contentType = 'text/vtt';
+            }
+            else if (filename.endsWith('.png')) {
+                contentType = 'image/png';
+            }
+            res.set({
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=86400',
+                'Access-Control-Allow-Origin': '*'
+            });
+            stream.pipe(res);
+        }
+        catch (error) {
+            this.logger.error(`Error serving thumb file: ${error.message}`);
+            throw new common_1.NotFoundException('Thumbnail file not found');
+        }
+    }
+    async generatePlaybackToken(videoId, organizationId, expiryMinutes) {
+        const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+        if (!video) {
+            throw new common_1.NotFoundException('Video not found');
+        }
+        if (video.organizationId !== organizationId) {
+            throw new common_1.ForbiddenException('Access denied to this video');
+        }
+        if (video.provider !== 'INTERNAL') {
+            throw new common_1.BadRequestException('Signed streaming is only available for internal videos');
+        }
+        const token = this.jwtPlayback.generatePlaybackToken(videoId, organizationId, expiryMinutes);
+        return {
+            success: true,
+            token,
+            expiresIn: (expiryMinutes || 5) * 60,
+            videoId,
+        };
     }
     async getVideoStatus(videoId) {
         try {
@@ -600,19 +826,33 @@ let VideosService = VideosService_1 = class VideosService {
                     showBranding: video.showBranding === false ? false : true,
                     showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
                 };
+                let hlsUrl = '';
+                let thumbnailUrl = '';
+                if (video.provider === 'INTERNAL') {
+                    const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
+                    hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`;
+                    if (video.thumbnailPath) {
+                        thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
+                    }
+                }
+                else {
+                    hlsUrl = video.playbackUrl || '';
+                    thumbnailUrl = video.thumbnailUrl || '';
+                }
+                const dashUrl = '';
                 return {
                     success: true,
                     video: {
                         uid: video.id,
-                        readyToStream: video.status === client_1.VideoStatus.READY,
+                        readyToStream: video.status === client_1.VideoStatus.READY && !!hlsUrl,
                         status: {
                             state: this.mapVideoStatus(video.status)
                         },
-                        thumbnail: video.thumbnailUrl || '',
-                        preview: video.thumbnailUrl || '',
+                        thumbnail: thumbnailUrl,
+                        preview: thumbnailUrl,
                         playback: {
-                            hls: video.playbackUrl || '',
-                            dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                            hls: hlsUrl,
+                            dash: dashUrl,
                         },
                         meta: {
                             name: video.name,
@@ -966,10 +1206,22 @@ let VideosService = VideosService_1 = class VideosService {
             showBranding: video.showBranding === false ? false : true,
             showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
         };
+        let hlsUrl = '';
+        let thumbnailUrl = video.thumbnailUrl || '';
+        if (video.provider === 'INTERNAL') {
+            const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
+            hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`;
+            if (video.thumbnailPath) {
+                thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
+            }
+        }
+        else {
+            hlsUrl = video.playbackUrl || '';
+        }
         return {
             uid: video.id,
-            thumbnail: video.thumbnailUrl || '',
-            readyToStream: video.status === client_1.VideoStatus.READY,
+            thumbnail: thumbnailUrl,
+            readyToStream: video.status === client_1.VideoStatus.READY && !!hlsUrl,
             status: {
                 state: this.mapVideoStatus(video.status),
             },
@@ -982,10 +1234,10 @@ let VideosService = VideosService_1 = class VideosService {
             modified: video.updatedAt.toISOString(),
             duration: video.duration || 0,
             size: 0,
-            preview: video.thumbnailUrl || '',
+            preview: thumbnailUrl,
             playback: {
-                hls: video.playbackUrl || '',
-                dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+                hls: hlsUrl,
+                dash: hlsUrl ? hlsUrl.replace('.m3u8', '.mpd') : '',
             },
             ctaText: video.ctaText,
             ctaButtonText: video.ctaButtonText,
@@ -994,12 +1246,175 @@ let VideosService = VideosService_1 = class VideosService {
             ctaEndTime: video.ctaEndTime,
         };
     }
+    async serveSignedMasterPlaylist(videoId, token, res, req) {
+        try {
+            const payload = this.jwtPlayback.verifyPlaybackToken(token);
+            if (payload.videoId !== videoId) {
+                throw new common_1.UnauthorizedException('Token is not valid for this video');
+            }
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.playbackHlsPath) {
+                throw new common_1.NotFoundException('Video not available for streaming');
+            }
+            const masterPath = `${video.assetKey}/${video.playbackHlsPath}`;
+            const { stream } = await this.r2.getObjectStream(masterPath);
+            const chunks = [];
+            stream.on('data', (chunk) => chunks.push(chunk));
+            await new Promise((resolve, reject) => {
+                stream.on('end', resolve);
+                stream.on('error', reject);
+            });
+            let content = Buffer.concat(chunks).toString('utf-8');
+            const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
+            content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
+            res.set({
+                'Content-Type': 'application/vnd.apple.mpegurl',
+                'Cache-Control': 'no-cache',
+                'Access-Control-Allow-Origin': '*',
+                'ETag': `"${video.id}-${payload.iat}"`,
+            });
+            res.send(content);
+        }
+        catch (error) {
+            this.logger.error(`Error serving signed master playlist: ${error.message}`);
+            if (error instanceof common_1.UnauthorizedException) {
+                throw error;
+            }
+            throw new common_1.NotFoundException('Master playlist not found');
+        }
+    }
+    async serveSignedSegment(videoId, filename, token, res, req) {
+        try {
+            const payload = this.jwtPlayback.verifyPlaybackToken(token);
+            if (payload.videoId !== videoId) {
+                throw new common_1.UnauthorizedException('Token is not valid for this video');
+            }
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+                throw new common_1.NotFoundException('Video not available for streaming');
+            }
+            let hlsPath;
+            let contentType;
+            if (filename.endsWith('.m3u8')) {
+                hlsPath = `${video.assetKey}/hls/${filename}`;
+                contentType = 'application/vnd.apple.mpegurl';
+                const { stream } = await this.r2.getObjectStream(hlsPath);
+                const chunks = [];
+                stream.on('data', (chunk) => chunks.push(chunk));
+                await new Promise((resolve, reject) => {
+                    stream.on('end', resolve);
+                    stream.on('error', reject);
+                });
+                let content = Buffer.concat(chunks).toString('utf-8');
+                const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
+                content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
+                res.set({
+                    'Content-Type': contentType,
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*',
+                    'ETag': `"${filename}-${payload.iat}"`,
+                });
+                res.send(content);
+                return;
+            }
+            else if (filename.endsWith('.ts')) {
+                hlsPath = `${video.assetKey}/hls/${filename}`;
+                contentType = 'video/mp2t';
+            }
+            else {
+                throw new common_1.NotFoundException('Invalid file type');
+            }
+            const { stream } = await this.r2.getObjectStream(hlsPath);
+            res.set({
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': '*',
+                'Accept-Ranges': 'bytes',
+                'ETag': `"${filename}-${video.id}"`,
+            });
+            stream.pipe(res);
+        }
+        catch (error) {
+            this.logger.error(`Error serving signed segment: ${error.message}`);
+            if (error instanceof common_1.UnauthorizedException) {
+                throw error;
+            }
+            throw new common_1.NotFoundException('Segment not found');
+        }
+    }
+    async serveSignedThumbnail(videoId, filename, token, res, req) {
+        try {
+            const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+            if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+                throw new common_1.NotFoundException('Video not available for streaming');
+            }
+            if (token) {
+                try {
+                    const payload = this.jwtPlayback.verifyPlaybackToken(token);
+                    if (payload.videoId !== videoId) {
+                        console.log(`Token mismatch for thumbnail: expected ${videoId}, got ${payload.videoId}`);
+                    }
+                }
+                catch (tokenError) {
+                    console.log(`Invalid token for thumbnail: ${tokenError.message}`);
+                }
+            }
+            const thumbPath = `${video.assetKey}/thumbs/${filename}`;
+            try {
+                const { stream } = await this.r2.getObjectStream(thumbPath);
+                let contentType = 'application/octet-stream';
+                if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+                    contentType = 'image/jpeg';
+                }
+                else if (filename.endsWith('.vtt')) {
+                    contentType = 'text/vtt';
+                }
+                else if (filename.endsWith('.png')) {
+                    contentType = 'image/png';
+                }
+                res.set({
+                    'Content-Type': contentType,
+                    'Cache-Control': 'public, max-age=86400',
+                    'Access-Control-Allow-Origin': '*',
+                    'Accept-Ranges': 'bytes',
+                    'ETag': `"${filename}-${video.id}"`,
+                });
+                stream.pipe(res);
+            }
+            catch (r2Error) {
+                if (r2Error.message.includes('The specified key does not exist')) {
+                    console.log(`Thumbnail not found in R2: ${thumbPath}, serving placeholder`);
+                    const placeholderSvg = `<svg width="320" height="180" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#1f2937"/>
+            <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">No Thumbnail</text>
+          </svg>`;
+                    res.set({
+                        'Content-Type': 'image/svg+xml',
+                        'Cache-Control': 'public, max-age=3600',
+                        'Access-Control-Allow-Origin': '*',
+                    });
+                    res.send(placeholderSvg);
+                }
+                else {
+                    throw r2Error;
+                }
+            }
+        }
+        catch (error) {
+            this.logger.error(`Error serving signed thumbnail: ${error.message}`);
+            throw new common_1.NotFoundException('Thumbnail not found');
+        }
+    }
 };
 exports.VideosService = VideosService;
 exports.VideosService = VideosService = VideosService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         config_1.ConfigService,
-        mux_service_1.MuxService])
+        mux_service_1.MuxService,
+        r2_service_1.R2Service,
+        transcode_queue_1.TranscodeQueue,
+        jwt_playback_service_1.JwtPlaybackService,
+        video_provider_factory_1.VideoProviderFactory])
 ], VideosService);
 //# sourceMappingURL=videos.service.js.map

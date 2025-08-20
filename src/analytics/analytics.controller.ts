@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Req, Param, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req, Param, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { 
   GetVideosLimitDto, 
@@ -9,10 +9,10 @@ import {
   ViewerAnalyticsDto,
 } from './dto/analytics.dto';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { AuthGuard as AppAuthGuard } from '../auth/guards/auth.guard';
 import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
-import { MuxAnalyticsService } from './services/mux-analytics.service';
-import { GetMuxAnalyticsDto, MuxAnalyticsResponseDto } from './dto/mux-analytics.dto';
+// Removed Mux analytics dependencies
 import { PrismaService } from '../prisma/prisma.service';
 
 
@@ -32,9 +32,86 @@ interface AuthenticatedRequest extends Request {
 export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
-    private readonly muxAnalyticsService: MuxAnalyticsService,
     private readonly prisma: PrismaService
   ) {}
+
+  /**
+   * Collect raw video playback events from clients
+   */
+  @Post('events')
+  @Public()
+  @ApiOperation({ summary: 'Ingest video player events (play, pause, ended, timeupdate)' })
+  @ApiResponse({ status: 200, description: 'Event stored' })
+  async ingestEvent(@Body() body: any, @Req() req: any) {
+    const {
+      videoId,
+      eventType,
+      currentTime = 0,
+      duration = 0,
+      userId,
+      sessionId,
+      clientId,
+      organizationId
+    } = body || {};
+
+    if (!videoId || !eventType) {
+      throw new BadRequestException('videoId and eventType are required');
+    }
+
+    // Basic normalization
+    const normalizedEventType = String(eventType).toLowerCase();
+    const clampedCurrent = Math.max(0, Math.floor(Number(currentTime) || 0));
+    const clampedDuration = Math.max(0, Math.floor(Number(duration) || 0));
+
+    // Persist using Prisma directly to avoid auth guard
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || undefined;
+    const userAgent = req.headers['user-agent'] || undefined;
+
+    await (this.prisma as any).videoPlaybackEvent.create({
+      data: {
+        videoId,
+        organizationId: organizationId || req['organization']?.id || null,
+        userId: userId || req['user']?.id || null,
+        sessionId: sessionId || null,
+        clientId: clientId || null,
+        eventType: normalizedEventType,
+        currentTime: clampedCurrent,
+        duration: clampedDuration,
+        ip: ip || null,
+        userAgent: userAgent as string | undefined,
+      },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Aggregated: views, watch time, and retention buckets
+   */
+  @Get('events/summary/:videoId')
+  @UseGuards(AppAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get aggregated analytics from collected events' })
+  async getEventsSummary(
+    @Param('videoId') videoId: string,
+    @Query('bucketSize') bucketSizeParam: string,
+    @Query('perSecond') perSecondParam: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    // Verify video exists and belongs to org when available
+    const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+
+    const views = await this.analyticsService.getUniqueViews(videoId);
+    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const duration = video.duration || 0;
+    const bucketSize = Math.max(1, Math.min(60, parseInt(bucketSizeParam || '10', 10) || 10));
+    const retention = await this.analyticsService.getRetentionBuckets(videoId, duration, bucketSize);
+    const perSecond = perSecondParam === 'true';
+    const retentionPerSecond = perSecond ? await this.analyticsService.getSecondBySecondRetention(videoId, duration) : undefined;
+
+    return { success: true, data: { views, watchTime, duration, retention, retentionPerSecond, bucketSize } };
+  }
 
   /**
    * Get combined dashboard data
@@ -167,14 +244,13 @@ export class AnalyticsController {
   }
 
   @Get('videos/:videoId')
-  @ApiOperation({ summary: 'Get analytics for a specific video' })
-  @ApiResponse({ status: 200, description: 'Returns video analytics data', type: MuxAnalyticsResponseDto })
+  @ApiOperation({ summary: 'Get analytics for a specific video (internal only)' })
+  @ApiResponse({ status: 200, description: 'Returns video analytics data' })
   @ApiResponse({ status: 404, description: 'Video not found or not owned by tenant' })
   async getVideoAnalytics(
     @Param('videoId') videoId: string,
-    @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
-  ): Promise<MuxAnalyticsResponseDto> {
+  ) {
     // Check if organization exists in request
     if (!req['organization']) {
       throw new BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
@@ -194,11 +270,25 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    return this.muxAnalyticsService.getVideoAnalytics(
-      videoId,
-      organizationId,
-      query,
-    );
+    // Fallback: build analytics from internal playback events
+    const views = await this.analyticsService.getUniqueViews(videoId);
+    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const duration = video.duration || 0;
+    const retentionPerSecond = await this.analyticsService.getSecondBySecondRetention(videoId, duration);
+    const retentionData = retentionPerSecond.map(p => ({ time: p.time, retention: p.pct }));
+
+    return {
+      success: true,
+      data: {
+        totalViews: views,
+        averageWatchTime: views ? Math.round(watchTime / views) : 0,
+        engagementRate: 0,
+        uniqueViewers: views,
+        viewsOverTime: [],
+        retentionData,
+        viewerTimeline: [],
+      }
+    };
   }
 
   @Get('retention/:videoId')
@@ -207,7 +297,6 @@ export class AnalyticsController {
   @ApiResponse({ status: 404, description: 'Video not found or not owned by tenant' })
   async getVideoRetention(
     @Param('videoId') videoId: string,
-    @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -229,14 +318,9 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    const analytics = await this.muxAnalyticsService.getVideoAnalytics(
-      videoId,
-      organizationId,
-      query,
-    );
-    return {
-      retention: analytics.data.retentionData,
-    };
+    const duration = video.duration || 0;
+    const sbs = await this.analyticsService.getSecondBySecondRetention(videoId, duration);
+    return { retention: sbs.map(p => ({ time: p.time, retention: p.pct })) };
   }
 
   @Get('views/:videoId')
@@ -245,7 +329,6 @@ export class AnalyticsController {
   @ApiResponse({ status: 404, description: 'Video not found or not owned by tenant' })
   async getVideoViews(
     @Param('videoId') videoId: string,
-    @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -267,24 +350,17 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    const analytics = await this.muxAnalyticsService.getVideoAnalytics(
-      videoId,
-      organizationId,
-      query,
-    );
-    return {
-      totalViews: analytics.data.totalViews,
-      totalWatchTime: analytics.data.averageWatchTime * analytics.data.totalViews,
-      averageWatchTime: analytics.data.averageWatchTime,
-      viewerTimelines: analytics.data.viewerTimeline,
-    };
+    const totalViews = await this.analyticsService.getUniqueViews(videoId);
+    const totalWatchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const averageWatchTime = totalViews ? Math.round(totalWatchTime / totalViews) : 0;
+    return { totalViews, totalWatchTime, averageWatchTime, viewerTimelines: [] };
   }
 
   /**
    * Get viewer analytics (device, browser, location breakdowns)
    */
   @Get('videos/:videoId/viewer-analytics')
-  @ApiOperation({ summary: 'Get viewer analytics breakdown' })
+  @ApiOperation({ summary: 'Get viewer analytics breakdown (internal only)' })
   @ApiParam({
     name: 'videoId',
     description: 'Video ID to get viewer analytics for',
@@ -297,7 +373,6 @@ export class AnalyticsController {
   })
   async getViewerAnalytics(
     @Param('videoId') videoId: string,
-    @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -319,7 +394,19 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    return this.muxAnalyticsService.getViewerAnalytics(videoId, organizationId, query);
+    // Internal only: empty breakdowns and totalViews from internal events
+    const totalViews = await this.analyticsService.getUniqueViews(videoId);
+    return {
+      success: true,
+      data: {
+        devices: [],
+        browsers: [],
+        locations: [],
+        operatingSystems: [],
+        connections: [],
+        totalViews,
+      }
+    };
   }
 
   /**
@@ -333,7 +420,6 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   async getOrganizationRetention(
-    @Query() query: GetMuxAnalyticsDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -375,23 +461,8 @@ export class AnalyticsController {
     const retentionData = await Promise.all(
       videos.map(async (video) => {
         try {
-          // If video has Mux asset ID, get real analytics
-          if (video.muxAssetId) {
-            const analytics = await this.muxAnalyticsService.getVideoAnalytics(
-              video.id,
-              organizationId,
-              query,
-            );
-
-            return {
-              videoId: video.id,
-              title: video.name || 'Untitled Video',
-              retention: analytics.data.retentionData,
-              totalViews: analytics.data.totalViews,
-              averageWatchTime: analytics.data.averageWatchTime,
-            };
-          } else {
-            // If no Mux asset, return cached analytics or default data
+          // Internal analytics only
+          {
             const cachedAnalytics = video.analytics;
             if (cachedAnalytics && cachedAnalytics.retention) {
               const retention = typeof cachedAnalytics.retention === 'string' 

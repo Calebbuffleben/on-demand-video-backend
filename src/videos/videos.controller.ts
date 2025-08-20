@@ -14,6 +14,8 @@ import {
   InternalServerErrorException,
   UploadedFiles,
   UseInterceptors,
+  Query,
+  Request,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
@@ -34,7 +36,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { MuxWebhookController } from '../providers/mux/mux-webhook.controller';
 import { UploadService } from './upload.service';
-import { Request } from 'express';
+import { TranscodeCallbackDto } from './dto/transcode-callback.dto';
+import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartAbortDto } from './dto/multipart.dto';
+import { Response } from 'express';
 
 declare global {
   namespace Express {
@@ -71,6 +75,147 @@ export class VideosController {
     private readonly muxWebhookController: MuxWebhookController,
     private readonly uploadService: UploadService,
   ) {}
+
+  // Test endpoint for JWT token generation - MUST be before :uid routes
+  @Public()
+  @Post(':videoId/test-playback-token')
+  @ApiOperation({ summary: 'Generate JWT token for video playback (TEST - PUBLIC)' })
+  @ApiResponse({ status: 200, description: 'Playback token generated successfully.' })
+  async generateTestPlaybackToken(
+    @Param('videoId') videoId: string,
+    @Body() body: { expiryMinutes?: number }
+  ) {
+    // Hardcode a test organization ID for testing
+    const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+    return this.videosService.generatePlaybackToken(videoId, testOrganizationId, body.expiryMinutes);
+  }
+
+  // HLS streaming routes - MUST be first to avoid conflicts with :uid routes
+  @Public()
+  @Get('stream/:videoId/hls/:filename')
+  @ApiOperation({ summary: 'Serve HLS files for internal videos' })
+  @ApiResponse({ status: 200, description: 'HLS file content.' })
+  async serveHls(
+    @Param('videoId') videoId: string,
+    @Param('filename') filename: string,
+    @Res() res: Response
+  ) {
+    return this.videosService.serveHlsFile(videoId, filename, res);
+  }
+
+  @Public()
+  @Get('stream/:videoId/master.m3u8')
+  @ApiOperation({ summary: 'Serve signed HLS master playlist' })
+  @ApiResponse({ status: 200, description: 'HLS master playlist with signed URLs.' })
+  async serveSignedMasterPlaylist(
+    @Param('videoId') videoId: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+    @Request() req: any
+  ) {
+    // For testing: if no token provided, generate one automatically
+    if (!token) {
+      try {
+        const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+        const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+        token = tokenResult.token;
+        console.log('Generated test token for video:', videoId);
+      } catch (error) {
+        console.error('Failed to generate test token:', error.message);
+        throw error;
+      }
+    }
+    return this.videosService.serveSignedMasterPlaylist(videoId, token, res, req);
+  }
+
+  @Public()
+  @Get('stream/:videoId/seg/:filename')
+  @ApiOperation({ summary: 'Serve HLS segments with token validation' })
+  @ApiResponse({ status: 200, description: 'HLS segment content.' })
+  async serveSignedSegment(
+    @Param('videoId') videoId: string,
+    @Param('filename') filename: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+    @Request() req: any
+  ) {
+    // For testing: if no token provided, generate one automatically
+    if (!token) {
+      try {
+        const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+        const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+        token = tokenResult.token;
+        console.log('Generated test token for segment:', filename);
+      } catch (error) {
+        console.error('Failed to generate test token for segment:', error.message);
+        throw error;
+      }
+    }
+    return this.videosService.serveSignedSegment(videoId, filename, token, res, req);
+  }
+
+  @Public()
+  @Get('thumb/:videoId/:filename')
+  @ApiOperation({ summary: 'Serve thumbnails with token validation' })
+  @ApiResponse({ status: 200, description: 'Thumbnail content.' })
+  async serveSignedThumbnail(
+    @Param('videoId') videoId: string,
+    @Param('filename') filename: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+    @Request() req: any
+  ) {
+
+    
+    // For testing: if no token provided, generate one automatically
+    if (!token) {
+      try {
+        const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+        const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+        token = tokenResult.token;
+        console.log('Generated test token for thumbnail:', filename);
+      } catch (error) {
+        console.error('Failed to generate test token for thumbnail:', error.message);
+        // Continue without token - the service will handle it
+      }
+    }
+    return this.videosService.serveSignedThumbnail(videoId, filename, token, res, req);
+  }
+
+  @Public()
+  @Get('stream/:videoId/thumbnail')
+  @ApiOperation({ summary: 'Serve thumbnail for internal videos' })
+  @ApiResponse({ status: 200, description: 'Thumbnail image.' })
+  async serveThumbnail(
+    @Param('videoId') videoId: string,
+    @Res() res: Response
+  ) {
+    return this.videosService.serveThumbnail(videoId, res);
+  }
+
+  @Public()
+  @Get('stream/:videoId/thumbs/:filename')
+  @ApiOperation({ summary: 'Serve thumbnail sprites and VTT files for internal videos' })
+  @ApiResponse({ status: 200, description: 'Thumbnail sprite or VTT file.' })
+  async serveThumbFile(
+    @Param('videoId') videoId: string,
+    @Param('filename') filename: string,
+    @Res() res: Response
+  ) {
+    return this.videosService.serveThumbFile(videoId, filename, res);
+  }
+
+  @Post(':videoId/playback-token')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Generate JWT token for video playback' })
+  @ApiResponse({ status: 200, description: 'Playback token generated successfully.' })
+  async generatePlaybackToken(
+    @Param('videoId') videoId: string,
+    @Body() body: { expiryMinutes?: number },
+    @Request() req: any
+  ) {
+    return this.videosService.generatePlaybackToken(videoId, req.organizationId, body.expiryMinutes);
+  }
 
   @Get('organization')
   @OrganizationScoped()
@@ -113,6 +258,24 @@ export class VideosController {
       console.error('Cloudflare Stream API connection test failed:', error);
       throw new BadRequestException(`Failed to connect to Cloudflare Stream API: ${error.message}`);
     }
+  }
+
+  @Get('organization/providers')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Get available video providers for the organization' })
+  @ApiResponse({ status: 200, description: 'Available providers list.' })
+  async getAvailableProviders(@Req() req: AuthenticatedRequest) {
+    const organizationId = req.organization.id;
+    return this.videosService.getAvailableProviders(organizationId);
+  }
+
+  @Post('organization/test-providers')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Test all available video providers for the organization' })
+  @ApiResponse({ status: 200, description: 'Provider test results.' })
+  async testAllProviders(@Req() req: AuthenticatedRequest) {
+    const organizationId = req.organization.id;
+    return this.videosService.testAllProviders(organizationId);
   }
 
   @Get('organization/:id')
@@ -187,6 +350,16 @@ export class VideosController {
     }
   }
 
+  @Public()
+  @Post('transcode/callback')
+  @ApiOperation({ summary: 'Internal callback when FFmpeg worker finishes transcode' })
+  @ApiResponse({ status: 200, description: 'Callback processed.' })
+  async transcodeCallback(@Body() dto: TranscodeCallbackDto) {
+    return this.videosService.handleTranscodeCallback(dto);
+  }
+
+
+
   // New public endpoints for direct Cloudflare integration
 
   @Post('get-upload-url')
@@ -203,6 +376,40 @@ export class VideosController {
     return this.videosService.getUploadUrl({ ...dto, organizationId });
   }
 
+  // Multipart upload flow (R2 S3-compatible)
+  @Post('multipart/init')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Init multipart upload and create PendingVideo' })
+  @ApiResponse({ status: 200 })
+  async multipartInit(@Body() dto: MultipartInitDto, @Req() req: AuthenticatedRequest) {
+    const organizationId = req.organization?.id || dto.organizationId;
+    return this.videosService.multipartInit({ ...dto, organizationId });
+  }
+
+  @Post('multipart/part-url')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Get presigned URL for a specific part' })
+  @ApiResponse({ status: 200 })
+  async multipartPartUrl(@Body() dto: MultipartPartUrlDto) {
+    return this.videosService.multipartPartUrl(dto);
+  }
+
+  @Post('multipart/complete')
+  @OrganizationScoped()
+  @ApiOperation({ summary: 'Complete multipart upload and enqueue transcode' })
+  @ApiResponse({ status: 200 })
+  async multipartComplete(@Body() dto: MultipartCompleteDto, @Req() req: AuthenticatedRequest) {
+    const organizationId = req.organization?.id || dto.organizationId;
+    return this.videosService.multipartComplete({ ...dto, organizationId });
+  }
+
+  @Post('multipart/abort')
+  @ApiOperation({ summary: 'Abort multipart upload' })
+  @ApiResponse({ status: 200 })
+  async multipartAbort(@Body() dto: MultipartAbortDto) {
+    return this.videosService.multipartAbort(dto);
+  }
+
   @Get(':uid/status')
   @ApiOperation({ summary: 'Check the status of an uploaded video' })
   @ApiResponse({ status: 200, description: 'Returns the video status.' })
@@ -213,12 +420,83 @@ export class VideosController {
     return this.videosService.getVideoStatus(uid);
   }
 
+  /**
+   * Alias route to preserve UX: GET /api/videos/status/:id
+   * Returns the same payload as GET /api/videos/:uid/status
+   */
+  @Get('status/:id')
+  @ApiOperation({ summary: 'Alias: Check video status by ID' })
+  @ApiResponse({ status: 200, description: 'Returns the video status.' })
+  @ApiResponse({ status: 404, description: 'Video not found.' })
+  @ApiParam({ name: 'id', description: 'Video ID or related provider ID' })
+  @Public()
+  async getVideoStatusAlias(@Param('id') id: string): Promise<VideoStatusResponseDto> {
+    return this.videosService.getVideoStatus(id);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all videos from Cloudflare Stream' })
   @ApiResponse({ status: 200, description: 'Returns all videos.' })
   @Public()
   async getAllCloudflareVideos(): Promise<VideoListResponseDto> {
     return this.videosService.getAllVideos();
+  }
+
+  /**
+   * Get video for embedding - MUST be before :uid to avoid route conflicts
+   */
+  @Get('embed/:uid')
+  @Public()
+  @ApiOperation({ summary: 'Get video details for embedding' })
+  @ApiResponse({ status: 200, description: 'Returns the video with embed information.' })
+  @ApiResponse({ status: 404, description: 'Video not found.' })
+  @ApiParam({ name: 'uid', description: 'The Cloudflare Stream video UID' })
+  async getVideoForEmbed(
+    @Param('uid') uid: string,
+    @Req() req: Request,
+    @Res() res: any
+  ): Promise<EmbedVideoResponseDto> {
+    // Set aggressive CORS headers for cross-domain embedding
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Credentials', 'false');
+    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Content-Security-Policy', 'frame-ancestors *;');
+    res.header('X-Embed-API', 'true');
+    res.header('X-Cross-Domain-Ready', 'true');
+    
+    // Extract organization ID from request if it exists
+    const organizationId = req['organization']?.id;
+    const result = await this.videosService.getVideoForEmbed(uid, organizationId);
+    
+    return res.json(result);
+  }
+
+  @Public()
+  @Get('embed-test')
+  @ApiOperation({ summary: 'Test endpoint for cross-domain CORS' })
+  @ApiResponse({ status: 200, description: 'CORS test successful.' })
+  async testEmbedCors(@Req() req: Request, @Res() res: any) {
+    // Set aggressive CORS headers for testing
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Credentials', 'false');
+    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Content-Security-Policy', 'frame-ancestors *;');
+    res.header('X-Embed-Test', 'true');
+    res.header('X-Cross-Domain-Ready', 'true');
+    
+    return res.json({
+      success: true,
+      message: 'CORS test successful',
+      timestamp: new Date().toISOString(),
+      origin: req.headers['origin'] || 'No origin',
+      userAgent: req.headers['user-agent'] || 'No user agent',
+      method: req.method,
+      url: req.url
+    });
   }
 
   @Get(':uid')
@@ -271,62 +549,9 @@ export class VideosController {
     return this.videosService.getOrgCloudflareSettings(organizationId);
   }
 
-  /**
-   * Get video for embedding
-   */
-  @Get('embed/:uid')
-  @Public()
-  @ApiOperation({ summary: 'Get video details for embedding' })
-  @ApiResponse({ status: 200, description: 'Returns the video with embed information.' })
-  @ApiResponse({ status: 404, description: 'Video not found.' })
-  @ApiParam({ name: 'uid', description: 'The Cloudflare Stream video UID' })
-  async getVideoForEmbed(
-    @Param('uid') uid: string,
-    @Req() req: Request,
-    @Res() res: any
-  ): Promise<EmbedVideoResponseDto> {
-    // Set aggressive CORS headers for cross-domain embedding
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
-    res.header('Access-Control-Allow-Headers', '*');
-    res.header('Access-Control-Allow-Credentials', 'false');
-    res.header('X-Frame-Options', 'ALLOWALL');
-    res.header('Content-Security-Policy', 'frame-ancestors *;');
-    res.header('X-Embed-API', 'true');
-    res.header('X-Cross-Domain-Ready', 'true');
-    
-    // Extract organization ID from request if it exists
-    const organizationId = req['organization']?.id;
-    const result = await this.videosService.getVideoForEmbed(uid, organizationId);
-    
-    return res.json(result);
-  }
 
-  @Public()
-  @Get('embed-test')
-  @ApiOperation({ summary: 'Test endpoint for cross-domain CORS' })
-  @ApiResponse({ status: 200, description: 'CORS test successful.' })
-  async testEmbedCors(@Req() req: Request, @Res() res: any) {
-    // Set aggressive CORS headers for testing
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
-    res.header('Access-Control-Allow-Headers', '*');
-    res.header('Access-Control-Allow-Credentials', 'false');
-    res.header('X-Frame-Options', 'ALLOWALL');
-    res.header('Content-Security-Policy', 'frame-ancestors *;');
-    res.header('X-Embed-Test', 'true');
-    res.header('X-Cross-Domain-Ready', 'true');
-    
-    return res.json({
-      success: true,
-      message: 'CORS test successful',
-      timestamp: new Date().toISOString(),
-      origin: req.headers.origin || 'No origin',
-      userAgent: req.headers['user-agent'] || 'No user agent',
-      method: req.method,
-      url: req.url
-    });
-  }
+
+
 
   @Public()
   @Post('test-upload')

@@ -23,10 +23,15 @@
     "migration:video-options": "ts-node src/migration/migrate-video-options.ts",
     "update:mux-credentials": "ts-node src/scripts/update-mux-credentials.ts",
     "db:migrate": "prisma migrate deploy",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "smoke:video": "ts-node src/scripts/smoke-video-crud.ts",
+    "smoke:r2": "ts-node src/scripts/smoke-r2.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.864.0",
+    "@aws-sdk/s3-request-presigner": "^3.864.0",
     "@mux/mux-node": "^11.1.0",
+    "@nestjs/bull": "^11.0.3",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
@@ -38,6 +43,8 @@
     "@prisma/client": "^6.5.0",
     "@types/nodemailer": "^6.4.17",
     "bcryptjs": "^3.0.2",
+    "bull": "^4.16.5",
+    "bullmq": "^5.57.0",
     "cache-manager": "^6.4.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -45,6 +52,7 @@
     "date-fns-tz": "^3.2.0",
     "express-rate-limit": "^8.0.1",
     "helmet": "^7.1.0",
+    "ioredis": "^5.7.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "node-fetch": "^2.6.7",

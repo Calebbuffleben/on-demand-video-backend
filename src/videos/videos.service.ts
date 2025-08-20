@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateVideoDto } from './dto/create-video.dto';
+import { R2Service } from '../storage/r2.service';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { Video, VideoStatus, Visibility } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { VideoStatusResponseDto } from './dto/video-status-response.dto';
@@ -15,6 +17,10 @@ import Mux from '@mux/mux-node';
 import { GetUploadUrlResponseDto } from './dto/get-upload-url-response.dto';
 import { VideoDisplayOptionsDto } from './dto/video-display-options.dto';
 import { VideoEmbedOptionsDto } from './dto/video-embed-options.dto';
+import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartAbortDto } from './dto/multipart.dto';
+import { TranscodeQueue } from '../queue/transcode.queue';
+import { JwtPlaybackService } from './jwt-playback.service';
+import { VideoProviderFactory } from './providers/video-provider.factory';
 
 interface CloudflareWebhookPayload {
   uid: string;
@@ -33,35 +39,62 @@ export class VideosService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private muxService: MuxService,
+    private r2: R2Service,
+    private transcodeQueue: TranscodeQueue,
+    private jwtPlayback: JwtPlaybackService,
+    private providerFactory: VideoProviderFactory,
   ) {}
 
   /**
-   * Test the connection to the video provider (now MUX)
+   * Test the connection to the video provider (now uses provider factory)
    */
   async testCloudflareConnection(organizationId?: string): Promise<any> {
     try {
-      // Using MUX service instead
-      const response = await this.muxService.testMuxConnection(organizationId);
-      
-      // Format the response to match the old Cloudflare response format
-      return {
-        success: response.success,
-        status: response.status,
-        message: 'Successfully connected to Video API',
-        data: {
-          result: response.data.result,
-          resultInfo: {
-            count: response.data.result.length,
-            page: 1,
-            per_page: response.data.result.length,
-            total_count: response.data.result.length,
+      if (organizationId) {
+        // Test specific organization's providers
+        const results = await this.testAllProviders(organizationId);
+        return {
+          success: Object.values(results).some(r => r.success),
+          status: 200,
+          message: 'Provider connection test completed',
+          data: { result: results },
+        };
+      } else {
+        // Fallback to MUX service for backward compatibility
+        const response = await this.muxService.testMuxConnection(organizationId);
+        return {
+          success: response.success,
+          status: response.status,
+          message: 'Successfully connected to Video API',
+          data: {
+            result: response.data.result,
+            resultInfo: {
+              count: response.data.result.length,
+              page: 1,
+              per_page: response.data.result.length,
+              total_count: response.data.result.length,
+            },
           },
-        },
-      };
+        };
+      }
     } catch (error) {
       console.error('Error connecting to Video API:', error);
       throw new BadRequestException(`Failed to connect to Video API: ${error.message}`);
     }
+  }
+
+  /**
+   * Get available providers for an organization
+   */
+  async getAvailableProviders(organizationId: string) {
+    return this.providerFactory.getAvailableProviders(organizationId);
+  }
+
+  /**
+   * Test all providers for an organization
+   */
+  async testAllProviders(organizationId: string) {
+    return this.providerFactory.testAllProviders(organizationId);
   }
 
   /**
@@ -374,6 +407,27 @@ export class VideosService {
   }
 
   /**
+   * Generate playback URLs for a video
+   */
+  private generatePlaybackUrls(video: any): { hls: string | null; dash: string | null } {
+    if (video.provider === 'INTERNAL') {
+      const appUrl = this.configService.get('APP_URL') || 'http://localhost:4000';
+      const hlsUrl = `${appUrl}/api/videos/stream/${video.id}/master.m3u8`;
+      const dashUrl = hlsUrl.replace('.m3u8', '.mpd');
+      
+      return {
+        hls: hlsUrl,
+        dash: dashUrl,
+      };
+    }
+    
+    return {
+      hls: video.playbackUrl || null,
+      dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
+    };
+  }
+
+  /**
    * Get video details for embedding
    */
   async getVideoForEmbed(videoId: string, organizationId?: string): Promise<EmbedVideoResponseDto> {
@@ -391,6 +445,8 @@ export class VideosService {
     if (!this.isVideo(video)) {
       throw new NotFoundException('Video not found');
     }
+
+
 
     // Check if the video is accessible based on visibility settings
     if (video.visibility === Visibility.PRIVATE) {
@@ -449,16 +505,17 @@ export class VideosService {
         embedOptions,
       },
       duration: video.duration,
-      playback: {
-        hls: video.playbackUrl,
-        dash: video.playbackUrl ? video.playbackUrl.replace('.m3u8', '.mpd') : null,
-      },
+      playback: this.generatePlaybackUrls(video),
       ctaText: video.ctaText,
       ctaButtonText: video.ctaButtonText,
       ctaLink: video.ctaLink,
       ctaStartTime: video.ctaStartTime,
       ctaEndTime: video.ctaEndTime,
     };
+
+
+
+
 
     return {
       success: true,
@@ -657,7 +714,7 @@ export class VideosService {
   }
 
   /**
-   * Get upload URL (public endpoint)
+   * Get upload URL (public endpoint) - now uses provider factory
    */
   async getUploadUrl(dto: GetUploadUrlDto): Promise<GetUploadUrlResponseDto> {
     try {
@@ -668,55 +725,32 @@ export class VideosService {
 
       this.logger.log(`getUploadUrl called with organizationId: ${dto.organizationId}`);
 
-      // Verify the organization exists
-      const organization = await this.prisma.organization.findUnique({
-        where: { id: dto.organizationId },
+      // Get the appropriate provider for this organization
+      const provider = await this.providerFactory.getProvider(dto.organizationId);
+      
+      this.logger.log(`Using ${provider.name} provider for organization: ${dto.organizationId}`);
+
+      // Use provider to create upload URL
+      const result = await provider.createUploadUrl({
+        organizationId: dto.organizationId,
+        name: dto.name || 'Untitled',
+        description: dto.description || '',
+        visibility: dto.requireSignedURLs ? Visibility.PRIVATE : Visibility.PUBLIC,
+        tags: [],
+        requireSignedURLs: dto.requireSignedURLs,
+        maxDurationSeconds: dto.maxDurationSeconds,
       });
 
-      if (!organization) {
-        this.logger.error(`Organization with ID ${dto.organizationId} not found`);
-        throw new BadRequestException(`Organization with ID ${dto.organizationId} not found`);
-      }
-
-      this.logger.log(`Creating upload URL for organization: ${organization.name}`);
-
-      // Create an upload URL with MUX
-      try {
-        const result = await this.muxService.createDirectUploadUrl(
-          dto.name || 'Untitled',
-          dto.description || '',
-          dto.requireSignedURLs ? Visibility.PRIVATE : Visibility.PUBLIC,
-          [],
-          dto.organizationId
-        );
-        
-        // Verify the pending video was created
-        const pendingVideo = await this.prisma.pendingVideo.findUnique({
-          where: { id: result.videoId },
-        });
-        
-        if (!pendingVideo) {
-          this.logger.error(`PendingVideo with ID ${result.videoId} was not created`);
-          throw new InternalServerErrorException('Failed to create pending video record');
-        }
-        
-        this.logger.log(`Upload URL created successfully. PendingVideo ID: ${result.videoId}`);
-        
-        // Format the response to match the expected format
-        return {
-          success: true,
-          status: 200,
-          message: 'Upload URL created successfully',
-          data: {
-            success: true,
-            uploadURL: result.uploadUrl,
-            uid: result.videoId, // Using the pending video ID as uid
-          },
-        };
-      } catch (error) {
-        this.logger.error(`Error in muxService.createDirectUploadUrl: ${error.message}`, error.stack);
-        throw error;
-      }
+      return {
+        success: true,
+        status: 200,
+        message: 'Upload URL created successfully',
+        data: {
+          success: result.success,
+          uploadURL: result.uploadURL,
+          uid: result.uid,
+        },
+      };
     } catch (error) {
       this.logger.error(`Error getting upload URL: ${error.message}`, error.stack);
       if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
@@ -726,8 +760,250 @@ export class VideosService {
     }
   }
 
+  // Multipart upload flow
+  async multipartInit(dto: MultipartInitDto) {
+    if (!dto.organizationId) throw new BadRequestException('Organization ID is required');
+    const org = await this.prisma.organization.findUnique({ where: { id: dto.organizationId } });
+    if (!org) throw new BadRequestException('Organization not found');
+
+    const id = randomUUID();
+    const assetKey = `org/${dto.organizationId}/video/${id}`;
+    const sourceKey = `${assetKey}/uploads/input.mp4`;
+
+    await this.prisma.pendingVideo.create({
+      data: {
+        id,
+        name: dto.name || 'Untitled',
+        description: dto.description || '',
+        organizationId: dto.organizationId,
+        status: VideoStatus.PROCESSING,
+        tags: [],
+        visibility: Visibility.PUBLIC,
+      },
+    });
+
+    const { uploadId } = await this.r2.createMultipartUpload(sourceKey, dto.contentType || 'video/mp4');
+    return { success: true, data: { uid: id, key: sourceKey, uploadId } };
+  }
+
+  async multipartPartUrl(dto: MultipartPartUrlDto) {
+    if (!dto.key || !dto.uploadId || !dto.partNumber) throw new BadRequestException('Missing fields');
+    const url = await this.r2.getPresignedUploadPartUrl(dto.key, dto.uploadId, dto.partNumber);
+    return { success: true, data: { url } };
+  }
+
+  async multipartComplete(dto: MultipartCompleteDto) {
+    if (!dto.key || !dto.uploadId || !dto.parts?.length) throw new BadRequestException('Missing fields');
+    // Normalize parts to S3 format
+    const parts = dto.parts.map(p => ({ PartNumber: p.partNumber, ETag: p.eTag }));
+    await this.r2.completeMultipartUpload(dto.key, dto.uploadId, parts as any);
+
+    // Get provider and start transcode
+    const provider = await this.providerFactory.getProvider(dto.organizationId);
+    const assetKey = dto.key.split('/uploads/')[0];
+    
+    await provider.startTranscode({
+      videoId: dto.videoId,
+      organizationId: dto.organizationId,
+      assetKey,
+      sourcePath: dto.key,
+    });
+
+    return { success: true };
+  }
+
+  async multipartAbort(dto: MultipartAbortDto) {
+    if (!dto.key || !dto.uploadId) throw new BadRequestException('Missing fields');
+    await this.r2.abortMultipartUpload(dto.key, dto.uploadId);
+    return { success: true };
+  }
+
+  async handleTranscodeCallback(dto: any) {
+    try {
+      // Validate basic fields (videoId, assetKey, hlsMasterPath)
+      if (!dto?.videoId || !dto?.assetKey || !dto?.hlsMasterPath) {
+        throw new BadRequestException('Missing required fields');
+      }
+      // Normalize HLS master path to a relative path (e.g., "hls/master.m3u8")
+      const normalizedHlsPath = typeof dto.hlsMasterPath === 'string' && dto.hlsMasterPath.includes('/hls/')
+        ? dto.hlsMasterPath.substring(dto.hlsMasterPath.indexOf('hls/'))
+        : dto.hlsMasterPath;
+      // Normalize assetKey if the incoming hlsMasterPath was absolute
+      const normalizedAssetKey = typeof dto.hlsMasterPath === 'string' && dto.hlsMasterPath.includes('/hls/')
+        ? dto.hlsMasterPath.substring(0, dto.hlsMasterPath.indexOf('/hls/'))
+        : dto.assetKey;
+      let video = await this.prisma.video.findUnique({ where: { id: dto.videoId } });
+      if (!video) {
+        // Try convert PendingVideo -> Video
+        const pending = await this.prisma.pendingVideo.findUnique({ where: { id: dto.videoId } });
+        if (!pending) {
+          throw new NotFoundException('Video not found');
+        }
+        video = await this.prisma.video.create({
+          data: {
+            id: pending.id,
+            name: pending.name,
+            description: pending.description || '',
+            organizationId: pending.organizationId,
+            tags: pending.tags,
+            visibility: pending.visibility,
+            status: VideoStatus.PROCESSING,
+          },
+        });
+        // Best-effort delete pending
+        await this.prisma.pendingVideo.delete({ where: { id: pending.id } }).catch(() => undefined);
+      }
+
+      const updated = await this.prisma.video.update({
+        where: { id: video.id },
+        data: {
+          provider: 'INTERNAL',
+          assetKey: normalizedAssetKey,
+          playbackHlsPath: normalizedHlsPath,
+          thumbnailPath: dto.thumbnailPath || video.thumbnailUrl || null,
+          duration: dto.durationSeconds ?? video.duration,
+          status: VideoStatus.READY,
+        },
+      });
+
+      return { success: true, videoId: updated.id };
+    } catch (e) {
+      this.logger.error('handleTranscodeCallback error', e);
+      throw e;
+    }
+  }
+
+  async serveHlsFile(videoId: string, filename: string, res: any) {
+    try {
+      // Find video and validate access
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+        this.logger.error(`Video not found or not available: ${videoId}, provider: ${video?.provider}, assetKey: ${video?.assetKey}`);
+        throw new NotFoundException('Video not found or not available for streaming');
+      }
+
+      // Construct R2 path
+      const hlsPath = `${video.assetKey}/hls/${filename}`;
+      this.logger.log(`Attempting to serve HLS file: ${hlsPath}`);
+      
+      // Get file from R2
+      const { stream } = await this.r2.getObjectStream(hlsPath);
+      
+      // Set appropriate content type
+      let contentType = 'application/octet-stream';
+      if (filename.endsWith('.m3u8')) {
+        contentType = 'application/vnd.apple.mpegurl';
+      } else if (filename.endsWith('.ts')) {
+        contentType = 'video/mp2t';
+      }
+      
+      res.set({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600',
+        'Access-Control-Allow-Origin': '*'
+      });
+      
+      stream.pipe(res);
+    } catch (error) {
+      this.logger.error(`Error serving HLS file: ${error.message}`);
+      throw new NotFoundException('HLS file not found');
+    }
+  }
+
+  async serveThumbnail(videoId: string, res: any) {
+    try {
+      // Find video and validate access
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.thumbnailPath) {
+        throw new NotFoundException('Thumbnail not found');
+      }
+
+      // Construct R2 path
+      const thumbnailPath = `${video.assetKey}/${video.thumbnailPath}`;
+      
+      // Get file from R2
+      const { stream } = await this.r2.getObjectStream(thumbnailPath);
+      
+      res.set({
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*'
+      });
+      
+      stream.pipe(res);
+    } catch (error) {
+      this.logger.error(`Error serving thumbnail: ${error.message}`);
+      throw new NotFoundException('Thumbnail not found');
+    }
+  }
+
+  async serveThumbFile(videoId: string, filename: string, res: any) {
+    try {
+      // Find video and validate access
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+        throw new NotFoundException('Video not found or not available for streaming');
+      }
+
+      // Construct R2 path for thumbnail files
+      const thumbPath = `${video.assetKey}/thumbs/${filename}`;
+      
+      // Get file from R2
+      const { stream } = await this.r2.getObjectStream(thumbPath);
+      
+      // Set appropriate content type
+      let contentType = 'application/octet-stream';
+      if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (filename.endsWith('.vtt')) {
+        contentType = 'text/vtt';
+      } else if (filename.endsWith('.png')) {
+        contentType = 'image/png';
+      }
+      
+      res.set({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*'
+      });
+      
+      stream.pipe(res);
+    } catch (error) {
+      this.logger.error(`Error serving thumb file: ${error.message}`);
+      throw new NotFoundException('Thumbnail file not found');
+    }
+  }
+
   /**
-   * Get video status (public endpoint)
+   * Generate JWT token for video playback
+   */
+  async generatePlaybackToken(videoId: string, organizationId: string, expiryMinutes?: number) {
+    // Verify video exists and belongs to organization
+    const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+    if (!video) {
+      throw new NotFoundException('Video not found');
+    }
+    
+    if (video.organizationId !== organizationId) {
+      throw new ForbiddenException('Access denied to this video');
+    }
+
+    if (video.provider !== 'INTERNAL') {
+      throw new BadRequestException('Signed streaming is only available for internal videos');
+    }
+
+    const token = this.jwtPlayback.generatePlaybackToken(videoId, organizationId, expiryMinutes);
+    
+    return {
+      success: true,
+      token,
+      expiresIn: (expiryMinutes || 5) * 60, // in seconds
+      videoId,
+    };
+  }
+
+  /**
+   * Get video status (public endpoint) - now uses provider factory
    */
   async getVideoStatus(videoId: string): Promise<VideoStatusResponseDto> {
     try {
@@ -814,19 +1090,38 @@ export class VideosService {
           showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
         };
         
+        // Use different playback URLs based on provider
+        let hlsUrl = '';
+        let thumbnailUrl = '';
+        
+        if (video.provider === 'INTERNAL') {
+          // Use backend streaming endpoints (requires JWT token)
+          const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
+          hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`; // Client will need to add ?token=JWT
+          
+          if (video.thumbnailPath) {
+            thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`; // Client will need to add ?token=JWT
+          }
+        } else {
+          hlsUrl = video.playbackUrl || '';
+          thumbnailUrl = video.thumbnailUrl || '';
+        }
+          
+        const dashUrl = ''; // DASH not supported for internal videos yet
+
         return {
           success: true,
           video: {
             uid: video.id,
-            readyToStream: video.status === VideoStatus.READY,
+            readyToStream: video.status === VideoStatus.READY && !!hlsUrl,
             status: {
               state: this.mapVideoStatus(video.status)
             },
-            thumbnail: video.thumbnailUrl || '',
-            preview: video.thumbnailUrl || '',
+            thumbnail: thumbnailUrl,
+            preview: thumbnailUrl,
             playback: {
-              hls: video.playbackUrl || '',
-              dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+              hls: hlsUrl,
+              dash: dashUrl,
             },
             meta: {
               name: video.name,
@@ -1272,10 +1567,27 @@ export class VideosService {
       showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
     };
     
+    // Generate appropriate playback URLs based on provider
+    let hlsUrl = '';
+    let thumbnailUrl = video.thumbnailUrl || '';
+    
+    if (video.provider === 'INTERNAL') {
+      // Use backend streaming endpoints for internal videos
+      const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
+      hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`;
+      
+      if (video.thumbnailPath) {
+        thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
+      }
+    } else {
+      // Use MUX URLs for external videos
+      hlsUrl = video.playbackUrl || '';
+    }
+
     return {
       uid: video.id,
-      thumbnail: video.thumbnailUrl || '',
-      readyToStream: video.status === VideoStatus.READY,
+      thumbnail: thumbnailUrl,
+      readyToStream: video.status === VideoStatus.READY && !!hlsUrl,
       status: {
         state: this.mapVideoStatus(video.status),
       },
@@ -1288,10 +1600,10 @@ export class VideosService {
       modified: video.updatedAt.toISOString(),
       duration: video.duration || 0,
       size: 0, // MUX doesn't provide this directly
-      preview: video.thumbnailUrl || '',
+      preview: thumbnailUrl,
       playback: {
-        hls: video.playbackUrl || '',
-        dash: video.playbackUrl?.replace('.m3u8', '.mpd') || '',
+        hls: hlsUrl,
+        dash: hlsUrl ? hlsUrl.replace('.m3u8', '.mpd') : '', // DASH not supported for internal videos yet
       },
       ctaText: video.ctaText,
       ctaButtonText: video.ctaButtonText,
@@ -1299,5 +1611,220 @@ export class VideosService {
       ctaStartTime: video.ctaStartTime,
       ctaEndTime: video.ctaEndTime,
     };
+  }
+
+  /**
+   * Serve signed HLS master playlist with rewritten URLs
+   */
+  async serveSignedMasterPlaylist(videoId: string, token: string, res: any, req: any) {
+    try {
+      // Validate token
+      const payload = this.jwtPlayback.verifyPlaybackToken(token);
+      if (payload.videoId !== videoId) {
+        throw new UnauthorizedException('Token is not valid for this video');
+      }
+
+      // Find video and validate access
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.playbackHlsPath) {
+        throw new NotFoundException('Video not available for streaming');
+      }
+
+      // Get master playlist from R2
+      const masterPath = `${video.assetKey}/${video.playbackHlsPath}`;
+      const { stream } = await this.r2.getObjectStream(masterPath);
+      
+      // Read the entire playlist content
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk) => chunks.push(chunk));
+      
+      await new Promise((resolve, reject) => {
+        stream.on('end', resolve);
+        stream.on('error', reject);
+      });
+      
+      let content = Buffer.concat(chunks).toString('utf-8');
+      
+      // Rewrite URLs in master playlist to point to our signed endpoints
+      const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
+      
+      // Replace variant playlist URLs with signed URLs
+      content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
+      
+      res.set({
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*',
+        'ETag': `"${video.id}-${payload.iat}"`,
+      });
+      
+      res.send(content);
+    } catch (error) {
+      this.logger.error(`Error serving signed master playlist: ${error.message}`);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new NotFoundException('Master playlist not found');
+    }
+  }
+
+  /**
+   * Serve signed HLS segments
+   */
+  async serveSignedSegment(videoId: string, filename: string, token: string, res: any, req: any) {
+    try {
+      // Validate token
+      const payload = this.jwtPlayback.verifyPlaybackToken(token);
+      if (payload.videoId !== videoId) {
+        throw new UnauthorizedException('Token is not valid for this video');
+      }
+
+      // Find video and validate access
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+        throw new NotFoundException('Video not available for streaming');
+      }
+
+      // Handle both variant playlists and segments
+      let hlsPath: string;
+      let contentType: string;
+      
+      if (filename.endsWith('.m3u8')) {
+        // This is a variant playlist
+        hlsPath = `${video.assetKey}/hls/${filename}`;
+        contentType = 'application/vnd.apple.mpegurl';
+        
+        // Get playlist content and rewrite segment URLs
+        const { stream } = await this.r2.getObjectStream(hlsPath);
+        
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        
+        await new Promise((resolve, reject) => {
+          stream.on('end', resolve);
+          stream.on('error', reject);
+        });
+        
+        let content = Buffer.concat(chunks).toString('utf-8');
+        
+        // Rewrite segment URLs to include token
+        const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
+        content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
+        
+        res.set({
+          'Content-Type': contentType,
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+          'ETag': `"${filename}-${payload.iat}"`,
+        });
+        
+        res.send(content);
+        return;
+      } else if (filename.endsWith('.ts')) {
+        // This is a video segment
+        hlsPath = `${video.assetKey}/hls/${filename}`;
+        contentType = 'video/mp2t';
+      } else {
+        throw new NotFoundException('Invalid file type');
+      }
+      
+      // Stream the file directly from R2
+      const { stream } = await this.r2.getObjectStream(hlsPath);
+      
+      res.set({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600',
+        'Access-Control-Allow-Origin': '*',
+        'Accept-Ranges': 'bytes',
+        'ETag': `"${filename}-${video.id}"`,
+      });
+      
+      stream.pipe(res);
+    } catch (error) {
+      this.logger.error(`Error serving signed segment: ${error.message}`);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new NotFoundException('Segment not found');
+    }
+  }
+
+  /**
+   * Serve signed thumbnails
+   */
+  async serveSignedThumbnail(videoId: string, filename: string, token: string, res: any, req: any) {
+    try {
+      // Find video first
+      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
+        throw new NotFoundException('Video not available for streaming');
+      }
+
+      // Try to validate token if provided, but don't fail if invalid
+      if (token) {
+        try {
+          const payload = this.jwtPlayback.verifyPlaybackToken(token);
+          if (payload.videoId !== videoId) {
+            // Token is for different video, but continue anyway for thumbnails
+            console.log(`Token mismatch for thumbnail: expected ${videoId}, got ${payload.videoId}`);
+          }
+        } catch (tokenError) {
+          // Token is invalid, but continue for thumbnails
+          console.log(`Invalid token for thumbnail: ${tokenError.message}`);
+        }
+      }
+
+      // Construct R2 path for thumbnail files
+      const thumbPath = `${video.assetKey}/thumbs/${filename}`;
+      
+      try {
+        // Get file from R2
+        const { stream } = await this.r2.getObjectStream(thumbPath);
+        
+        // Set appropriate content type
+        let contentType = 'application/octet-stream';
+        if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (filename.endsWith('.vtt')) {
+          contentType = 'text/vtt';
+        } else if (filename.endsWith('.png')) {
+          contentType = 'image/png';
+        }
+        
+        res.set({
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=86400',
+          'Access-Control-Allow-Origin': '*',
+          'Accept-Ranges': 'bytes',
+          'ETag': `"${filename}-${video.id}"`,
+        });
+        
+        stream.pipe(res);
+      } catch (r2Error) {
+        // If thumbnail doesn't exist in R2, serve a placeholder
+        if (r2Error.message.includes('The specified key does not exist')) {
+          console.log(`Thumbnail not found in R2: ${thumbPath}, serving placeholder`);
+          
+          // Serve a simple SVG placeholder
+          const placeholderSvg = `<svg width="320" height="180" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#1f2937"/>
+            <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">No Thumbnail</text>
+          </svg>`;
+          
+          res.set({
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': '*',
+          });
+          
+          res.send(placeholderSvg);
+        } else {
+          throw r2Error;
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error serving signed thumbnail: ${error.message}`);
+      throw new NotFoundException('Thumbnail not found');
+    }
   }
 } 
