@@ -264,45 +264,71 @@ export class VideosService {
   }
 
   /**
-   * Delete a video
+   * Delete a video (full cleanup for INTERNAL provider)
    */
   async remove(id: string, organizationId: string): Promise<void> {
-    // Check if video exists and belongs to organization
+    // Validate ownership
     const video = await this.findOne(id, organizationId);
-    
+
+    this.logger.log(`Starting full deletion for video ${id}`);
     try {
-      // If we have a MUX asset ID, try to delete it from MUX
-      if (video.muxAssetId) {
-        try {
-          // Use organization MUX credentials if available
-          const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
-          
-          // Initialize MUX client
-          const muxClient = new Mux({
-            tokenId,
-            tokenSecret,
-          });
-          
-          // Try to delete the asset from MUX
-          await muxClient.video.assets.delete(video.muxAssetId);
-          this.logger.log(`Successfully deleted MUX asset: ${video.muxAssetId}`);
-        } catch (muxError) {
-          // If the asset doesn't exist in MUX (404), that's fine - it might have been deleted already
-          if (muxError.status === 404) {
-            this.logger.warn(`MUX asset ${video.muxAssetId} not found - it may have been deleted already`);
-          } else {
-            // For other MUX errors, log but don't fail the deletion
-            this.logger.error(`Error deleting MUX asset ${video.muxAssetId}:`, muxError.message);
+      // Best-effort: cancel transcode job if we track it (optional placeholder)
+      try {
+        // If your TranscodeQueue supports cancellation by videoId, call it here
+        if (this.transcodeQueue && (this.transcodeQueue as any).cancelByVideoId) {
+          await (this.transcodeQueue as any).cancelByVideoId(id).catch(() => undefined);
+          this.logger.log(`Best-effort cancel for transcode job of video ${id}`);
+        }
+      } catch {
+        // Ignore queue cancellation failures
+      }
+
+      // Delete provider artifacts (INTERNAL only)
+      if (video.provider === 'INTERNAL' && video.assetKey) {
+        const prefixesToDelete: string[] = [];
+        // HLS outputs
+        prefixesToDelete.push(`${video.assetKey}/hls/`);
+        // Thumbnails and VTTs
+        prefixesToDelete.push(`${video.assetKey}/thumbs/`);
+        // Source uploads (if we stored original)
+        prefixesToDelete.push(`${video.assetKey}/uploads/`);
+        // Any other leftover under assetKey
+        prefixesToDelete.push(`${video.assetKey}/`);
+
+        for (const prefix of prefixesToDelete) {
+          try {
+            await this.r2.deletePrefix(prefix);
+            this.logger.log(`Deleted R2 prefix: ${prefix}`);
+          } catch (e) {
+            this.logger.warn(`Failed deleting R2 prefix ${prefix}: ${e.message}`);
           }
         }
       }
-      
-      // Delete video from database
-      await this.prisma.video.delete({
-        where: { id },
+
+      // DB cleanup in a transaction
+      await this.prisma.$transaction(async (tx) => {
+        // Delete analytics events tied to this video
+        try {
+          await (tx as any).videoPlaybackEvent.deleteMany({ where: { videoId: id } });
+          this.logger.log(`Deleted analytics events for video ${id}`);
+        } catch (e) {
+          this.logger.warn(`Failed deleting analytics events for video ${id}: ${e.message}`);
+        }
+
+        // Delete pending video (if any)
+        try {
+          await tx.pendingVideo.delete({ where: { id } });
+          this.logger.log(`Deleted pendingVideo ${id}`);
+        } catch {
+          // Ignore when not present
+        }
+
+        // Finally delete the video row
+        await tx.video.delete({ where: { id } });
+        this.logger.log(`Deleted video row ${id}`);
       });
-      
-      this.logger.log(`Successfully deleted video: ${id}`);
+
+      this.logger.log(`Full deletion completed for video ${id}`);
     } catch (error) {
       this.logger.error('Error removing video:', error);
       throw new BadRequestException(`Failed to remove video: ${error.message}`);

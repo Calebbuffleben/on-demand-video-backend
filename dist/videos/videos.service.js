@@ -202,30 +202,50 @@ let VideosService = VideosService_1 = class VideosService {
     }
     async remove(id, organizationId) {
         const video = await this.findOne(id, organizationId);
+        this.logger.log(`Starting full deletion for video ${id}`);
         try {
-            if (video.muxAssetId) {
-                try {
-                    const { tokenId, tokenSecret } = await this.muxService.getMuxCredentials(organizationId);
-                    const muxClient = new mux_node_1.default({
-                        tokenId,
-                        tokenSecret,
-                    });
-                    await muxClient.video.assets.delete(video.muxAssetId);
-                    this.logger.log(`Successfully deleted MUX asset: ${video.muxAssetId}`);
+            try {
+                if (this.transcodeQueue && this.transcodeQueue.cancelByVideoId) {
+                    await this.transcodeQueue.cancelByVideoId(id).catch(() => undefined);
+                    this.logger.log(`Best-effort cancel for transcode job of video ${id}`);
                 }
-                catch (muxError) {
-                    if (muxError.status === 404) {
-                        this.logger.warn(`MUX asset ${video.muxAssetId} not found - it may have been deleted already`);
+            }
+            catch {
+            }
+            if (video.provider === 'INTERNAL' && video.assetKey) {
+                const prefixesToDelete = [];
+                prefixesToDelete.push(`${video.assetKey}/hls/`);
+                prefixesToDelete.push(`${video.assetKey}/thumbs/`);
+                prefixesToDelete.push(`${video.assetKey}/uploads/`);
+                prefixesToDelete.push(`${video.assetKey}/`);
+                for (const prefix of prefixesToDelete) {
+                    try {
+                        await this.r2.deletePrefix(prefix);
+                        this.logger.log(`Deleted R2 prefix: ${prefix}`);
                     }
-                    else {
-                        this.logger.error(`Error deleting MUX asset ${video.muxAssetId}:`, muxError.message);
+                    catch (e) {
+                        this.logger.warn(`Failed deleting R2 prefix ${prefix}: ${e.message}`);
                     }
                 }
             }
-            await this.prisma.video.delete({
-                where: { id },
+            await this.prisma.$transaction(async (tx) => {
+                try {
+                    await tx.videoPlaybackEvent.deleteMany({ where: { videoId: id } });
+                    this.logger.log(`Deleted analytics events for video ${id}`);
+                }
+                catch (e) {
+                    this.logger.warn(`Failed deleting analytics events for video ${id}: ${e.message}`);
+                }
+                try {
+                    await tx.pendingVideo.delete({ where: { id } });
+                    this.logger.log(`Deleted pendingVideo ${id}`);
+                }
+                catch {
+                }
+                await tx.video.delete({ where: { id } });
+                this.logger.log(`Deleted video row ${id}`);
             });
-            this.logger.log(`Successfully deleted video: ${id}`);
+            this.logger.log(`Full deletion completed for video ${id}`);
         }
         catch (error) {
             this.logger.error('Error removing video:', error);
