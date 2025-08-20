@@ -77,7 +77,7 @@ let AuthGuard = class AuthGuard {
         }
     }
     extractToken(request) {
-        const cookieToken = request.cookies?.scale_token || request.cookies?.token;
+        const cookieToken = request.cookies?.scale_token;
         if (cookieToken) {
             return cookieToken;
         }

@@ -103,9 +103,9 @@ export declare class VideosController {
         description: string | null;
         name: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
         ctaButtonText: string | null;
@@ -162,9 +162,9 @@ export declare class VideosController {
         description: string | null;
         name: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
         ctaButtonText: string | null;
@@ -216,9 +216,9 @@ export declare class VideosController {
         description: string | null;
         name: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         visibility: import(".prisma/client").$Enums.Visibility;
         ctaText: string | null;
         ctaButtonText: string | null;
@@ -321,9 +321,9 @@ export declare class VideosController {
             description: string | null;
             name: string;
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             visibility: import(".prisma/client").$Enums.Visibility;
             ctaText: string | null;
             ctaButtonText: string | null;
@@ -380,9 +380,9 @@ export declare class VideosController {
                 description: string | null;
                 name: string;
                 id: string;
+                organizationId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
                 visibility: import(".prisma/client").$Enums.Visibility;
                 ctaText: string | null;
                 ctaButtonText: string | null;

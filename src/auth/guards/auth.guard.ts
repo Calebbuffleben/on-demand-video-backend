@@ -88,7 +88,7 @@ export class AuthGuard implements CanActivate {
 
   private extractToken(request: Request): string | undefined {
     // Prefer cookie first (httpOnly session), then Authorization header
-    const cookieToken = request.cookies?.scale_token || request.cookies?.token;
+    const cookieToken = request.cookies?.scale_token;
     if (cookieToken) {
       return cookieToken;
     }

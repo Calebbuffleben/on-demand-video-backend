@@ -15,8 +15,8 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const config_1 = require("@nestjs/config");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const crypto_1 = require("crypto");
 const mail_service_1 = require("../mail/mail.service");
+const crypto_1 = require("crypto");
 let AuthService = class AuthService {
     prisma;
     configService;
@@ -46,6 +46,67 @@ let AuthService = class AuthService {
         return jwt.sign(payload, secret, {
             expiresIn: this.configService.get('JWT_EXPIRES_IN', '7d')
         });
+    }
+    async issueRefreshToken(userId, organizationId) {
+        const raw = (0, crypto_1.randomBytes)(48).toString('hex');
+        const hashed = this.hashRefreshToken(raw);
+        const expiresAt = new Date(Date.now() + this.getRefreshTtlMs());
+        await this.prisma.refreshToken.create({
+            data: {
+                userId,
+                organizationId: organizationId || null,
+                hashedToken: hashed,
+                expiresAt,
+            }
+        });
+        return raw;
+    }
+    hashRefreshToken(raw) {
+        return (0, crypto_1.createHash)('sha256').update(raw).digest('hex');
+    }
+    getRefreshTtlMs() {
+        const days = Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30);
+        return days * 24 * 60 * 60 * 1000;
+    }
+    async refreshSession(oldRaw) {
+        const hashed = this.hashRefreshToken(oldRaw);
+        const record = await this.prisma.refreshToken.findUnique({ where: { hashedToken: hashed } });
+        if (!record || record.revokedAt || record.expiresAt < new Date()) {
+            throw new common_1.UnauthorizedException('Invalid refresh token');
+        }
+        const user = await this.prisma.user.findUnique({ where: { id: record.userId } });
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        let organization = null;
+        if (record.organizationId) {
+            const org = await this.prisma.organization.findUnique({ where: { id: record.organizationId } });
+            if (!org)
+                throw new common_1.UnauthorizedException('Organization not found');
+            organization = { id: org.id, name: org.name, slug: org.slug };
+        }
+        else {
+            const userOrg = await this.prisma.userOrganization.findFirst({ where: { userId: user.id }, include: { organization: true } });
+            if (!userOrg)
+                throw new common_1.UnauthorizedException('Organization not found');
+            organization = { id: userOrg.organization.id, name: userOrg.organization.name, slug: userOrg.organization.slug };
+        }
+        await this.prisma.refreshToken.update({ where: { hashedToken: hashed }, data: { revokedAt: new Date() } });
+        const newRefresh = await this.issueRefreshToken(user.id, organization.id);
+        const newAccess = this.generateToken(user.id, organization.id);
+        return {
+            token: newAccess,
+            refreshToken: newRefresh,
+            user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+            organization,
+        };
+    }
+    async revokeRefreshToken(raw) {
+        try {
+            const hashed = this.hashRefreshToken(raw);
+            await this.prisma.refreshToken.update({ where: { hashedToken: hashed }, data: { revokedAt: new Date() } });
+        }
+        catch { }
     }
     generateSlug(email) {
         const base = email.split('@')[0];
@@ -92,6 +153,7 @@ let AuthService = class AuthService {
             return { user, organization };
         });
         const token = this.generateToken(result.user.id, result.organization.id);
+        const refreshToken = await this.issueRefreshToken(result.user.id, result.organization.id);
         return {
             user: {
                 id: result.user.id,
@@ -104,7 +166,8 @@ let AuthService = class AuthService {
                 name: result.organization.name,
                 slug: result.organization.slug,
             },
-            token
+            token,
+            refreshToken
         };
     }
     async login(loginDto) {
@@ -137,6 +200,7 @@ let AuthService = class AuthService {
             data: { lastLogin: new Date() }
         });
         const token = this.generateToken(user.id, userOrg.organization.id);
+        const refreshToken = await this.issueRefreshToken(user.id, userOrg.organization.id);
         return {
             user: {
                 id: user.id,
@@ -149,7 +213,8 @@ let AuthService = class AuthService {
                 name: userOrg.organization.name,
                 slug: userOrg.organization.slug,
             },
-            token
+            token,
+            refreshToken
         };
     }
     async requestEmailVerification(email) {

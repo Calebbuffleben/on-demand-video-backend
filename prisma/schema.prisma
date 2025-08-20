@@ -22,6 +22,7 @@ model Organization {
   subscription   Subscription?
   users          UserOrganization[]
   videos         Video[]
+  refreshTokens  RefreshToken[]
 
   @@index([clerkId])
   @@index([slug])
@@ -41,6 +42,7 @@ model User {
   organizations UserOrganization[]
   emailTokens   EmailVerificationToken[]
   passwordTokens PasswordResetToken[]
+  refreshTokens RefreshToken[]
 }
 
 model UserOrganization {
@@ -302,6 +304,22 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id              String        @id @default(uuid())
+  userId          String
+  organizationId  String?
+  hashedToken     String        @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdAt       DateTime      @default(now())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
