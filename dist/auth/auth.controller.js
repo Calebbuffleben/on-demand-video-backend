@@ -30,11 +30,21 @@ let AuthController = class AuthController {
         res.cookie('scale_token', result.token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
             domain: process.env.COOKIE_DOMAIN || undefined,
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
+        if (result.refreshToken) {
+            res.cookie('scale_refresh', result.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+                domain: process.env.COOKIE_DOMAIN || undefined,
+                path: '/',
+                maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+            });
+        }
         res.status(common_1.HttpStatus.CREATED).json({
             user: result.user,
             organization: result.organization,
@@ -48,11 +58,21 @@ let AuthController = class AuthController {
             res.cookie('scale_token', result.token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
                 domain: process.env.COOKIE_DOMAIN || undefined,
                 path: '/',
                 maxAge: 7 * 24 * 60 * 60 * 1000,
             });
+            if (result.refreshToken) {
+                res.cookie('scale_refresh', result.refreshToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
+                    domain: process.env.COOKIE_DOMAIN || undefined,
+                    path: '/',
+                    maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+                });
+            }
             res.json({
                 user: result.user,
                 organization: result.organization,
@@ -73,15 +93,62 @@ let AuthController = class AuthController {
             throw err;
         }
     }
-    async logout(res) {
+    async logout(req, res) {
         res.clearCookie('scale_token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
+            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
+            domain: process.env.COOKIE_DOMAIN || undefined,
+            path: '/',
+        });
+        const refresh = req.cookies?.scale_refresh;
+        if (refresh) {
+            try {
+                await this.authService.revokeRefreshToken(refresh);
+            }
+            catch { }
+        }
+        res.clearCookie('scale_refresh', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
             domain: process.env.COOKIE_DOMAIN || undefined,
             path: '/',
         });
         res.json({ message: 'Logged out successfully' });
+    }
+    async refresh(req, res) {
+        const refresh = req.cookies?.scale_refresh;
+        if (!refresh) {
+            return res.status(common_1.HttpStatus.UNAUTHORIZED).json({ message: 'No refresh token' });
+        }
+        try {
+            const result = await this.authService.refreshSession(refresh);
+            res.cookie('scale_token', result.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
+                domain: process.env.COOKIE_DOMAIN || undefined,
+                path: '/',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+            res.cookie('scale_refresh', result.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
+                domain: process.env.COOKIE_DOMAIN || undefined,
+                path: '/',
+                maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+            });
+            return res.json({
+                user: result.user,
+                organization: result.organization,
+                token: result.token,
+            });
+        }
+        catch (e) {
+            return res.status(common_1.HttpStatus.UNAUTHORIZED).json({ message: 'Invalid refresh token' });
+        }
     }
     async getProfile(req) {
         return {
@@ -145,11 +212,22 @@ __decorate([
     (0, common_1.Post)('logout'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
     (0, swagger_1.ApiOperation)({ summary: 'Logout user' }),
-    __param(0, (0, common_1.Res)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('refresh'),
+    (0, swagger_1.ApiOperation)({ summary: 'Refresh access token using refresh token cookie' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "refresh", null);
 __decorate([
     (0, common_1.Get)('me'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),

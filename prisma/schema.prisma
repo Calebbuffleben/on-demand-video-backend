@@ -22,6 +22,7 @@ model Organization {
   subscription   Subscription?
   users          UserOrganization[]
   videos         Video[]
+  refreshTokens  RefreshToken[]
 
   @@index([clerkId])
   @@index([slug])
@@ -41,6 +42,7 @@ model User {
   organizations UserOrganization[]
   emailTokens   EmailVerificationToken[]
   passwordTokens PasswordResetToken[]
+  refreshTokens RefreshToken[]
 }
 
 model UserOrganization {
@@ -65,6 +67,12 @@ model Video {
   duration               Int?
   thumbnailUrl           String?
   playbackUrl            String?
+  // New generic provider fields (internal pipeline)
+  provider               VideoProvider   @default(INTERNAL)
+  assetKey               String?
+  jobId                  String?
+  playbackHlsPath        String?
+  thumbnailPath          String?
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
   isLive                 Boolean         @default(false)
@@ -106,6 +114,7 @@ model Video {
   showSoundControl       Boolean?        @default(false)
   organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   analytics              VideoAnalytics?
+  playbackEvents         VideoPlaybackEvent[]
 }
 
 model PendingVideo {
@@ -213,6 +222,28 @@ model AnalyticsCache {
   @@index([expiresAt])
 }
 
+/// Raw playback events collected from clients for analytics
+model VideoPlaybackEvent {
+  id             String   @id @default(uuid())
+  videoId        String
+  organizationId String?
+  userId         String?
+  sessionId      String?
+  clientId       String?
+  eventType      String
+  currentTime    Int      @default(0)
+  duration       Int      @default(0)
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, createdAt])
+  @@index([videoId, sessionId])
+  @@index([eventType])
+}
+
 enum Role {
   OWNER
   ADMIN
@@ -247,6 +278,11 @@ enum Visibility {
   ORGANIZATION
 }
 
+enum VideoProvider {
+  INTERNAL
+  MUX
+}
+
 model EmailVerificationToken {
   id        String   @id @default(uuid())
   userId    String
@@ -268,6 +304,22 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id              String        @id @default(uuid())
+  userId          String
+  organizationId  String?
+  hashedToken     String        @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdAt       DateTime      @default(now())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])

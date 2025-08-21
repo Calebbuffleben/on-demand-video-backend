@@ -25,6 +25,8 @@ let AuthGuard = class AuthGuard {
         this.prisma = prisma;
     }
     async canActivate(context) {
+        const request = context.switchToHttp().getRequest();
+        const path = request.path;
         const isPublic = this.reflector.getAllAndOverride(public_decorator_1.IS_PUBLIC_KEY, [
             context.getHandler(),
             context.getClass(),
@@ -32,7 +34,6 @@ let AuthGuard = class AuthGuard {
         if (isPublic) {
             return true;
         }
-        const request = context.switchToHttp().getRequest();
         const token = this.extractToken(request);
         if (!token) {
             throw new common_1.UnauthorizedException('Authentication token is missing');
@@ -76,7 +77,7 @@ let AuthGuard = class AuthGuard {
         }
     }
     extractToken(request) {
-        const cookieToken = request.cookies?.scale_token || request.cookies?.token;
+        const cookieToken = request.cookies?.scale_token;
         if (cookieToken) {
             return cookieToken;
         }

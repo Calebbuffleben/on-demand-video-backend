@@ -20,9 +20,9 @@ export declare class SubscriptionsController {
         status: string;
         subscription: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             status: import(".prisma/client").$Enums.SubscriptionStatus;
             planType: import(".prisma/client").$Enums.PlanType;
             stripeCustomerId: string | null;
@@ -84,9 +84,9 @@ export declare class SubscriptionsController {
         status: string;
         subscription: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             status: import(".prisma/client").$Enums.SubscriptionStatus;
             planType: import(".prisma/client").$Enums.PlanType;
             stripeCustomerId: string | null;

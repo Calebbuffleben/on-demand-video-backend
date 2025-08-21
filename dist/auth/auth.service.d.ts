@@ -22,6 +22,7 @@ interface AuthResponse {
         slug: string | null;
     };
     token: string;
+    refreshToken?: string;
 }
 export declare class AuthService {
     private prisma;
@@ -31,6 +32,16 @@ export declare class AuthService {
     private hashPassword;
     private comparePassword;
     private generateToken;
+    private issueRefreshToken;
+    private hashRefreshToken;
+    private getRefreshTtlMs;
+    refreshSession(oldRaw: string): Promise<{
+        token: string;
+        refreshToken: string;
+        user: AuthResponse['user'];
+        organization: AuthResponse['organization'];
+    }>;
+    revokeRefreshToken(raw: string): Promise<void>;
     private generateSlug;
     private buildFrontendUrl;
     register(registerDto: RegisterDto): Promise<AuthResponse>;
@@ -53,8 +64,8 @@ export declare class AuthService {
             description: string | null;
             name: string;
             id: string;
-            clerkId: string | null;
             createdAt: Date;
+            clerkId: string | null;
             updatedAt: Date;
             slug: string | null;
             muxTokenId: string | null;
@@ -62,10 +73,10 @@ export declare class AuthService {
         };
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         userId: string;
         organizationId: string;
+        createdAt: Date;
+        updatedAt: Date;
         role: import(".prisma/client").$Enums.Role;
     })[]>;
 }

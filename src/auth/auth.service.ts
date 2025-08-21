@@ -6,8 +6,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
-import { randomBytes } from 'crypto';
 import { MailService } from '../mail/mail.service';
+import { createHash, randomBytes } from 'crypto';
 
 interface JwtPayload {
   userId: string;
@@ -28,6 +28,7 @@ interface AuthResponse {
     slug: string | null;
   };
   token: string;
+  refreshToken?: string;
 }
 
 @Injectable()
@@ -75,6 +76,81 @@ export class AuthService {
         expiresIn: this.configService.get('JWT_EXPIRES_IN', '7d') 
       }
     );
+  }
+
+  /**
+   * Generate a long-lived refresh token (opaque) and store its hash
+   */
+  private async issueRefreshToken(userId: string, organizationId?: string | null): Promise<string> {
+    const raw = randomBytes(48).toString('hex');
+    const hashed = this.hashRefreshToken(raw);
+    const expiresAt = new Date(Date.now() + this.getRefreshTtlMs());
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        organizationId: organizationId || null,
+        hashedToken: hashed,
+        expiresAt,
+      }
+    });
+
+    return raw;
+  }
+
+  private hashRefreshToken(raw: string): string {
+    return createHash('sha256').update(raw).digest('hex');
+  }
+
+  private getRefreshTtlMs(): number {
+    const days = Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30);
+    return days * 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Verify and rotate a refresh token, returning new access token and new refresh token
+   */
+  async refreshSession(oldRaw: string): Promise<{ token: string; refreshToken: string; user: AuthResponse['user']; organization: AuthResponse['organization'] }> {
+    const hashed = this.hashRefreshToken(oldRaw);
+    const record = await this.prisma.refreshToken.findUnique({ where: { hashedToken: hashed } });
+    if (!record || record.revokedAt || record.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: record.userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    let organization = null as AuthResponse['organization'] | null;
+    if (record.organizationId) {
+      const org = await this.prisma.organization.findUnique({ where: { id: record.organizationId } });
+      if (!org) throw new UnauthorizedException('Organization not found');
+      organization = { id: org.id, name: org.name, slug: org.slug };
+    } else {
+      const userOrg = await this.prisma.userOrganization.findFirst({ where: { userId: user.id }, include: { organization: true } });
+      if (!userOrg) throw new UnauthorizedException('Organization not found');
+      organization = { id: userOrg.organization.id, name: userOrg.organization.name, slug: userOrg.organization.slug };
+    }
+
+    // Rotate: revoke old and create new
+    await this.prisma.refreshToken.update({ where: { hashedToken: hashed }, data: { revokedAt: new Date() } });
+    const newRefresh = await this.issueRefreshToken(user.id, organization.id);
+    const newAccess = this.generateToken(user.id, organization.id);
+
+    return {
+      token: newAccess,
+      refreshToken: newRefresh,
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+      organization,
+    };
+  }
+
+  async revokeRefreshToken(raw: string): Promise<void> {
+    try {
+      const hashed = this.hashRefreshToken(raw);
+      await this.prisma.refreshToken.update({ where: { hashedToken: hashed }, data: { revokedAt: new Date() } });
+    } catch {}
   }
 
   /**
@@ -145,8 +221,9 @@ export class AuthService {
       return { user, organization };
     });
 
-    // 4. Generate JWT token
+    // 4. Generate session tokens
     const token = this.generateToken(result.user.id, result.organization.id);
+    const refreshToken = await this.issueRefreshToken(result.user.id, result.organization.id);
 
     return {
       user: {
@@ -160,7 +237,8 @@ export class AuthService {
         name: result.organization.name,
         slug: result.organization.slug,
       },
-      token
+      token,
+      refreshToken
     };
   }
 
@@ -210,8 +288,9 @@ export class AuthService {
       data: { lastLogin: new Date() }
     });
 
-    // Generate JWT token
+    // Generate session tokens
     const token = this.generateToken(user.id, userOrg.organization.id);
+    const refreshToken = await this.issueRefreshToken(user.id, userOrg.organization.id);
 
     return {
       user: {
@@ -225,7 +304,8 @@ export class AuthService {
         name: userOrg.organization.name,
         slug: userOrg.organization.slug,
       },
-      token
+      token,
+      refreshToken
     };
   }
 

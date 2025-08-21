@@ -30,6 +30,8 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const crypto_1 = require("crypto");
 const mux_webhook_controller_1 = require("../providers/mux/mux-webhook.controller");
 const upload_service_1 = require("./upload.service");
+const transcode_callback_dto_1 = require("./dto/transcode-callback.dto");
+const multipart_dto_1 = require("./dto/multipart.dto");
 let VideosController = VideosController_1 = class VideosController {
     videosService;
     prismaService;
@@ -41,6 +43,66 @@ let VideosController = VideosController_1 = class VideosController {
         this.prismaService = prismaService;
         this.muxWebhookController = muxWebhookController;
         this.uploadService = uploadService;
+    }
+    async generateTestPlaybackToken(videoId, body) {
+        const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+        return this.videosService.generatePlaybackToken(videoId, testOrganizationId, body.expiryMinutes);
+    }
+    async serveHls(videoId, filename, res) {
+        return this.videosService.serveHlsFile(videoId, filename, res);
+    }
+    async serveSignedMasterPlaylist(videoId, token, res, req) {
+        if (!token) {
+            try {
+                const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+                const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+                token = tokenResult.token;
+                console.log('Generated test token for video:', videoId);
+            }
+            catch (error) {
+                console.error('Failed to generate test token:', error.message);
+                throw error;
+            }
+        }
+        return this.videosService.serveSignedMasterPlaylist(videoId, token, res, req);
+    }
+    async serveSignedSegment(videoId, filename, token, res, req) {
+        if (!token) {
+            try {
+                const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+                const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+                token = tokenResult.token;
+                console.log('Generated test token for segment:', filename);
+            }
+            catch (error) {
+                console.error('Failed to generate test token for segment:', error.message);
+                throw error;
+            }
+        }
+        return this.videosService.serveSignedSegment(videoId, filename, token, res, req);
+    }
+    async serveSignedThumbnail(videoId, filename, token, res, req) {
+        if (!token) {
+            try {
+                const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
+                const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
+                token = tokenResult.token;
+                console.log('Generated test token for thumbnail:', filename);
+            }
+            catch (error) {
+                console.error('Failed to generate test token for thumbnail:', error.message);
+            }
+        }
+        return this.videosService.serveSignedThumbnail(videoId, filename, token, res, req);
+    }
+    async serveThumbnail(videoId, res) {
+        return this.videosService.serveThumbnail(videoId, res);
+    }
+    async serveThumbFile(videoId, filename, res) {
+        return this.videosService.serveThumbFile(videoId, filename, res);
+    }
+    async generatePlaybackToken(videoId, body, req) {
+        return this.videosService.generatePlaybackToken(videoId, req.organizationId, body.expiryMinutes);
     }
     async findAllOrganizationVideos(req) {
         const organizationId = req.organization.id;
@@ -73,6 +135,14 @@ let VideosController = VideosController_1 = class VideosController {
             throw new common_1.BadRequestException(`Failed to connect to Cloudflare Stream API: ${error.message}`);
         }
     }
+    async getAvailableProviders(req) {
+        const organizationId = req.organization.id;
+        return this.videosService.getAvailableProviders(organizationId);
+    }
+    async testAllProviders(req) {
+        const organizationId = req.organization.id;
+        return this.videosService.testAllProviders(organizationId);
+    }
     async findOrgVideo(id, req) {
         const organizationId = req.organization.id;
         return this.videosService.findOne(id, organizationId);
@@ -102,6 +172,9 @@ let VideosController = VideosController_1 = class VideosController {
             throw new common_1.BadRequestException('Failed to process webhook');
         }
     }
+    async transcodeCallback(dto) {
+        return this.videosService.handleTranscodeCallback(dto);
+    }
     async getCloudflareUploadUrl(dto, req) {
         const organizationId = req['organization']?.id || dto.organizationId;
         if (!organizationId) {
@@ -109,26 +182,28 @@ let VideosController = VideosController_1 = class VideosController {
         }
         return this.videosService.getUploadUrl({ ...dto, organizationId });
     }
+    async multipartInit(dto, req) {
+        const organizationId = req.organization?.id || dto.organizationId;
+        return this.videosService.multipartInit({ ...dto, organizationId });
+    }
+    async multipartPartUrl(dto) {
+        return this.videosService.multipartPartUrl(dto);
+    }
+    async multipartComplete(dto, req) {
+        const organizationId = req.organization?.id || dto.organizationId;
+        return this.videosService.multipartComplete({ ...dto, organizationId });
+    }
+    async multipartAbort(dto) {
+        return this.videosService.multipartAbort(dto);
+    }
     async getVideoStatus(uid) {
         return this.videosService.getVideoStatus(uid);
     }
+    async getVideoStatusAlias(id) {
+        return this.videosService.getVideoStatus(id);
+    }
     async getAllCloudflareVideos() {
         return this.videosService.getAllVideos();
-    }
-    async getVideoByUid(uid) {
-        return this.videosService.getVideoByUid(uid);
-    }
-    async testOrgCloudflare(req) {
-        const organizationId = req.organization.id;
-        return this.videosService.testCloudflareConnection(organizationId);
-    }
-    async updateOrgCloudflareSettings(updateOrgCloudflareDto, req) {
-        const organizationId = req.organization.id;
-        return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
-    }
-    async getOrgCloudflareSettings(req) {
-        const organizationId = req.organization.id;
-        return this.videosService.getOrgCloudflareSettings(organizationId);
     }
     async getVideoForEmbed(uid, req, res) {
         res.header('Access-Control-Allow-Origin', '*');
@@ -156,11 +231,26 @@ let VideosController = VideosController_1 = class VideosController {
             success: true,
             message: 'CORS test successful',
             timestamp: new Date().toISOString(),
-            origin: req.headers.origin || 'No origin',
+            origin: req.headers['origin'] || 'No origin',
             userAgent: req.headers['user-agent'] || 'No user agent',
             method: req.method,
             url: req.url
         });
+    }
+    async getVideoByUid(uid) {
+        return this.videosService.getVideoByUid(uid);
+    }
+    async testOrgCloudflare(req) {
+        const organizationId = req.organization.id;
+        return this.videosService.testCloudflareConnection(organizationId);
+    }
+    async updateOrgCloudflareSettings(updateOrgCloudflareDto, req) {
+        const organizationId = req.organization.id;
+        return this.videosService.updateOrgCloudflareSettings(updateOrgCloudflareDto, organizationId);
+    }
+    async getOrgCloudflareSettings(req) {
+        const organizationId = req.organization.id;
+        return this.videosService.getOrgCloudflareSettings(organizationId);
     }
     async testUpload(dto) {
         this.logger.log(`Received test upload request with data: ${JSON.stringify(dto)}`);
@@ -343,6 +433,105 @@ let VideosController = VideosController_1 = class VideosController {
 };
 exports.VideosController = VideosController;
 __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)(':videoId/test-playback-token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Generate JWT token for video playback (TEST - PUBLIC)' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Playback token generated successfully.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "generateTestPlaybackToken", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stream/:videoId/hls/:filename'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve HLS files for internal videos' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'HLS file content.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Param)('filename')),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveHls", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stream/:videoId/master.m3u8'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve signed HLS master playlist' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'HLS master playlist with signed URLs.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Query)('token')),
+    __param(2, (0, common_1.Res)()),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveSignedMasterPlaylist", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stream/:videoId/seg/:filename'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve HLS segments with token validation' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'HLS segment content.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Param)('filename')),
+    __param(2, (0, common_1.Query)('token')),
+    __param(3, (0, common_1.Res)()),
+    __param(4, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveSignedSegment", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('thumb/:videoId/:filename'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve thumbnails with token validation' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Thumbnail content.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Param)('filename')),
+    __param(2, (0, common_1.Query)('token')),
+    __param(3, (0, common_1.Res)()),
+    __param(4, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveSignedThumbnail", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stream/:videoId/thumbnail'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve thumbnail for internal videos' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Thumbnail image.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveThumbnail", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stream/:videoId/thumbs/:filename'),
+    (0, swagger_1.ApiOperation)({ summary: 'Serve thumbnail sprites and VTT files for internal videos' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Thumbnail sprite or VTT file.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Param)('filename')),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "serveThumbFile", null);
+__decorate([
+    (0, common_1.Post)(':videoId/playback-token'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Generate JWT token for video playback' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Playback token generated successfully.' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "generatePlaybackToken", null);
+__decorate([
     (0, common_1.Get)('organization'),
     (0, organization_scoped_decorator_1.OrganizationScoped)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get all videos for the authenticated organization' }),
@@ -361,6 +550,26 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "testCloudflareConnection", null);
+__decorate([
+    (0, common_1.Get)('organization/providers'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get available video providers for the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Available providers list.' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getAvailableProviders", null);
+__decorate([
+    (0, common_1.Post)('organization/test-providers'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Test all available video providers for the organization' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Provider test results.' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "testAllProviders", null);
 __decorate([
     (0, common_1.Get)('organization/:id'),
     (0, organization_scoped_decorator_1.OrganizationScoped)(),
@@ -434,6 +643,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "webhook", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('transcode/callback'),
+    (0, swagger_1.ApiOperation)({ summary: 'Internal callback when FFmpeg worker finishes transcode' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Callback processed.' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [transcode_callback_dto_1.TranscodeCallbackDto]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "transcodeCallback", null);
+__decorate([
     (0, common_1.Post)('get-upload-url'),
     (0, swagger_1.ApiOperation)({ summary: 'Get a direct upload URL for MUX' }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Returns an upload URL and video ID.' }),
@@ -443,6 +662,47 @@ __decorate([
     __metadata("design:paramtypes", [get_upload_url_dto_1.GetUploadUrlDto, Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getCloudflareUploadUrl", null);
+__decorate([
+    (0, common_1.Post)('multipart/init'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Init multipart upload and create PendingVideo' }),
+    (0, swagger_1.ApiResponse)({ status: 200 }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [multipart_dto_1.MultipartInitDto, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "multipartInit", null);
+__decorate([
+    (0, common_1.Post)('multipart/part-url'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get presigned URL for a specific part' }),
+    (0, swagger_1.ApiResponse)({ status: 200 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [multipart_dto_1.MultipartPartUrlDto]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "multipartPartUrl", null);
+__decorate([
+    (0, common_1.Post)('multipart/complete'),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Complete multipart upload and enqueue transcode' }),
+    (0, swagger_1.ApiResponse)({ status: 200 }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [multipart_dto_1.MultipartCompleteDto, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "multipartComplete", null);
+__decorate([
+    (0, common_1.Post)('multipart/abort'),
+    (0, swagger_1.ApiOperation)({ summary: 'Abort multipart upload' }),
+    (0, swagger_1.ApiResponse)({ status: 200 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [multipart_dto_1.MultipartAbortDto]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "multipartAbort", null);
 __decorate([
     (0, common_1.Get)(':uid/status'),
     (0, swagger_1.ApiOperation)({ summary: 'Check the status of an uploaded video' }),
@@ -456,6 +716,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getVideoStatus", null);
 __decorate([
+    (0, common_1.Get)('status/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Alias: Check video status by ID' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns the video status.' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Video ID or related provider ID' }),
+    (0, public_decorator_1.Public)(),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getVideoStatusAlias", null);
+__decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({ summary: 'Get all videos from Cloudflare Stream' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns all videos.' }),
@@ -464,6 +736,31 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getAllCloudflareVideos", null);
+__decorate([
+    (0, common_1.Get)('embed/:uid'),
+    (0, public_decorator_1.Public)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get video details for embedding' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns the video with embed information.' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
+    (0, swagger_1.ApiParam)({ name: 'uid', description: 'The Cloudflare Stream video UID' }),
+    __param(0, (0, common_1.Param)('uid')),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getVideoForEmbed", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('embed-test'),
+    (0, swagger_1.ApiOperation)({ summary: 'Test endpoint for cross-domain CORS' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'CORS test successful.' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "testEmbedCors", null);
 __decorate([
     (0, common_1.Get)(':uid'),
     (0, swagger_1.ApiOperation)({ summary: 'Get a video by UID' }),
@@ -508,31 +805,6 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "getOrgCloudflareSettings", null);
-__decorate([
-    (0, common_1.Get)('embed/:uid'),
-    (0, public_decorator_1.Public)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Get video details for embedding' }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns the video with embed information.' }),
-    (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found.' }),
-    (0, swagger_1.ApiParam)({ name: 'uid', description: 'The Cloudflare Stream video UID' }),
-    __param(0, (0, common_1.Param)('uid')),
-    __param(1, (0, common_1.Req)()),
-    __param(2, (0, common_1.Res)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object]),
-    __metadata("design:returntype", Promise)
-], VideosController.prototype, "getVideoForEmbed", null);
-__decorate([
-    (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('embed-test'),
-    (0, swagger_1.ApiOperation)({ summary: 'Test endpoint for cross-domain CORS' }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'CORS test successful.' }),
-    __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Res)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
-    __metadata("design:returntype", Promise)
-], VideosController.prototype, "testEmbedCors", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('test-upload'),
