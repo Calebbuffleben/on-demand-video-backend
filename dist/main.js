@@ -22,6 +22,7 @@ async function bootstrap() {
         expressApp.set('trust proxy', value);
     }
     const corsOrigin = configService.get('CORS_ORIGIN');
+    const isProduction = configService.get('NODE_ENV') === 'production';
     const allowedOrigins = corsOrigin
         ? corsOrigin.split(',').map(origin => origin.trim())
         : [
@@ -29,6 +30,11 @@ async function bootstrap() {
             'http://localhost:3000',
             'http://localhost:3001'
         ];
+    console.log('🌐 CORS Configuration:', {
+        isProduction,
+        allowedOrigins,
+        corsOrigin
+    });
     app.use((req, res, next) => {
         const origin = req.headers.origin;
         if (req.url.includes('/embed') || req.url.includes('/api/embed')) {
@@ -40,9 +46,14 @@ async function bootstrap() {
                 res.header('Access-Control-Allow-Origin', origin);
                 res.header('Access-Control-Allow-Credentials', 'true');
             }
+            else if (isProduction) {
+                console.log('🚫 CORS: Origin not allowed in production:', origin);
+                res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
+                res.header('Access-Control-Allow-Credentials', 'true');
+            }
             else {
-                res.header('Access-Control-Allow-Origin', '*');
-                res.header('Access-Control-Allow-Credentials', 'false');
+                res.header('Access-Control-Allow-Origin', origin || '*');
+                res.header('Access-Control-Allow-Credentials', 'true');
             }
         }
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');

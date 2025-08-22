@@ -2,9 +2,12 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 export declare class AuthController {
     private readonly authService;
-    constructor(authService: AuthService);
+    private readonly configService;
+    constructor(authService: AuthService, configService: ConfigService);
+    private getCookieOptions;
     register(registerDto: RegisterDto, res: Response): Promise<void>;
     login(loginDto: LoginDto, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     logout(req: any, res: Response): Promise<void>;

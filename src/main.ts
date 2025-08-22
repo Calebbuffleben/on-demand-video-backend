@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  
   // Trust reverse proxy (e.g., Railway, Vercel, Nginx) to use X-Forwarded-* correctly
   const trustProxy = configService.get<boolean>('TRUST_PROXY');
   const trustProxyHops = configService.get<number>('TRUST_PROXY_HOPS') ?? 0;
@@ -26,6 +27,7 @@ async function bootstrap() {
   
   // Configure CORS first, before other middleware
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
   
   // For cross-domain embedding, allow all origins for embed endpoints
   const allowedOrigins = corsOrigin 
@@ -35,6 +37,12 @@ async function bootstrap() {
         'http://localhost:3000',
         'http://localhost:3001'
       ];
+  
+  console.log('🌐 CORS Configuration:', {
+    isProduction,
+    allowedOrigins,
+    corsOrigin
+  });
   
   // Add preflight handler for OPTIONS requests
   app.use((req, res, next) => {
@@ -49,9 +57,15 @@ async function bootstrap() {
       if (origin && allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');
+      } else if (isProduction) {
+        // In production, be more restrictive
+        console.log('🚫 CORS: Origin not allowed in production:', origin);
+        res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
       } else {
-        res.header('Access-Control-Allow-Origin', '*');
-        res.header('Access-Control-Allow-Credentials', 'false');
+        // In development, be more permissive
+        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
       }
     }
     

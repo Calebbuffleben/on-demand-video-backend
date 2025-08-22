@@ -7,11 +7,29 @@ import { AuthGuard } from './guards/auth.guard';
 import { Public } from './decorators/public.decorator';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('auth')
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private getCookieOptions() {
+    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    const cookieDomain = this.configService.get('COOKIE_DOMAIN');
+    const cookieSameSite = this.configService.get('COOKIE_SAMESITE') as 'lax' | 'strict' | 'none';
+    
+    return {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: cookieSameSite || (isProduction ? 'none' : 'lax'),
+      domain: cookieDomain || undefined,
+      path: '/',
+    };
+  }
 
   @Public()
   @Post('register')
@@ -22,23 +40,15 @@ export class AuthController {
     
     // Set httpOnly cookie
     res.cookie('scale_token', result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-      domain: process.env.COOKIE_DOMAIN || undefined,
-      path: '/',
+      ...this.getCookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     // Set refresh token cookie
     if (result.refreshToken) {
       res.cookie('scale_refresh', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'none' : 'lax'),
-        domain: process.env.COOKIE_DOMAIN || undefined,
-        path: '/',
-        maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+        ...this.getCookieOptions(),
+        maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
       });
     }
 
@@ -60,23 +70,15 @@ export class AuthController {
       
       // Set httpOnly cookie
       res.cookie('scale_token', result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-        domain: process.env.COOKIE_DOMAIN || undefined,
-        path: '/',
+        ...this.getCookieOptions(),
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
       // Set refresh token cookie
       if (result.refreshToken) {
         res.cookie('scale_refresh', result.refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-          domain: process.env.COOKIE_DOMAIN || undefined,
-          path: '/',
-          maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+          ...this.getCookieOptions(),
+          maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
         });
       }
 
@@ -106,24 +108,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout user' })
   async logout(@Req() req, @Res() res: Response) {
     // Clear cookie
-    res.clearCookie('scale_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-      domain: process.env.COOKIE_DOMAIN || undefined,
-      path: '/',
-    });
+    res.clearCookie('scale_token', this.getCookieOptions());
     const refresh = req.cookies?.scale_refresh;
     if (refresh) {
       try { await this.authService.revokeRefreshToken(refresh); } catch {}
     }
-    res.clearCookie('scale_refresh', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-      domain: process.env.COOKIE_DOMAIN || undefined,
-      path: '/',
-    });
+    res.clearCookie('scale_refresh', this.getCookieOptions());
     
     res.json({ message: 'Logged out successfully' });
   }
@@ -139,20 +129,12 @@ export class AuthController {
     try {
       const result = await this.authService.refreshSession(refresh);
       res.cookie('scale_token', result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-        domain: process.env.COOKIE_DOMAIN || undefined,
-        path: '/',
+        ...this.getCookieOptions(),
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
       res.cookie('scale_refresh', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || (process.env.NODE_ENV !== 'production' ? 'lax' : 'none'),
-        domain: process.env.COOKIE_DOMAIN || undefined,
-        path: '/',
-        maxAge: Number(process.env.REFRESH_TOKEN_DAYS || 30) * 24 * 60 * 60 * 1000,
+        ...this.getCookieOptions(),
+        maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
       });
       return res.json({
         user: result.user,
