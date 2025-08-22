@@ -30,13 +30,15 @@ async function bootstrap() {
   const isProduction = configService.get<string>('NODE_ENV') === 'production';
   
   // For cross-domain embedding, allow all origins for embed endpoints
-  const allowedOrigins = corsOrigin 
+  const defaultOrigins = [
+    'https://on-demand-video-frontend-production.up.railway.app',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ];
+
+  const allowedOrigins = corsOrigin
     ? corsOrigin.split(',').map(origin => origin.trim())
-    : [
-        'https://on-demand-video-frontend-production.up.railway.app',
-        'http://localhost:3000',
-        'http://localhost:3001'
-      ];
+    : defaultOrigins;
   
   console.log('🌐 CORS Configuration:', {
     isProduction,
@@ -48,24 +50,42 @@ async function bootstrap() {
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     
-    // For embed endpoints, allow all origins without credentials
-    if (req.url.includes('/embed') || req.url.includes('/api/embed')) {
+    // For embed endpoints and video streaming, allow all origins without credentials
+    if (req.url.includes('/embed') || req.url.includes('/api/embed') || req.url.includes('/videos/stream/')) {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Credentials', 'false');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+      console.log(`✅ CORS: Allowed streaming/embed endpoint ${req.url}`);
     } else {
       // For other endpoints, use specific origin with credentials
       if (origin && allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');
+        console.log(`✅ CORS: Allowed origin ${origin}`);
       } else if (isProduction) {
-        // In production, be more restrictive
-        console.log('🚫 CORS: Origin not allowed in production:', origin);
-        res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
-        res.header('Access-Control-Allow-Credentials', 'true');
+        // In production, check if origin contains common production domains
+        const isProductionOrigin = origin && (
+          origin.includes('.railway.app') ||
+          origin.includes('.vercel.app') ||
+          origin.includes('.netlify.app') ||
+          origin.includes('localhost')
+        );
+
+        if (isProductionOrigin) {
+          console.log(`✅ CORS: Allowed production origin ${origin}`);
+          res.header('Access-Control-Allow-Origin', origin);
+          res.header('Access-Control-Allow-Credentials', 'true');
+        } else {
+          console.log('🚫 CORS: Origin not allowed in production:', origin);
+          res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
+          res.header('Access-Control-Allow-Credentials', 'true');
+        }
       } else {
         // In development, be more permissive
         res.header('Access-Control-Allow-Origin', origin || '*');
         res.header('Access-Control-Allow-Credentials', 'true');
+        console.log(`✅ CORS: Allowed development origin ${origin || '*'}`);
       }
     }
     
