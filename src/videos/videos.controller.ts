@@ -214,7 +214,7 @@ export class VideosController {
     @Body() body: { expiryMinutes?: number },
     @Request() req: any
   ) {
-    return this.videosService.generatePlaybackToken(videoId, req.organizationId, body.expiryMinutes);
+    return this.videosService.generatePlaybackToken(videoId, req.organization?.id, body.expiryMinutes);
   }
 
   @Get('organization')
