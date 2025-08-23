@@ -472,17 +472,7 @@ export class VideosService {
       throw new NotFoundException('Video not found');
     }
 
-
-
-    // Check if the video is accessible based on visibility settings
-    if (video.visibility === Visibility.PRIVATE) {
-      throw new ForbiddenException('This video is private');
-    }
-
-    // Check organization access
-    if (video.visibility === Visibility.ORGANIZATION && (!organizationId || video.organizationId !== organizationId)) {
-      throw new ForbiddenException('This video is only accessible to organization members');
-    }
+    // Embed is public for all videos; do not block by visibility
 
     // Create display options object from explicit fields
     const displayOptions: VideoDisplayOptionsDto = {
@@ -538,10 +528,6 @@ export class VideosService {
       ctaStartTime: video.ctaStartTime,
       ctaEndTime: video.ctaEndTime,
     };
-
-
-
-
 
     return {
       success: true,
