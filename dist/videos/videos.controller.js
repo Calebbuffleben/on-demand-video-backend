@@ -52,7 +52,7 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.serveHlsFile(videoId, filename, res);
     }
     async serveSignedMasterPlaylist(videoId, token, res, req) {
-        if (!token) {
+        if (!token && process.env.NODE_ENV !== 'production') {
             try {
                 const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
                 const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -67,7 +67,7 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.serveSignedMasterPlaylist(videoId, token, res, req);
     }
     async serveSignedSegment(videoId, filename, token, res, req) {
-        if (!token) {
+        if (!token && process.env.NODE_ENV !== 'production') {
             try {
                 const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
                 const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -82,7 +82,7 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.serveSignedSegment(videoId, filename, token, res, req);
     }
     async serveSignedThumbnail(videoId, filename, token, res, req) {
-        if (!token) {
+        if (!token && process.env.NODE_ENV !== 'production') {
             try {
                 const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
                 const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -102,7 +102,25 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.serveThumbFile(videoId, filename, res);
     }
     async generatePlaybackToken(videoId, body, req) {
-        return this.videosService.generatePlaybackToken(videoId, req.organizationId, body.expiryMinutes);
+        let organizationId = req.organization?.id;
+        try {
+            const video = await this.prismaService.video.findUnique({ where: { id: videoId } });
+            if (video && video.organizationId !== organizationId && req.user?.id) {
+                const membership = await this.prismaService.userOrganization.findUnique({
+                    where: {
+                        userId_organizationId: {
+                            userId: req.user.id,
+                            organizationId: video.organizationId,
+                        }
+                    }
+                });
+                if (membership) {
+                    organizationId = video.organizationId;
+                }
+            }
+        }
+        catch { }
+        return this.videosService.generatePlaybackToken(videoId, organizationId, body.expiryMinutes);
     }
     async findAllOrganizationVideos(req) {
         const organizationId = req.organization.id;

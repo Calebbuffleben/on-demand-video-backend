@@ -113,8 +113,8 @@ export class VideosController {
     @Res() res: Response,
     @Request() req: any
   ) {
-    // For testing: if no token provided, generate one automatically
-    if (!token) {
+    // In production, do NOT auto-generate tokens; require client-provided token
+    if (!token && process.env.NODE_ENV !== 'production') {
       try {
         const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
         const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -139,8 +139,8 @@ export class VideosController {
     @Res() res: Response,
     @Request() req: any
   ) {
-    // For testing: if no token provided, generate one automatically
-    if (!token) {
+    // In production, do NOT auto-generate tokens; require client-provided token
+    if (!token && process.env.NODE_ENV !== 'production') {
       try {
         const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
         const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -165,10 +165,8 @@ export class VideosController {
     @Res() res: Response,
     @Request() req: any
   ) {
-
-    
-    // For testing: if no token provided, generate one automatically
-    if (!token) {
+    // In production, do NOT auto-generate tokens; require client-provided token
+    if (!token && process.env.NODE_ENV !== 'production') {
       try {
         const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
         const tokenResult = await this.videosService.generatePlaybackToken(videoId, testOrganizationId, 60);
@@ -214,7 +212,29 @@ export class VideosController {
     @Body() body: { expiryMinutes?: number },
     @Request() req: any
   ) {
-    return this.videosService.generatePlaybackToken(videoId, req.organization?.id, body.expiryMinutes);
+    // Prefer the org from the request (current JWT org)
+    let organizationId = req.organization?.id;
+
+    // If the current org doesn't match the video's org, but the user belongs to the video's org,
+    // allow generation using the video's organization to avoid false 403 in multi-org sessions.
+    try {
+      const video = await this.prismaService.video.findUnique({ where: { id: videoId } });
+      if (video && video.organizationId !== organizationId && req.user?.id) {
+        const membership = await this.prismaService.userOrganization.findUnique({
+          where: {
+            userId_organizationId: {
+              userId: req.user.id,
+              organizationId: video.organizationId,
+            }
+          }
+        });
+        if (membership) {
+          organizationId = video.organizationId;
+        }
+      }
+    } catch {}
+
+    return this.videosService.generatePlaybackToken(videoId, organizationId, body.expiryMinutes);
   }
 
   @Get('organization')
