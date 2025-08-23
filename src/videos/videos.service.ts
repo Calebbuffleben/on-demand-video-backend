@@ -1644,46 +1644,46 @@ export class VideosService {
    */
   async serveSignedMasterPlaylist(videoId: string, token: string, res: any, req: any) {
     try {
-      // Validate token
-      const payload = this.jwtPlayback.verifyPlaybackToken(token);
-      if (payload.videoId !== videoId) {
-        throw new UnauthorizedException('Token is not valid for this video');
-      }
-
-      // Find video and validate access
+      // Find video and validate availability
       const video = await this.prisma.video.findUnique({ where: { id: videoId } });
       if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.playbackHlsPath) {
         throw new NotFoundException('Video not available for streaming');
       }
 
-      // Get master playlist from R2
       const masterPath = `${video.assetKey}/${video.playbackHlsPath}`;
       const { stream } = await this.r2.getObjectStream(masterPath);
-      
-      // Read the entire playlist content
+
       const chunks: Buffer[] = [];
       stream.on('data', (chunk) => chunks.push(chunk));
-      
       await new Promise((resolve, reject) => {
         stream.on('end', resolve);
         stream.on('error', reject);
       });
-      
+
       let content = Buffer.concat(chunks).toString('utf-8');
-      
-      // Rewrite URLs in master playlist to point to our signed endpoints
+
       const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-      
-      // Replace variant playlist URLs with signed URLs
-      content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
-      
+
+      if (video.visibility === Visibility.PUBLIC) {
+        // Public video: do not require token, rewrite without token
+        content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1`);
+      } else {
+        // Non-public: require valid token
+        if (!token) {
+          throw new UnauthorizedException('Playback token required');
+        }
+        const payload = this.jwtPlayback.verifyPlaybackToken(token);
+        if (payload.videoId !== videoId) {
+          throw new UnauthorizedException('Token is not valid for this video');
+        }
+        content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
+      }
+
       res.set({
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache',
         'Access-Control-Allow-Origin': '*',
-        'ETag': `"${video.id}-${payload.iat}"`,
       });
-      
       res.send(content);
     } catch (error) {
       this.logger.error(`Error serving signed master playlist: ${error.message}`);
@@ -1699,72 +1699,75 @@ export class VideosService {
    */
   async serveSignedSegment(videoId: string, filename: string, token: string, res: any, req: any) {
     try {
-      // Validate token
-      const payload = this.jwtPlayback.verifyPlaybackToken(token);
-      if (payload.videoId !== videoId) {
-        throw new UnauthorizedException('Token is not valid for this video');
-      }
-
-      // Find video and validate access
+      // Find video and validate availability
       const video = await this.prisma.video.findUnique({ where: { id: videoId } });
       if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
         throw new NotFoundException('Video not available for streaming');
       }
 
-      // Handle both variant playlists and segments
       let hlsPath: string;
       let contentType: string;
-      
+
       if (filename.endsWith('.m3u8')) {
-        // This is a variant playlist
+        // Variant playlist
         hlsPath = `${video.assetKey}/hls/${filename}`;
         contentType = 'application/vnd.apple.mpegurl';
-        
-        // Get playlist content and rewrite segment URLs
+
         const { stream } = await this.r2.getObjectStream(hlsPath);
-        
         const chunks: Buffer[] = [];
         stream.on('data', (chunk) => chunks.push(chunk));
-        
         await new Promise((resolve, reject) => {
           stream.on('end', resolve);
           stream.on('error', reject);
         });
-        
         let content = Buffer.concat(chunks).toString('utf-8');
-        
-        // Rewrite segment URLs to include token
+
         const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-        content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
-        
+        if (video.visibility === Visibility.PUBLIC) {
+          // Public video: rewrite without token
+          content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1`);
+        } else {
+          if (!token) {
+            throw new UnauthorizedException('Playback token required');
+          }
+          const payload = this.jwtPlayback.verifyPlaybackToken(token);
+          if (payload.videoId !== videoId) {
+            throw new UnauthorizedException('Token is not valid for this video');
+          }
+          content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
+        }
+
         res.set({
           'Content-Type': contentType,
           'Cache-Control': 'no-cache',
           'Access-Control-Allow-Origin': '*',
-          'ETag': `"${filename}-${payload.iat}"`,
         });
-        
         res.send(content);
         return;
       } else if (filename.endsWith('.ts')) {
-        // This is a video segment
+        // Segment file
         hlsPath = `${video.assetKey}/hls/${filename}`;
         contentType = 'video/mp2t';
+        if (video.visibility !== Visibility.PUBLIC) {
+          if (!token) {
+            throw new UnauthorizedException('Playback token required');
+          }
+          const payload = this.jwtPlayback.verifyPlaybackToken(token);
+          if (payload.videoId !== videoId) {
+            throw new UnauthorizedException('Token is not valid for this video');
+          }
+        }
       } else {
         throw new NotFoundException('Invalid file type');
       }
-      
-      // Stream the file directly from R2
+
       const { stream } = await this.r2.getObjectStream(hlsPath);
-      
       res.set({
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=3600',
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
-        'ETag': `"${filename}-${video.id}"`,
       });
-      
       stream.pipe(res);
     } catch (error) {
       this.logger.error(`Error serving signed segment: ${error.message}`);
