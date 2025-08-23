@@ -1626,9 +1626,9 @@ export class VideosService {
   }
 
   /**
-   * Serve signed HLS master playlist with rewritten URLs
+   * Serve HLS master playlist with rewritten URLs (public)
    */
-  async serveSignedMasterPlaylist(videoId: string, token: string, res: any, req: any) {
+  async serveSignedMasterPlaylist(videoId: string, _token: string, res: any, req: any) {
     try {
       // Find video and validate availability
       const video = await this.prisma.video.findUnique({ where: { id: videoId } });
@@ -1649,21 +1649,8 @@ export class VideosService {
       let content = Buffer.concat(chunks).toString('utf-8');
 
       const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-
-      if (video.visibility === Visibility.PUBLIC) {
-        // Public video: do not require token, rewrite without token
-        content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1`);
-      } else {
-        // Non-public: require valid token
-        if (!token) {
-          throw new UnauthorizedException('Playback token required');
-        }
-        const payload = this.jwtPlayback.verifyPlaybackToken(token);
-        if (payload.videoId !== videoId) {
-          throw new UnauthorizedException('Token is not valid for this video');
-        }
-        content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
-      }
+      // Public embed for all: rewrite without token
+      content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1`);
 
       res.set({
         'Content-Type': 'application/vnd.apple.mpegurl',
@@ -1672,18 +1659,15 @@ export class VideosService {
       });
       res.send(content);
     } catch (error) {
-      this.logger.error(`Error serving signed master playlist: ${error.message}`);
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
+      this.logger.error(`Error serving master playlist: ${error.message}`);
       throw new NotFoundException('Master playlist not found');
     }
   }
 
   /**
-   * Serve signed HLS segments
+   * Serve HLS variant playlists and segments (public)
    */
-  async serveSignedSegment(videoId: string, filename: string, token: string, res: any, req: any) {
+  async serveSignedSegment(videoId: string, filename: string, _token: string, res: any, req: any) {
     try {
       // Find video and validate availability
       const video = await this.prisma.video.findUnique({ where: { id: videoId } });
@@ -1708,20 +1692,9 @@ export class VideosService {
         });
         let content = Buffer.concat(chunks).toString('utf-8');
 
+        // Rewrite segment URLs without token (public)
         const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-        if (video.visibility === Visibility.PUBLIC) {
-          // Public video: rewrite without token
-          content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1`);
-        } else {
-          if (!token) {
-            throw new UnauthorizedException('Playback token required');
-          }
-          const payload = this.jwtPlayback.verifyPlaybackToken(token);
-          if (payload.videoId !== videoId) {
-            throw new UnauthorizedException('Token is not valid for this video');
-          }
-          content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
-        }
+        content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1`);
 
         res.set({
           'Content-Type': contentType,
@@ -1734,15 +1707,6 @@ export class VideosService {
         // Segment file
         hlsPath = `${video.assetKey}/hls/${filename}`;
         contentType = 'video/mp2t';
-        if (video.visibility !== Visibility.PUBLIC) {
-          if (!token) {
-            throw new UnauthorizedException('Playback token required');
-          }
-          const payload = this.jwtPlayback.verifyPlaybackToken(token);
-          if (payload.videoId !== videoId) {
-            throw new UnauthorizedException('Token is not valid for this video');
-          }
-        }
       } else {
         throw new NotFoundException('Invalid file type');
       }
@@ -1756,10 +1720,7 @@ export class VideosService {
       });
       stream.pipe(res);
     } catch (error) {
-      this.logger.error(`Error serving signed segment: ${error.message}`);
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
+      this.logger.error(`Error serving segment: ${error.message}`);
       throw new NotFoundException('Segment not found');
     }
   }
