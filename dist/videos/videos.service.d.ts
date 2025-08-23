@@ -113,8 +113,8 @@ export declare class VideosService {
     getOrgCloudflareSettings(organizationId: string): Promise<CloudflareSettingsResponseDto>;
     private maskString;
     mapVideoToDto(video: Video): VideoDto;
-    serveSignedMasterPlaylist(videoId: string, token: string, res: any, req: any): Promise<void>;
-    serveSignedSegment(videoId: string, filename: string, token: string, res: any, req: any): Promise<void>;
+    serveSignedMasterPlaylist(videoId: string, _token: string, res: any, req: any): Promise<void>;
+    serveSignedSegment(videoId: string, filename: string, _token: string, res: any, req: any): Promise<void>;
     serveSignedThumbnail(videoId: string, filename: string, token: string, res: any, req: any): Promise<void>;
 }
 export {};

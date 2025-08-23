@@ -345,12 +345,6 @@ let VideosService = VideosService_1 = class VideosService {
         if (!this.isVideo(video)) {
             throw new common_1.NotFoundException('Video not found');
         }
-        if (video.visibility === client_1.Visibility.PRIVATE) {
-            throw new common_1.ForbiddenException('This video is private');
-        }
-        if (video.visibility === client_1.Visibility.ORGANIZATION && (!organizationId || video.organizationId !== organizationId)) {
-            throw new common_1.ForbiddenException('This video is only accessible to organization members');
-        }
         const displayOptions = {
             showProgressBar: video.showProgressBar === false ? false : true,
             showTitle: video.showTitle === false ? false : true,
@@ -1266,12 +1260,8 @@ let VideosService = VideosService_1 = class VideosService {
             ctaEndTime: video.ctaEndTime,
         };
     }
-    async serveSignedMasterPlaylist(videoId, token, res, req) {
+    async serveSignedMasterPlaylist(videoId, _token, res, req) {
         try {
-            const payload = this.jwtPlayback.verifyPlaybackToken(token);
-            if (payload.videoId !== videoId) {
-                throw new common_1.UnauthorizedException('Token is not valid for this video');
-            }
             const video = await this.prisma.video.findUnique({ where: { id: videoId } });
             if (!video || video.provider !== 'INTERNAL' || !video.assetKey || !video.playbackHlsPath) {
                 throw new common_1.NotFoundException('Video not available for streaming');
@@ -1286,29 +1276,21 @@ let VideosService = VideosService_1 = class VideosService {
             });
             let content = Buffer.concat(chunks).toString('utf-8');
             const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-            content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1?token=${token}`);
+            content = content.replace(/^(variant_\d+p\.m3u8)$/gm, `${baseUrl}/$1`);
             res.set({
                 'Content-Type': 'application/vnd.apple.mpegurl',
                 'Cache-Control': 'no-cache',
                 'Access-Control-Allow-Origin': '*',
-                'ETag': `"${video.id}-${payload.iat}"`,
             });
             res.send(content);
         }
         catch (error) {
-            this.logger.error(`Error serving signed master playlist: ${error.message}`);
-            if (error instanceof common_1.UnauthorizedException) {
-                throw error;
-            }
+            this.logger.error(`Error serving master playlist: ${error.message}`);
             throw new common_1.NotFoundException('Master playlist not found');
         }
     }
-    async serveSignedSegment(videoId, filename, token, res, req) {
+    async serveSignedSegment(videoId, filename, _token, res, req) {
         try {
-            const payload = this.jwtPlayback.verifyPlaybackToken(token);
-            if (payload.videoId !== videoId) {
-                throw new common_1.UnauthorizedException('Token is not valid for this video');
-            }
             const video = await this.prisma.video.findUnique({ where: { id: videoId } });
             if (!video || video.provider !== 'INTERNAL' || !video.assetKey) {
                 throw new common_1.NotFoundException('Video not available for streaming');
@@ -1327,12 +1309,11 @@ let VideosService = VideosService_1 = class VideosService {
                 });
                 let content = Buffer.concat(chunks).toString('utf-8');
                 const baseUrl = `${req.protocol}://${req.get('host')}/api/videos/stream/${videoId}/seg`;
-                content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1?token=${token}`);
+                content = content.replace(/^(segment_\d+p_\d+\.ts)$/gm, `${baseUrl}/$1`);
                 res.set({
                     'Content-Type': contentType,
                     'Cache-Control': 'no-cache',
                     'Access-Control-Allow-Origin': '*',
-                    'ETag': `"${filename}-${payload.iat}"`,
                 });
                 res.send(content);
                 return;
@@ -1350,15 +1331,11 @@ let VideosService = VideosService_1 = class VideosService {
                 'Cache-Control': 'public, max-age=3600',
                 'Access-Control-Allow-Origin': '*',
                 'Accept-Ranges': 'bytes',
-                'ETag': `"${filename}-${video.id}"`,
             });
             stream.pipe(res);
         }
         catch (error) {
-            this.logger.error(`Error serving signed segment: ${error.message}`);
-            if (error instanceof common_1.UnauthorizedException) {
-                throw error;
-            }
+            this.logger.error(`Error serving segment: ${error.message}`);
             throw new common_1.NotFoundException('Segment not found');
         }
     }
