@@ -13,6 +13,7 @@ import { UploadService } from './upload.service';
 import { TranscodeCallbackDto } from './dto/transcode-callback.dto';
 import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartAbortDto } from './dto/multipart.dto';
 import { Response } from 'express';
+import { TranscodeFailureDto } from './dto/transcode-failure.dto';
 declare global {
     namespace Express {
         namespace Multer {
@@ -271,6 +272,63 @@ export declare class VideosController {
     transcodeCallback(dto: TranscodeCallbackDto): Promise<{
         success: boolean;
         videoId: string;
+    }>;
+    transcodeFailure(dto: TranscodeFailureDto): Promise<{
+        success: boolean;
+        video: {
+            tags: string[];
+            description: string | null;
+            name: string;
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            visibility: import(".prisma/client").$Enums.Visibility;
+            ctaText: string | null;
+            ctaButtonText: string | null;
+            ctaLink: string | null;
+            ctaStartTime: number | null;
+            ctaEndTime: number | null;
+            showProgressBar: boolean | null;
+            showTitle: boolean | null;
+            showPlaybackControls: boolean | null;
+            autoPlay: boolean | null;
+            muted: boolean | null;
+            loop: boolean | null;
+            useOriginalProgressBar: boolean | null;
+            progressBarColor: string | null;
+            progressEasing: number | null;
+            playButtonColor: string | null;
+            playButtonSize: number | null;
+            playButtonBgColor: string | null;
+            soundControlText: string | null;
+            soundControlColor: string | null;
+            soundControlOpacity: number | null;
+            soundControlSize: number | null;
+            showSoundControl: boolean | null;
+            showVideoTitle: boolean | null;
+            showUploadDate: boolean | null;
+            showMetadata: boolean | null;
+            allowFullscreen: boolean | null;
+            responsive: boolean | null;
+            showBranding: boolean | null;
+            showTechnicalInfo: boolean | null;
+            status: import(".prisma/client").$Enums.VideoStatus;
+            duration: number | null;
+            muxUploadId: string | null;
+            muxAssetId: string | null;
+            thumbnailUrl: string | null;
+            playbackUrl: string | null;
+            provider: import(".prisma/client").$Enums.VideoProvider;
+            assetKey: string | null;
+            jobId: string | null;
+            playbackHlsPath: string | null;
+            thumbnailPath: string | null;
+            isLive: boolean;
+            price: number | null;
+            currency: string | null;
+            muxPlaybackId: string | null;
+        };
     }>;
     getCloudflareUploadUrl(dto: GetUploadUrlDto, req: AuthenticatedRequest): Promise<GetUploadUrlResponseDto>;
     multipartInit(dto: MultipartInitDto, req: AuthenticatedRequest): Promise<{

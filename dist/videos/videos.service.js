@@ -673,6 +673,26 @@ let VideosService = VideosService_1 = class VideosService {
             throw e;
         }
     }
+    async handleTranscodeFailure(dto) {
+        try {
+            if (!dto?.videoId || !dto?.assetKey || !dto?.error) {
+                throw new common_1.BadRequestException('Missing required fields');
+            }
+            this.logger.warn(`Transcode failed for video ${dto.videoId}: ${dto.error}`);
+            const updated = await this.prisma.video.update({
+                where: { id: dto.videoId },
+                data: {
+                    status: client_1.VideoStatus.ERROR,
+                },
+            });
+            this.logger.log(`Video ${dto.videoId} marked as failed due to transcode error`);
+            return { success: true, video: updated };
+        }
+        catch (error) {
+            this.logger.error(`Failed to handle transcode failure: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
     async serveHlsFile(videoId, filename, res) {
         try {
             const video = await this.prisma.video.findUnique({ where: { id: videoId } });

@@ -885,6 +885,31 @@ export class VideosService {
     }
   }
 
+  async handleTranscodeFailure(dto: any) {
+    try {
+      // Validate basic fields
+      if (!dto?.videoId || !dto?.assetKey || !dto?.error) {
+        throw new BadRequestException('Missing required fields');
+      }
+
+      this.logger.warn(`Transcode failed for video ${dto.videoId}: ${dto.error}`);
+
+      // Update video status to ERROR
+      const updated = await this.prisma.video.update({
+        where: { id: dto.videoId },
+        data: {
+          status: VideoStatus.ERROR,
+        },
+      });
+
+      this.logger.log(`Video ${dto.videoId} marked as failed due to transcode error`);
+      return { success: true, video: updated };
+    } catch (error) {
+      this.logger.error(`Failed to handle transcode failure: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   async serveHlsFile(videoId: string, filename: string, res: any) {
     try {
       // Find video and validate access

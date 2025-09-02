@@ -32,6 +32,7 @@ const mux_webhook_controller_1 = require("../providers/mux/mux-webhook.controlle
 const upload_service_1 = require("./upload.service");
 const transcode_callback_dto_1 = require("./dto/transcode-callback.dto");
 const multipart_dto_1 = require("./dto/multipart.dto");
+const transcode_failure_dto_1 = require("./dto/transcode-failure.dto");
 let VideosController = VideosController_1 = class VideosController {
     videosService;
     prismaService;
@@ -192,6 +193,9 @@ let VideosController = VideosController_1 = class VideosController {
     }
     async transcodeCallback(dto) {
         return this.videosService.handleTranscodeCallback(dto);
+    }
+    async transcodeFailure(dto) {
+        return this.videosService.handleTranscodeFailure(dto);
     }
     async getCloudflareUploadUrl(dto, req) {
         const organizationId = req['organization']?.id || dto.organizationId;
@@ -670,6 +674,16 @@ __decorate([
     __metadata("design:paramtypes", [transcode_callback_dto_1.TranscodeCallbackDto]),
     __metadata("design:returntype", Promise)
 ], VideosController.prototype, "transcodeCallback", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('transcode/failure'),
+    (0, swagger_1.ApiOperation)({ summary: 'Internal callback when FFmpeg worker fails transcode' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Failure callback processed.' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [transcode_failure_dto_1.TranscodeFailureDto]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "transcodeFailure", null);
 __decorate([
     (0, common_1.Post)('get-upload-url'),
     (0, swagger_1.ApiOperation)({ summary: 'Get a direct upload URL for MUX' }),

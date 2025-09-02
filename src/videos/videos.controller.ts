@@ -39,6 +39,7 @@ import { UploadService } from './upload.service';
 import { TranscodeCallbackDto } from './dto/transcode-callback.dto';
 import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartAbortDto } from './dto/multipart.dto';
 import { Response } from 'express';
+import { TranscodeFailureDto } from './dto/transcode-failure.dto';
 
 declare global {
   namespace Express {
@@ -376,6 +377,14 @@ export class VideosController {
   @ApiResponse({ status: 200, description: 'Callback processed.' })
   async transcodeCallback(@Body() dto: TranscodeCallbackDto) {
     return this.videosService.handleTranscodeCallback(dto);
+  }
+
+  @Public()
+  @Post('transcode/failure')
+  @ApiOperation({ summary: 'Internal callback when FFmpeg worker fails transcode' })
+  @ApiResponse({ status: 200, description: 'Failure callback processed.' })
+  async transcodeFailure(@Body() dto: TranscodeFailureDto) {
+    return this.videosService.handleTranscodeFailure(dto);
   }
 
 
