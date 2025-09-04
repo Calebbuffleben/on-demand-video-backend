@@ -23,6 +23,7 @@ model Organization {
   users          UserOrganization[]
   videos         Video[]
   refreshTokens  RefreshToken[]
+  invites        Invite[]
 
   @@index([clerkId])
   @@index([slug])
@@ -322,5 +323,19 @@ model RefreshToken {
   organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+model Invite {
+  id             String       @id @default(uuid())
+  email          String
+  organizationId String
+  role           Role         @default(MEMBER)
+  token          String       @unique
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([token])
   @@index([expiresAt])
 }

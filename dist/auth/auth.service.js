@@ -26,6 +26,9 @@ let AuthService = class AuthService {
         this.configService = configService;
         this.mail = mail;
     }
+    async getInvite(token) {
+        return this.prisma.invite.findUnique({ where: { token } });
+    }
     async hashPassword(password) {
         const saltRounds = 12;
         return bcrypt.hash(password, saltRounds);

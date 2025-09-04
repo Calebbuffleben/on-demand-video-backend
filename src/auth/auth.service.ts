@@ -9,6 +9,29 @@ import * as jwt from 'jsonwebtoken';
 import { MailService } from '../mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
 
+// Type assertion for invite model
+type PrismaWithInvite = PrismaService & {
+  invite: {
+    findUnique: (
+      args: 
+      { 
+        where: 
+          { 
+            token: string 
+          } 
+        }
+      ) => Promise<{ 
+          id: string; 
+          email: string; 
+          organizationId: string; 
+          role: string; 
+          token: string; 
+          expiresAt: Date; 
+          createdAt: Date 
+        } | null>;
+  };
+};
+
 interface JwtPayload {
   userId: string;
   organizationId: string;
@@ -38,6 +61,12 @@ export class AuthService {
     private configService: ConfigService,
     private mail: MailService,
   ) {}
+
+  // Criar metodo para get invite by token
+  async getInvite(token: string) {
+    // Atualizar os dados do convite de acordo com a aplicação atual
+    return (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+  }
 
   /**
    * Hash a password using bcrypt

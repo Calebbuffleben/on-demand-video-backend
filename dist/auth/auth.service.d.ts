@@ -29,6 +29,15 @@ export declare class AuthService {
     private configService;
     private mail;
     constructor(prisma: PrismaService, configService: ConfigService, mail: MailService);
+    getInvite(token: string): Promise<{
+        email: string;
+        token: string;
+        id: string;
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
+        expiresAt: Date;
+        createdAt: Date;
+    } | null>;
     private hashPassword;
     private comparePassword;
     private generateToken;
@@ -73,11 +82,11 @@ export declare class AuthService {
         };
     } & {
         id: string;
-        userId: string;
         organizationId: string;
-        createdAt: Date;
-        updatedAt: Date;
         role: import(".prisma/client").$Enums.Role;
+        createdAt: Date;
+        userId: string;
+        updatedAt: Date;
     })[]>;
 }
 export {};

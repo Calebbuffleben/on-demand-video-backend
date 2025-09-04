@@ -5,6 +5,33 @@ import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { Subscription } from '@prisma/client';
+import { CreateInviteDto } from './dto/create-invite.dto';
+import { Request } from 'express';
+import { PrismaClient } from '@prisma/client';
+// Updated to include invite model
+
+// Type assertion for invite model
+type PrismaWithInvite = PrismaService & {
+  invite: {
+    create: (args: { 
+      data: { 
+        email: string; 
+        organizationId: string; 
+        role: string; 
+        token: string; 
+        expiresAt: Date 
+      } 
+    }) => Promise<{ 
+      id: string; 
+      email: string; 
+      organizationId: string; 
+      role: string; 
+      token: string; 
+      expiresAt: Date; 
+      createdAt: Date 
+    }>;
+  };
+};
 
 // Define the enums separately since the generated Prisma types might not be available
 enum PlanType {
@@ -24,182 +51,34 @@ enum SubscriptionStatus {
 
 @Injectable()
 export class SubscriptionsService {
-  private stripe: Stripe;
 
   constructor(
     private prisma: PrismaService,
     private stripeService: StripeService,
     private configService: ConfigService,
   ) {
-    const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (!stripeSecretKey) {
-      throw new Error('Stripe secret key is missing');
-    }
-    this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2025-06-30.basil',
-    });
+  
   }
 
-  async getSubscription(organizationId: string) {
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { organizationId },
-    });
-
-    if (!subscription) {
-      throw new NotFoundException(`Subscription for organization ${organizationId} not found`);
+  // Esse metodo cria um convite para um usuario
+  async createInvite(createInviteDto: CreateInviteDto, req: Request) {
+    const organizationId = (req as any).organization?.id;
+    if (!organizationId) {
+      throw new NotFoundException('Organization not found');
     }
 
-    return subscription;
-  }
-
-  async createCheckoutSession(
-    organizationId: string,
-    planType: string,
-    customerEmail: string,
-    successUrl: string,
-    cancelUrl: string,
-  ) {
-    const organization = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      include: { subscription: true },
-    });
-
-    if (!organization) {
-      throw new NotFoundException(`Organization with ID ${organizationId} not found`);
-    }
-
-    // Create checkout session
-    const session = await this.stripeService.createCheckoutSession(
-      organizationId,
-      planType,
-      customerEmail,
-      successUrl,
-      cancelUrl,
-    );
-
-    // If organization doesn't have a subscription yet, create one
-    if (!organization.subscription) {
-      await this.prisma.subscription.create({
-        data: {
-          organizationId,
-          planType: planType as any, // Type assertion to get around Prisma enum issues
-          status: 'INACTIVE' as any, // Type assertion to get around Prisma enum issues
-        },
-      });
-    }
-
-    return session;
-  }
-
-  async handleSubscriptionCreated(
-    subscriptionId: string,
-    customerId: string,
-    organizationId: string,
-    planType: string,
-  ) {
-    const stripeSubscription = await this.stripeService.getSubscription(subscriptionId);
-    
-    // Type assertion for Stripe subscription object
-    const subscription = stripeSubscription as any;
-    
-    // Update subscription in database
-    return this.prisma.subscription.update({
-      where: { organizationId },
+    return (this.prisma as PrismaWithInvite).invite.create({
       data: {
-        stripeSubscriptionId: subscriptionId,
-        stripeCustomerId: customerId,
-        status: 'ACTIVE' as any, // Type assertion for Prisma enum
-        planType: planType as any, // Type assertion for Prisma enum
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      },
-    });
-  }
-
-  async handleSubscriptionUpdated(
-    subscriptionId: string, 
-    status: string,
-  ) {
-    const dbSubscription = await this.prisma.subscription.findUnique({
-      where: { stripeSubscriptionId: subscriptionId },
-    });
-
-    if (!dbSubscription) {
-      throw new NotFoundException(`Subscription with Stripe ID ${subscriptionId} not found`);
-    }
-
-    // Map Stripe status to our enum
-    let dbStatus: string;
-    switch (status) {
-      case 'active':
-        dbStatus = 'ACTIVE';
-        break;
-      case 'past_due':
-        dbStatus = 'PAST_DUE';
-        break;
-      case 'canceled':
-        dbStatus = 'CANCELED';
-        break;
-      case 'trialing':
-        dbStatus = 'TRIALING';
-        break;
-      default:
-        dbStatus = 'INACTIVE';
-    }
-
-    // Update subscription
-    return this.prisma.subscription.update({
-      where: { id: dbSubscription.id },
-      data: { status: dbStatus as any },
-    });
-  }
-
-  /**
-   * Get the current user's active subscription
-   * 
-   * @param user The authenticated user object
-   * @returns The user's active subscription, or null if no active subscription
-   */
-  async getCurrentSubscription(user: any): Promise<Subscription | null> {
-    // Find the organization's active subscription in the database
-    // Note: In our schema, subscriptions are linked to organizations, not directly to users
-    
-    console.log('Getting subscription for user:', JSON.stringify(user, null, 2));
-    
-    if (!user || !user.organization) {
-      console.log('No organization data found for user');
-      return null; // User has no associated organization
-    }
-    
-    // Handle different possible organization data structures
-    let organizationId: string;
-    
-    if (typeof user.organization === 'string') {
-      // If organization is directly the ID string
-      organizationId = user.organization;
-    } else if (user.organization.id) {
-      // If organization is an object with an id property
-      organizationId = user.organization.id;
-    } else if (Array.isArray(user.organization) && user.organization.length > 0) {
-      // If organization is an array (user might belong to multiple orgs)
-      // For simplicity, we'll use the first one
-      const firstOrg = user.organization[0];
-      organizationId = typeof firstOrg === 'string' ? firstOrg : firstOrg.id;
-    } else {
-      console.log('Could not determine organization ID from data:', user.organization);
-      return null;
-    }
-    
-    console.log('Querying subscription for organization ID:', organizationId);
-    
-    const subscription = await this.prisma.subscription.findFirst({
-      where: {
+        ...createInviteDto,
         organizationId,
-        status: 'ACTIVE',
+        role: 'MEMBER', // Default role for invites
+        token: this.generateInviteToken(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     });
+  }
 
-    return subscription;
+  private generateInviteToken(): string {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 } 

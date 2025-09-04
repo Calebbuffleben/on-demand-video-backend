@@ -40,6 +40,9 @@ let AuthController = class AuthController {
             path: '/',
         };
     }
+    async getInvite(token) {
+        return this.authService.getInvite(token);
+    }
     async register(registerDto, res) {
         const result = await this.authService.register(registerDto);
         res.cookie('scale_token', result.token, {
@@ -165,6 +168,15 @@ let AuthController = class AuthController {
     }
 };
 exports.AuthController = AuthController;
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('invite/:token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get invite by token' }),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "getInvite", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('register'),

@@ -31,6 +31,14 @@ export class AuthController {
     };
   }
 
+  // Criar endpoint GET /auth/invite/:token
+  @Public()
+  @Get('invite/:token')
+  @ApiOperation({ summary: 'Get invite by token' })
+  async getInvite(@Param('token') token: string) {
+    return this.authService.getInvite(token);
+  }
+
   @Public()
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })

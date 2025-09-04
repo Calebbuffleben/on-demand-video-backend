@@ -8,6 +8,15 @@ export declare class AuthController {
     private readonly configService;
     constructor(authService: AuthService, configService: ConfigService);
     private getCookieOptions;
+    getInvite(token: string): Promise<{
+        email: string;
+        token: string;
+        id: string;
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
+        expiresAt: Date;
+        createdAt: Date;
+    } | null>;
     register(registerDto: RegisterDto, res: Response): Promise<void>;
     login(loginDto: LoginDto, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     logout(req: any, res: Response): Promise<void>;
