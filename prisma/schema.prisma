@@ -333,6 +333,7 @@ model Invite {
   role           Role         @default(MEMBER)
   token          String       @unique
   expiresAt      DateTime
+  usedAt         DateTime?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

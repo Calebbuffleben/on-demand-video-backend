@@ -36,8 +36,19 @@ export declare class AuthService {
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
         expiresAt: Date;
+        usedAt: Date | null;
         createdAt: Date;
-    } | null>;
+    }>;
+    consumeInvite(token: string): Promise<{
+        email: string;
+        token: string;
+        id: string;
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
+        expiresAt: Date;
+        usedAt: Date | null;
+        createdAt: Date;
+    }>;
     private hashPassword;
     private comparePassword;
     private generateToken;

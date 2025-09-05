@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { User, Organization } from '@prisma/client';
@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { MailService } from '../mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
+// Updated Prisma types
 
 // Type assertion for invite model
 type PrismaWithInvite = PrismaService & {
@@ -27,8 +28,25 @@ type PrismaWithInvite = PrismaService & {
           role: string; 
           token: string; 
           expiresAt: Date; 
+          usedAt: Date | null;
           createdAt: Date 
         } | null>;
+    update: (
+      args: 
+      { 
+        where: { token: string }; 
+        data: { usedAt: Date } 
+      }
+    ) => Promise<{ 
+        id: string; 
+        email: string; 
+        organizationId: string; 
+        role: string; 
+        token: string; 
+        expiresAt: Date; 
+        usedAt: Date | null;
+        createdAt: Date 
+      }>;
   };
 };
 
@@ -65,7 +83,38 @@ export class AuthService {
   // Criar metodo para get invite by token
   async getInvite(token: string) {
     // Atualizar os dados do convite de acordo com a aplicação atual
-    return (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+    // Verificar se o convite existe e se esta expirado
+    // Criar try catch para tratar o erro
+    try {
+    const invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (invite.expiresAt < new Date()) {
+      throw new BadRequestException('Invite expired');
+    }
+
+    // Verificar se o convite foi usado
+    if ((invite as { usedAt?: Date | null }).usedAt) {
+      throw new BadRequestException('Invite already used');
+    }
+
+      // Retornar o convite
+      return invite;
+    } catch (error) {
+      throw new NotFoundException('Invite not found');
+    }
+  }
+
+  // Criar metodo para consume invite by token
+  // Criar try catch para tratar o erro
+  async consumeInvite(token: string) {
+    // Atualizar os dados do convite de acordo com a aplicação atual
+    try {
+      return (this.prisma as PrismaWithInvite).invite.update({ where: { token }, data: { usedAt: new Date() } });
+    } catch (error) {
+      throw new NotFoundException('Invite not found');
+    }
   }
 
   /**

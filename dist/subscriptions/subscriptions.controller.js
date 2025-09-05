@@ -25,7 +25,44 @@ let SubscriptionsController = class SubscriptionsController {
         this.subscriptionsService = subscriptionsService;
     }
     async createInvite(createInviteDto, req) {
-        return this.subscriptionsService.createInvite(createInviteDto, req);
+        try {
+            return this.subscriptionsService.createInvite(createInviteDto, req);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Invite not found');
+        }
+    }
+    async pauseSubscription(req) {
+        try {
+            return this.subscriptionsService.pauseSubscription(req);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+    }
+    async resumeSubscription(req) {
+        try {
+            return this.subscriptionsService.resumeSubscription(req);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+    }
+    async cancelSubscription(req) {
+        try {
+            return this.subscriptionsService.cancelSubscription(req);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+    }
+    async getSubscriptionStatus(req) {
+        try {
+            return this.subscriptionsService.getSubscriptionStatus(req);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
@@ -41,6 +78,50 @@ __decorate([
     __metadata("design:paramtypes", [create_invite_dto_1.CreateInviteDto, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "createInvite", null);
+__decorate([
+    (0, common_1.Post)('pause'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Pause subscription' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "pauseSubscription", null);
+__decorate([
+    (0, common_1.Post)('resume'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Resume subscription' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "resumeSubscription", null);
+__decorate([
+    (0, common_1.Post)('cancel'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Cancel subscription' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "cancelSubscription", null);
+__decorate([
+    (0, common_1.Get)('status'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get subscription status per account' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "getSubscriptionStatus", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([
     (0, swagger_1.ApiTags)('subscriptions'),
     (0, common_1.Controller)('api/subscriptions'),

@@ -41,7 +41,20 @@ let AuthController = class AuthController {
         };
     }
     async getInvite(token) {
-        return this.authService.getInvite(token);
+        try {
+            return this.authService.getInvite(token);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Invite not found');
+        }
+    }
+    async consumeInvite(token) {
+        try {
+            return this.authService.consumeInvite(token);
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Invite not found');
+        }
     }
     async register(registerDto, res) {
         const result = await this.authService.register(registerDto);
@@ -177,6 +190,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getInvite", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('invite/:token/consume'),
+    (0, swagger_1.ApiOperation)({ summary: 'Consume invite by token' }),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "consumeInvite", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('register'),

@@ -10,6 +10,19 @@ import { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 // Updated to include invite model
 
+// Type for authenticated request with organization
+interface AuthenticatedRequest extends Request {
+  organization?: {
+    id: string;
+    name: string;
+    slug: string | null;
+  };
+  user?: {
+    id: string;
+    email: string;
+  };
+}
+
 // Type assertion for invite model
 type PrismaWithInvite = PrismaService & {
   invite: {
@@ -62,7 +75,7 @@ export class SubscriptionsService {
 
   // Esse metodo cria um convite para um usuario
   async createInvite(createInviteDto: CreateInviteDto, req: Request) {
-    const organizationId = (req as any).organization?.id;
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
     if (!organizationId) {
       throw new NotFoundException('Organization not found');
     }
@@ -80,5 +93,108 @@ export class SubscriptionsService {
 
   private generateInviteToken(): string {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  // Esse metodo retorna o status da subscription do usuario
+  async getSubscriptionStatus(req: Request) {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    if (!organizationId) {
+      throw new NotFoundException('Organization not found');
+    }
+    // Verificar se o usuario tem uma subscription ativa
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        organizationId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+    return subscription;
+  }
+
+  // Criar metodo para pausar a subscription
+  async pauseSubscription(req: Request) {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    // Verificar se o usuario tem uma subscription ativa
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        organizationId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+    // Pausar a subscription
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: SubscriptionStatus.INACTIVE },
+    });
+    return subscription;
+  }
+
+  // Criar metodo para reativar a subscription
+  async resumeSubscription(req: Request) {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    // Verificar se o usuario tem uma subscription ativa
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        organizationId,
+        status: SubscriptionStatus.INACTIVE,
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Organization not found');
+    }
+    // Reativar a subscription
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: SubscriptionStatus.ACTIVE },
+    });
+    return subscription;
+  }
+
+  // Criar metodo para cancelar a subscription
+  async cancelSubscription(req: Request) {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    // Verificar se o usuario tem uma subscription ativa
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        organizationId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+    // Cancelar a subscription
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: SubscriptionStatus.CANCELED },
+    });
+    return subscription;
+  }
+
+  // Criar metodo para atualizar a subscription
+  async updateSubscription(req: Request) {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    // Verificar se o usuario tem uma subscription ativa
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        organizationId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Organization not found');
+    }
+    // Atualizar a subscription
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: SubscriptionStatus.ACTIVE },
+    });
+    return subscription;
   }
 } 

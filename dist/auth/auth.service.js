@@ -27,7 +27,30 @@ let AuthService = class AuthService {
         this.mail = mail;
     }
     async getInvite(token) {
-        return this.prisma.invite.findUnique({ where: { token } });
+        try {
+            const invite = await this.prisma.invite.findUnique({ where: { token } });
+            if (!invite) {
+                throw new common_1.NotFoundException('Invite not found');
+            }
+            if (invite.expiresAt < new Date()) {
+                throw new common_1.BadRequestException('Invite expired');
+            }
+            if (invite.usedAt) {
+                throw new common_1.BadRequestException('Invite already used');
+            }
+            return invite;
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Invite not found');
+        }
+    }
+    async consumeInvite(token) {
+        try {
+            return this.prisma.invite.update({ where: { token }, data: { usedAt: new Date() } });
+        }
+        catch (error) {
+            throw new common_1.NotFoundException('Invite not found');
+        }
     }
     async hashPassword(password) {
         const saltRounds = 12;

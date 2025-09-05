@@ -56,6 +56,90 @@ let SubscriptionsService = class SubscriptionsService {
     generateInviteToken() {
         return Math.random().toString(36).substring(2) + Date.now().toString(36);
     }
+    async getSubscriptionStatus(req) {
+        const organizationId = req.organization?.id;
+        if (!organizationId) {
+            throw new common_1.NotFoundException('Organization not found');
+        }
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: SubscriptionStatus.ACTIVE,
+            },
+        });
+        if (!subscription) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+        return subscription;
+    }
+    async pauseSubscription(req) {
+        const organizationId = req.organization?.id;
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: SubscriptionStatus.ACTIVE,
+            },
+        });
+        if (!subscription) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+        await this.prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: SubscriptionStatus.INACTIVE },
+        });
+        return subscription;
+    }
+    async resumeSubscription(req) {
+        const organizationId = req.organization?.id;
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: SubscriptionStatus.INACTIVE,
+            },
+        });
+        if (!subscription) {
+            throw new common_1.NotFoundException('Organization not found');
+        }
+        await this.prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: SubscriptionStatus.ACTIVE },
+        });
+        return subscription;
+    }
+    async cancelSubscription(req) {
+        const organizationId = req.organization?.id;
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: SubscriptionStatus.ACTIVE,
+            },
+        });
+        if (!subscription) {
+            throw new common_1.NotFoundException('Subscription not found');
+        }
+        await this.prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: SubscriptionStatus.CANCELED },
+        });
+        return subscription;
+    }
+    async updateSubscription(req) {
+        const organizationId = req.organization?.id;
+        const subscription = await this.prisma.subscription.findFirst({
+            where: {
+                organizationId,
+                status: SubscriptionStatus.ACTIVE,
+            },
+        });
+        if (!subscription) {
+            throw new common_1.NotFoundException('Organization not found');
+        }
+        await this.prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: SubscriptionStatus.ACTIVE },
+        });
+        return subscription;
+    }
 };
 exports.SubscriptionsService = SubscriptionsService;
 exports.SubscriptionsService = SubscriptionsService = __decorate([

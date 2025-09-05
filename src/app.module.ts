@@ -11,6 +11,7 @@ import { MuxModule } from './providers/mux/mux.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { OrganizationScopeInterceptor } from './common/interceptors/organization-scope.interceptor';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { OrganizationScopeInterceptor } from './common/interceptors/organization
     SubscriptionsModule,
     AnalyticsModule,
     MuxModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -19,6 +19,7 @@ const mux_module_1 = require("./providers/mux/mux.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const organization_scope_interceptor_1 = require("./common/interceptors/organization-scope.interceptor");
+const payments_module_1 = require("./payments/payments.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -32,6 +33,7 @@ exports.AppModule = AppModule = __decorate([
             subscriptions_module_1.SubscriptionsModule,
             analytics_module_1.AnalyticsModule,
             mux_module_1.MuxModule,
+            payments_module_1.PaymentsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

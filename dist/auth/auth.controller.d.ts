@@ -15,8 +15,19 @@ export declare class AuthController {
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
         expiresAt: Date;
+        usedAt: Date | null;
         createdAt: Date;
-    } | null>;
+    }>;
+    consumeInvite(token: string): Promise<{
+        email: string;
+        token: string;
+        id: string;
+        organizationId: string;
+        role: import(".prisma/client").$Enums.Role;
+        expiresAt: Date;
+        usedAt: Date | null;
+        createdAt: Date;
+    }>;
     register(registerDto: RegisterDto, res: Response): Promise<void>;
     login(loginDto: LoginDto, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     logout(req: any, res: Response): Promise<void>;

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Req, Res, HttpStatus, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req, Res, HttpStatus, Param, Query, BadRequestException, NotFoundException } from '@nestjs/common';
 import rateLimit from 'express-rate-limit';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -31,12 +31,26 @@ export class AuthController {
     };
   }
 
-  // Criar endpoint GET /auth/invite/:token
   @Public()
   @Get('invite/:token')
   @ApiOperation({ summary: 'Get invite by token' })
   async getInvite(@Param('token') token: string) {
-    return this.authService.getInvite(token);
+    try {
+      return this.authService.getInvite(token);
+    } catch (error) {
+      throw new NotFoundException('Invite not found');
+    }
+  }
+
+  @Public()
+  @Get('invite/:token/consume')
+  @ApiOperation({ summary: 'Consume invite by token' })
+  async consumeInvite(@Param('token') token: string) {
+    try {
+      return this.authService.consumeInvite(token);
+    } catch (error) {
+      throw new NotFoundException('Invite not found');
+    }
   }
 
   @Public()
