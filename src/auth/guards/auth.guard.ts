@@ -13,6 +13,12 @@ export class AuthGuard implements CanActivate {
     private prisma: PrismaService,
   ) {}
 
+  // 1. Verifica se a rota é pública
+  // 2. Extrai o token do cookie ou header
+  // 3. Verifica se o token é válido
+  // 4. Busca o usuário no banco de dados
+  // 5. Busca a organização no banco de dados
+  // 6. Verifica se o usuário pertence à organização
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const path = request.path;
