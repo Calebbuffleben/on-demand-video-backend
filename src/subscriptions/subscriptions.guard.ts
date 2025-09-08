@@ -21,8 +21,8 @@ export class SubscriptionsGuard implements CanActivate {
       return true;
     }
     const subscription = await this.subscriptionsService.getSubscriptionStatus(request);
-    if(subscription.status === SubscriptionStatus.ACTIVE || subscription.status === SubscriptionStatus.TRIALING) return true;
-    if(subscription.status === SubscriptionStatus.PAST_DUE) return true;
+    if (subscription.status === SubscriptionStatus.ACTIVE || subscription.status === SubscriptionStatus.TRIALING) return true;
+    if (subscription.status === SubscriptionStatus.PAST_DUE) return true; // grace window handled by service later if needed
     throw new ForbiddenException('subscription_inactive');
   }
 }

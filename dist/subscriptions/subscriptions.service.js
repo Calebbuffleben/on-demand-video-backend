@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stripe_service_1 = require("./stripe.service");
 const config_1 = require("@nestjs/config");
+const crypto_1 = require("crypto");
 var PlanType;
 (function (PlanType) {
     PlanType["FREE"] = "FREE";
@@ -43,29 +44,75 @@ let SubscriptionsService = class SubscriptionsService {
         if (!organizationId) {
             throw new common_1.NotFoundException('Organization not found');
         }
-        return this.prisma.invite.create({
+        const rawToken = (0, crypto_1.randomBytes)(32).toString('hex');
+        const tokenHash = (0, crypto_1.createHash)('sha256').update(rawToken).digest('hex');
+        const invite = await this.prisma.invite.create({
             data: {
                 ...createInviteDto,
                 organizationId,
                 role: 'MEMBER',
-                token: this.generateInviteToken(),
+                token: tokenHash,
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             },
         });
+        return {
+            id: invite.id,
+            email: invite.email,
+            organizationId: invite.organizationId,
+            role: invite.role,
+            expiresAt: invite.expiresAt,
+            token: rawToken,
+            createdAt: invite.createdAt,
+        };
     }
-    generateInviteToken() {
-        return Math.random().toString(36).substring(2) + Date.now().toString(36);
+    getGraceDays() {
+        const raw = this.configService.get('SUBS_GRACE_DAYS');
+        const num = Number(raw);
+        return Number.isFinite(num) && num >= 0 ? num : 3;
+    }
+    isWithinGrace(subscription) {
+        if (subscription.status !== SubscriptionStatus.PAST_DUE)
+            return false;
+        if (!subscription.currentPeriodEnd)
+            return false;
+        const graceMs = this.getGraceDays() * 24 * 60 * 60 * 1000;
+        return Date.now() <= new Date(subscription.currentPeriodEnd).getTime() + graceMs;
+    }
+    isTrialingActive(subscription) {
+        if (subscription.status !== SubscriptionStatus.TRIALING)
+            return false;
+        if (!subscription.trialEndsAt)
+            return true;
+        return new Date(subscription.trialEndsAt).getTime() >= Date.now();
+    }
+    async hasActiveAccess(req) {
+        const subscription = await this.getSubscriptionStatus(req);
+        if (subscription.status === SubscriptionStatus.ACTIVE) {
+            return { subscription, hasAccess: true, isWithinGrace: false };
+        }
+        if (subscription.status === SubscriptionStatus.TRIALING) {
+            const ok = this.isTrialingActive(subscription);
+            return { subscription, hasAccess: ok, isWithinGrace: false };
+        }
+        if (subscription.status === SubscriptionStatus.PAST_DUE) {
+            const withinGrace = this.isWithinGrace(subscription);
+            return { subscription, hasAccess: withinGrace, isWithinGrace: withinGrace };
+        }
+        if (subscription.status === SubscriptionStatus.CANCELED) {
+            if (subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd).getTime() >= Date.now()) {
+                return { subscription, hasAccess: true, isWithinGrace: false };
+            }
+            return { subscription, hasAccess: false, isWithinGrace: false };
+        }
+        return { subscription, hasAccess: false, isWithinGrace: false };
     }
     async getSubscriptionStatus(req) {
         const organizationId = req.organization?.id;
         if (!organizationId) {
             throw new common_1.NotFoundException('Organization not found');
         }
-        const subscription = await this.prisma.subscription.findFirst({
-            where: {
-                organizationId,
-                status: SubscriptionStatus.ACTIVE,
-            },
+        const subscription = await this.prisma.subscription.findUnique({
+            where: { organizationId },
         });
         if (!subscription) {
             throw new common_1.NotFoundException('Subscription not found');
@@ -139,6 +186,13 @@ let SubscriptionsService = class SubscriptionsService {
             data: { status: SubscriptionStatus.ACTIVE },
         });
         return subscription;
+    }
+    async createCheckoutSession(dto, req) {
+        const organizationId = req.organization?.id;
+        const customerEmail = req.user?.email || '';
+        if (!organizationId)
+            throw new common_1.NotFoundException('Organization not found');
+        return this.stripeService.createCheckoutSession(organizationId, dto.planType, customerEmail, dto.successUrl, dto.cancelUrl);
     }
 };
 exports.SubscriptionsService = SubscriptionsService;

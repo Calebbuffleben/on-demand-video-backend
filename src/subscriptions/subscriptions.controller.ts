@@ -11,6 +11,7 @@ import {
 import { Request } from 'express';
 import { SubscriptionsService } from './subscriptions.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 import { CreateInviteDto } from './dto/create-invite.dto';
@@ -113,5 +114,24 @@ export class SubscriptionsController {
     } catch (error) {
       throw new NotFoundException('Subscription not found');
     }
+  }
+
+  @Get('access')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if org has active access (grace period aware)' })
+  async hasAccess(@Req() req: AuthenticatedRequest) {
+    const res = await this.subscriptionsService.hasActiveAccess(req);
+    return { hasAccess: res.hasAccess, isWithinGrace: res.isWithinGrace, subscription: res.subscription };
+  }
+
+  @Post('checkout')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create checkout session for subscription' })
+  async createCheckout(@Body() body: CreateCheckoutDto, @Req() req: AuthenticatedRequest) {
+    return this.subscriptionsService.createCheckoutSession(body, req);
   }
 } 

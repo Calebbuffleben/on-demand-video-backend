@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { SubscriptionsService } from './subscriptions.service';
+import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CreateInviteDto } from './dto/create-invite.dto';
 interface AuthenticatedRequest extends Request {
     user?: {
@@ -31,13 +32,12 @@ export declare class SubscriptionsController {
     private readonly subscriptionsService;
     constructor(subscriptionsService: SubscriptionsService);
     createInvite(createInviteDto: CreateInviteDto, req: AuthenticatedRequest): Promise<{
-        email: string;
-        token: string;
         id: string;
+        email: string;
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
         expiresAt: Date;
-        usedAt: Date | null;
+        token: string;
         createdAt: Date;
     }>;
     pauseSubscription(req: AuthenticatedRequest): Promise<{
@@ -96,5 +96,24 @@ export declare class SubscriptionsController {
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
     }>;
+    hasAccess(req: AuthenticatedRequest): Promise<{
+        hasAccess: boolean;
+        isWithinGrace: boolean;
+        subscription: {
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: import(".prisma/client").$Enums.SubscriptionStatus;
+            planType: import(".prisma/client").$Enums.PlanType;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            trialEndsAt: Date | null;
+            currentPeriodStart: Date | null;
+            currentPeriodEnd: Date | null;
+            cancelAtPeriodEnd: boolean;
+        };
+    }>;
+    createCheckout(body: CreateCheckoutDto, req: AuthenticatedRequest): Promise<import("stripe").Stripe.Response<import("stripe").Stripe.Checkout.Session>>;
 }
 export {};

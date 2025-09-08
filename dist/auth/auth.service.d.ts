@@ -4,6 +4,7 @@ import { User, Organization } from '@prisma/client';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { MailService } from '../mail/mail.service';
+import { ConsumeInviteDto } from './dto/consume-invite.dto';
 interface JwtPayload {
     userId: string;
     organizationId: string;
@@ -39,16 +40,7 @@ export declare class AuthService {
         usedAt: Date | null;
         createdAt: Date;
     }>;
-    consumeInvite(token: string): Promise<{
-        email: string;
-        token: string;
-        id: string;
-        organizationId: string;
-        role: import(".prisma/client").$Enums.Role;
-        expiresAt: Date;
-        usedAt: Date | null;
-        createdAt: Date;
-    }>;
+    consumeInvite(token: string, payload: ConsumeInviteDto): Promise<AuthResponse>;
     private hashPassword;
     private comparePassword;
     private generateToken;
@@ -96,8 +88,8 @@ export declare class AuthService {
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
         createdAt: Date;
-        userId: string;
         updatedAt: Date;
+        userId: string;
     })[]>;
 }
 export {};

@@ -28,7 +28,11 @@ let AuthService = class AuthService {
     }
     async getInvite(token) {
         try {
-            const invite = await this.prisma.invite.findUnique({ where: { token } });
+            const hashed = (0, crypto_1.createHash)('sha256').update(token).digest('hex');
+            let invite = await this.prisma.invite.findUnique({ where: { token: hashed } });
+            if (!invite) {
+                invite = await this.prisma.invite.findUnique({ where: { token } });
+            }
             if (!invite) {
                 throw new common_1.NotFoundException('Invite not found');
             }
@@ -44,11 +48,70 @@ let AuthService = class AuthService {
             throw new common_1.NotFoundException('Invite not found');
         }
     }
-    async consumeInvite(token) {
+    async consumeInvite(token, payload) {
         try {
-            return this.prisma.invite.update({ where: { token }, data: { usedAt: new Date() } });
+            const hashed = (0, crypto_1.createHash)('sha256').update(token).digest('hex');
+            let invite = await this.prisma.invite.findUnique({ where: { token: hashed } });
+            if (!invite) {
+                invite = await this.prisma.invite.findUnique({ where: { token } });
+            }
+            if (!invite)
+                throw new common_1.NotFoundException('Invite not found');
+            if (invite.expiresAt < new Date())
+                throw new common_1.BadRequestException('Invite expired');
+            if (invite.usedAt)
+                throw new common_1.BadRequestException('Invite already used');
+            const result = await this.prisma.$transaction(async (tx) => {
+                let user = await tx.user.findUnique({ where: { email: invite.email } });
+                if (!user) {
+                    const hash = payload.password ? await this.hashPassword(payload.password) : null;
+                    user = await tx.user.create({
+                        data: {
+                            email: invite.email,
+                            password: hash,
+                            firstName: payload.firstName || null,
+                            lastName: payload.lastName || null,
+                            emailVerified: true,
+                        },
+                    });
+                }
+                else if (!user.password && payload.password) {
+                    const hash = await this.hashPassword(payload.password);
+                    user = await tx.user.update({ where: { id: user.id }, data: { password: hash } });
+                }
+                const org = await tx.organization.findUnique({ where: { id: invite.organizationId } });
+                if (!org)
+                    throw new common_1.NotFoundException('Organization not found');
+                await tx.userOrganization.upsert({
+                    where: { userId_organizationId: { userId: user.id, organizationId: org.id } },
+                    create: { userId: user.id, organizationId: org.id, role: invite.role },
+                    update: {},
+                });
+                await tx.invite.update({ where: { token: invite.token }, data: { usedAt: new Date() } });
+                return { user, organization: org };
+            });
+            const tokenJwt = this.generateToken(result.user.id, result.organization.id);
+            const refreshToken = await this.issueRefreshToken(result.user.id, result.organization.id);
+            return {
+                user: {
+                    id: result.user.id,
+                    email: result.user.email,
+                    firstName: result.user.firstName,
+                    lastName: result.user.lastName,
+                },
+                organization: {
+                    id: result.organization.id,
+                    name: result.organization.name,
+                    slug: result.organization.slug,
+                },
+                token: tokenJwt,
+                refreshToken,
+            };
         }
         catch (error) {
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.BadRequestException) {
+                throw error;
+            }
             throw new common_1.NotFoundException('Invite not found');
         }
     }

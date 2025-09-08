@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { MailService } from '../mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
+import { ConsumeInviteDto } from './dto/consume-invite.dto';
 // Updated Prisma types
 
 // Type assertion for invite model
@@ -86,7 +87,12 @@ export class AuthService {
     // Verificar se o convite existe e se esta expirado
     // Criar try catch para tratar o erro
     try {
-    const invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+    // Hash-based lookup (backward compatible fallback to raw)
+    const hashed = createHash('sha256').update(token).digest('hex');
+    let invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token: hashed } });
+    if (!invite) {
+      invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+    }
     if (!invite) {
       throw new NotFoundException('Invite not found');
     }
@@ -108,11 +114,76 @@ export class AuthService {
 
   // Criar metodo para consume invite by token
   // Criar try catch para tratar o erro
-  async consumeInvite(token: string) {
-    // Atualizar os dados do convite de acordo com a aplicação atual
+  async consumeInvite(token: string, payload: ConsumeInviteDto): Promise<AuthResponse> {
     try {
-      return (this.prisma as PrismaWithInvite).invite.update({ where: { token }, data: { usedAt: new Date() } });
+      const hashed = createHash('sha256').update(token).digest('hex');
+      let invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token: hashed } });
+      if (!invite) {
+        invite = await (this.prisma as PrismaWithInvite).invite.findUnique({ where: { token } });
+      }
+      if (!invite) throw new NotFoundException('Invite not found');
+      if (invite.expiresAt < new Date()) throw new BadRequestException('Invite expired');
+      if ((invite as { usedAt?: Date | null }).usedAt) throw new BadRequestException('Invite already used');
+
+      // Create or update user and attach to organization within a transaction
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Find or create user by invite email
+        let user = await tx.user.findUnique({ where: { email: invite!.email } });
+        if (!user) {
+          const hash = payload.password ? await this.hashPassword(payload.password) : null;
+          user = await tx.user.create({
+            data: {
+              email: invite!.email,
+              password: hash,
+              firstName: payload.firstName || null,
+              lastName: payload.lastName || null,
+              emailVerified: true,
+            },
+          });
+        } else if (!user.password && payload.password) {
+          // Set password if user exists but has none (migrated)
+          const hash = await this.hashPassword(payload.password);
+          user = await tx.user.update({ where: { id: user.id }, data: { password: hash } });
+        }
+
+        // Ensure membership in organization
+        const org = await tx.organization.findUnique({ where: { id: invite!.organizationId } });
+        if (!org) throw new NotFoundException('Organization not found');
+        await tx.userOrganization.upsert({
+          where: { userId_organizationId: { userId: user.id, organizationId: org.id } },
+          create: { userId: user.id, organizationId: org.id, role: invite!.role as any },
+          update: {},
+        });
+
+        // Mark invite as used
+        await (tx as unknown as PrismaWithInvite).invite.update({ where: { token: invite!.token }, data: { usedAt: new Date() } });
+
+        return { user, organization: org };
+      });
+
+      // Issue session tokens
+      const tokenJwt = this.generateToken(result.user.id, result.organization.id);
+      const refreshToken = await this.issueRefreshToken(result.user.id, result.organization.id);
+
+      return {
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.firstName,
+          lastName: result.user.lastName,
+        },
+        organization: {
+          id: result.organization.id,
+          name: result.organization.name,
+          slug: result.organization.slug,
+        },
+        token: tokenJwt,
+        refreshToken,
+      };
     } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
       throw new NotFoundException('Invite not found');
     }
   }

@@ -7,6 +7,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { Public } from './decorators/public.decorator';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ConsumeInviteDto } from './dto/consume-invite.dto';
 import { ConfigService } from '@nestjs/config';
 
 @ApiTags('auth')
@@ -43,11 +44,27 @@ export class AuthController {
   }
 
   @Public()
-  @Get('invite/:token/consume')
+  @Post('invite/:token/consume')
   @ApiOperation({ summary: 'Consume invite by token' })
-  async consumeInvite(@Param('token') token: string) {
+  async consumeInvite(
+    @Param('token') token: string,
+    @Body() body: ConsumeInviteDto,
+    @Res() res: Response,
+  ) {
     try {
-      return this.authService.consumeInvite(token);
+      const result = await this.authService.consumeInvite(token, body);
+      // Set cookies like login
+      res.cookie('scale_token', result.token, {
+        ...this.getCookieOptions(),
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      if (result.refreshToken) {
+        res.cookie('scale_refresh', result.refreshToken, {
+          ...this.getCookieOptions(),
+          maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
+        });
+      }
+      return res.json(result);
     } catch (error) {
       throw new NotFoundException('Invite not found');
     }

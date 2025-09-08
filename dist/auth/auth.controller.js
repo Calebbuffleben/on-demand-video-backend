@@ -20,6 +20,7 @@ const login_dto_1 = require("./dto/login.dto");
 const auth_guard_1 = require("./guards/auth.guard");
 const public_decorator_1 = require("./decorators/public.decorator");
 const swagger_1 = require("@nestjs/swagger");
+const consume_invite_dto_1 = require("./dto/consume-invite.dto");
 const config_1 = require("@nestjs/config");
 let AuthController = class AuthController {
     authService;
@@ -48,9 +49,20 @@ let AuthController = class AuthController {
             throw new common_1.NotFoundException('Invite not found');
         }
     }
-    async consumeInvite(token) {
+    async consumeInvite(token, body, res) {
         try {
-            return this.authService.consumeInvite(token);
+            const result = await this.authService.consumeInvite(token, body);
+            res.cookie('scale_token', result.token, {
+                ...this.getCookieOptions(),
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+            if (result.refreshToken) {
+                res.cookie('scale_refresh', result.refreshToken, {
+                    ...this.getCookieOptions(),
+                    maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
+                });
+            }
+            return res.json(result);
         }
         catch (error) {
             throw new common_1.NotFoundException('Invite not found');
@@ -192,11 +204,13 @@ __decorate([
 ], AuthController.prototype, "getInvite", null);
 __decorate([
     (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('invite/:token/consume'),
+    (0, common_1.Post)('invite/:token/consume'),
     (0, swagger_1.ApiOperation)({ summary: 'Consume invite by token' }),
     __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, consume_invite_dto_1.ConsumeInviteDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "consumeInvite", null);
 __decorate([

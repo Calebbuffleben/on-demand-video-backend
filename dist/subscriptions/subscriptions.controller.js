@@ -16,6 +16,7 @@ exports.SubscriptionsController = void 0;
 const common_1 = require("@nestjs/common");
 const subscriptions_service_1 = require("./subscriptions.service");
 const swagger_1 = require("@nestjs/swagger");
+const create_checkout_dto_1 = require("./dto/create-checkout.dto");
 const auth_guard_1 = require("../auth/guards/auth.guard");
 const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 const create_invite_dto_1 = require("./dto/create-invite.dto");
@@ -63,6 +64,13 @@ let SubscriptionsController = class SubscriptionsController {
         catch (error) {
             throw new common_1.NotFoundException('Subscription not found');
         }
+    }
+    async hasAccess(req) {
+        const res = await this.subscriptionsService.hasActiveAccess(req);
+        return { hasAccess: res.hasAccess, isWithinGrace: res.isWithinGrace, subscription: res.subscription };
+    }
+    async createCheckout(body, req) {
+        return this.subscriptionsService.createCheckoutSession(body, req);
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
@@ -122,6 +130,29 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getSubscriptionStatus", null);
+__decorate([
+    (0, common_1.Get)('access'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Check if org has active access (grace period aware)' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "hasAccess", null);
+__decorate([
+    (0, common_1.Post)('checkout'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, organization_scoped_decorator_1.OrganizationScoped)(),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create checkout session for subscription' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [create_checkout_dto_1.CreateCheckoutDto, Object]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "createCheckout", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([
     (0, swagger_1.ApiTags)('subscriptions'),
     (0, common_1.Controller)('api/subscriptions'),

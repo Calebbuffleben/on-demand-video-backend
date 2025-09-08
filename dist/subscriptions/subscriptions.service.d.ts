@@ -1,7 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from './stripe.service';
 import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
+import { Subscription } from '@prisma/client';
 import { CreateInviteDto } from './dto/create-invite.dto';
+import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { Request } from 'express';
 export declare class SubscriptionsService {
     private prisma;
@@ -9,16 +12,22 @@ export declare class SubscriptionsService {
     private configService;
     constructor(prisma: PrismaService, stripeService: StripeService, configService: ConfigService);
     createInvite(createInviteDto: CreateInviteDto, req: Request): Promise<{
-        email: string;
-        token: string;
         id: string;
+        email: string;
         organizationId: string;
         role: import(".prisma/client").$Enums.Role;
         expiresAt: Date;
-        usedAt: Date | null;
+        token: string;
         createdAt: Date;
     }>;
-    private generateInviteToken;
+    private getGraceDays;
+    private isWithinGrace;
+    private isTrialingActive;
+    hasActiveAccess(req: Request): Promise<{
+        subscription: Subscription;
+        hasAccess: boolean;
+        isWithinGrace: boolean;
+    }>;
     getSubscriptionStatus(req: Request): Promise<{
         id: string;
         organizationId: string;
@@ -89,4 +98,5 @@ export declare class SubscriptionsService {
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
     }>;
+    createCheckoutSession(dto: CreateCheckoutDto, req: Request): Promise<Stripe.Response<Stripe.Checkout.Session>>;
 }
