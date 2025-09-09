@@ -22,7 +22,6 @@ const auth_guard_1 = require("../auth/guards/auth.guard");
 const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 const prisma_service_1 = require("../prisma/prisma.service");
 const events_time_range_dto_1 = require("./dto/events-time-range.dto");
-const device_context_util_1 = require("./utils/device-context.util");
 let AnalyticsController = class AnalyticsController {
     analyticsService;
     prisma;
@@ -30,14 +29,8 @@ let AnalyticsController = class AnalyticsController {
         this.analyticsService = analyticsService;
         this.prisma = prisma;
     }
-    clampNumber(value, min, max) {
-        const n = Math.floor(Number(value));
-        if (Number.isNaN(n))
-            return null;
-        return Math.max(min, Math.min(max, n));
-    }
     async ingestEvent(body, req) {
-        const { videoId, eventType, currentTime = 0, duration = 0, userId, sessionId, clientId, organizationId, context } = body || {};
+        const { videoId, eventType, currentTime = 0, duration = 0, userId, sessionId, clientId, organizationId } = body || {};
         if (!videoId || !eventType) {
             throw new common_1.BadRequestException('videoId and eventType are required');
         }
@@ -61,52 +54,6 @@ let AnalyticsController = class AnalyticsController {
                 userAgent: userAgent,
             },
         });
-        if (normalizedEventType === 'play' && sessionId && context) {
-            try {
-                const orgId = organizationId || req['organization']?.id || null;
-                const ctx = (0, device_context_util_1.normalizeDeviceContext)(context);
-                const ctxHash = (0, device_context_util_1.hashDeviceContext)(ctx);
-                const dc = await this.prisma.deviceContext.upsert({
-                    where: { hash: ctxHash },
-                    update: { updatedAt: new Date() },
-                    create: {
-                        hash: ctxHash,
-                        screenWidth: ctx.screenWidth,
-                        screenHeight: ctx.screenHeight,
-                        viewportWidth: ctx.viewportWidth,
-                        viewportHeight: ctx.viewportHeight,
-                        devicePixelRatio: ctx.devicePixelRatio,
-                        orientation: ctx.orientation,
-                        language: ctx.language,
-                        timezone: ctx.timezone,
-                        hardwareConcurrency: ctx.hardwareConcurrency,
-                        deviceMemory: ctx.deviceMemory,
-                    },
-                });
-                await this.prisma.viewerSession.upsert({
-                    where: { videoId_sessionId: { videoId, sessionId } },
-                    update: {
-                        deviceContextId: dc.id,
-                        userAgent: userAgent || null,
-                        ip: ip || null,
-                        updatedAt: new Date(),
-                    },
-                    create: {
-                        videoId,
-                        organizationId: orgId,
-                        sessionId,
-                        clientId: clientId || null,
-                        userId: userId || null,
-                        deviceContextId: dc.id,
-                        userAgent: userAgent || null,
-                        ip: ip || null,
-                    },
-                });
-            }
-            catch (e) {
-                console.warn('device context upsert failed', e);
-            }
-        }
         return { success: true };
     }
     async getEventsSummary(videoId, bucketSizeParam, perSecondParam, range, req) {

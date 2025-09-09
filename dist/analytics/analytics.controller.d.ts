@@ -12,7 +12,6 @@ export declare class AnalyticsController {
     private readonly analyticsService;
     private readonly prisma;
     constructor(analyticsService: AnalyticsService, prisma: PrismaService);
-    private clampNumber;
     ingestEvent(body: any, req: any): Promise<{
         success: boolean;
     }>;

@@ -4,7 +4,7 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "npm run start:prod",
+    "startCommand": "npm run test:db && npm run db:migrate || echo 'Migration failed, continuing...' && npm run start:prod",
     "healthcheckPath": "/",
     "healthcheckTimeout": 300,
     "restartPolicyType": "on_failure",
