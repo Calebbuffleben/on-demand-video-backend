@@ -19,6 +19,8 @@ const cache_manager_1 = require("@nestjs/cache-manager");
 const common_2 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
+const time_range_util_1 = require("./utils/time-range.util");
+const ua_geo_util_1 = require("./utils/ua-geo.util");
 let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
     prisma;
     cacheManager;
@@ -27,10 +29,11 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
         this.prisma = prisma;
         this.cacheManager = cacheManager;
     }
-    async getUniqueViews(videoId) {
+    async getUniqueViews(videoId, range) {
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
         const bySession = await this.prisma.videoPlaybackEvent.groupBy({
             by: ['sessionId'],
-            where: { videoId, eventType: { in: ['play', 'ended'] }, sessionId: { not: null } },
+            where: { videoId, eventType: { in: ['play', 'ended'] }, sessionId: { not: null }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _count: { _all: true },
         });
         if (bySession.length > 0) {
@@ -38,7 +41,7 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
         }
         const byUser = await this.prisma.videoPlaybackEvent.groupBy({
             by: ['userId'],
-            where: { videoId, eventType: { in: ['play', 'ended'] }, userId: { not: null } },
+            where: { videoId, eventType: { in: ['play', 'ended'] }, userId: { not: null }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _count: { _all: true },
         });
         if (byUser.length > 0) {
@@ -48,12 +51,15 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
       SELECT DISTINCT (COALESCE(ip,'') || '|' || COALESCE("userAgent",'')) as k
       FROM "VideoPlaybackEvent"
       WHERE "videoId" = ${videoId} AND "eventType" IN ('play','ended')
+        ${dateFilter?.gte ? client_1.Prisma.sql `AND "createdAt" >= ${dateFilter.gte}` : client_1.Prisma.sql ``}
+        ${dateFilter?.lte ? client_1.Prisma.sql `AND "createdAt" <= ${dateFilter.lte}` : client_1.Prisma.sql ``}
     `);
         return rows.length;
     }
-    async getWatchTimeSeconds(videoId) {
+    async getWatchTimeSeconds(videoId, range) {
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
         const events = await this.prisma.videoPlaybackEvent.findMany({
-            where: { videoId, eventType: { in: ['timeupdate', 'ended'] } },
+            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             orderBy: [{ sessionId: 'asc' }, { createdAt: 'asc' }],
             select: { sessionId: true, currentTime: true, createdAt: true },
         });
@@ -74,12 +80,12 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
         }
         return Math.floor(total);
     }
-    async getRetentionBuckets(videoId, duration, bucketSize = 10) {
+    async getRetentionBuckets(videoId, duration, bucketSize = 10, range) {
         if (!duration || duration <= 0)
             return [];
         const bucketCount = Math.ceil(duration / bucketSize);
         const buckets = Array.from({ length: bucketCount }, (_, i) => ({ start: i * bucketSize, end: Math.min((i + 1) * bucketSize, duration), viewers: 0 }));
-        const progresses = await this.getMaxProgresses(videoId);
+        const progresses = await this.getMaxProgresses(videoId, range);
         for (const p of progresses) {
             const reachedIndex = Math.min(Math.floor(p / bucketSize), bucketCount - 1);
             for (let i = 0; i <= reachedIndex; i++)
@@ -88,10 +94,10 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
         const totalViewers = progresses.length || 1;
         return buckets.map(b => ({ ...b, pct: Math.round((b.viewers / totalViewers) * 100) }));
     }
-    async getSecondBySecondRetention(videoId, duration) {
+    async getSecondBySecondRetention(videoId, duration, range) {
         if (!duration || duration <= 0)
             return [];
-        const progresses = await this.getMaxProgresses(videoId);
+        const progresses = await this.getMaxProgresses(videoId, range);
         const total = progresses.length || 1;
         const result = [];
         for (let s = 0; s <= duration; s++) {
@@ -100,17 +106,18 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
         }
         return result;
     }
-    async getMaxProgresses(videoId) {
+    async getMaxProgresses(videoId, range) {
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
         const bySession = await this.prisma.videoPlaybackEvent.groupBy({
             by: ['sessionId'],
-            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, sessionId: { not: null } },
+            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, sessionId: { not: null }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _max: { currentTime: true },
         });
         if (bySession.length > 0)
             return bySession.map((r) => r._max?.currentTime ?? 0);
         const byUser = await this.prisma.videoPlaybackEvent.groupBy({
             by: ['userId'],
-            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, userId: { not: null } },
+            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, userId: { not: null }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _max: { currentTime: true },
         });
         if (byUser.length > 0)
@@ -119,9 +126,170 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
       SELECT MAX("currentTime")::int as max_time
       FROM "VideoPlaybackEvent"
       WHERE "videoId" = ${videoId} AND "eventType" IN ('timeupdate','ended')
+        ${dateFilter?.gte ? client_1.Prisma.sql `AND "createdAt" >= ${dateFilter.gte}` : client_1.Prisma.sql ``}
+        ${dateFilter?.lte ? client_1.Prisma.sql `AND "createdAt" <= ${dateFilter.lte}` : client_1.Prisma.sql ``}
       GROUP BY (COALESCE(ip,'') || '|' || COALESCE("userAgent",''))
     `);
         return rows.map(r => r.max_time || 0);
+    }
+    async getWatchHeatmap(videoId, duration, bucketSize = 5, range) {
+        if (!duration || duration <= 0)
+            return [];
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
+        const events = await this.prisma.videoPlaybackEvent.findMany({
+            where: { videoId, eventType: { in: ['timeupdate', 'ended'] }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+            orderBy: [{ sessionId: 'asc' }, { createdAt: 'asc' }],
+            select: { sessionId: true, currentTime: true, createdAt: true },
+        });
+        const bucketCount = Math.ceil(duration / bucketSize);
+        const secondsPerBucket = new Array(bucketCount).fill(0);
+        let prevSession = '';
+        let prevTime = 0;
+        for (const e of events) {
+            const s = e.sessionId || 'anon';
+            const cur = Math.max(0, Math.min(duration, e.currentTime || 0));
+            if (s !== prevSession) {
+                prevSession = s;
+                prevTime = cur;
+                continue;
+            }
+            if (cur > prevTime && cur - prevTime < 600) {
+                let start = prevTime;
+                let end = cur;
+                const startBucket = Math.floor(start / bucketSize);
+                const endBucket = Math.floor((end - 1) / bucketSize);
+                for (let b = startBucket; b <= endBucket; b++) {
+                    const bStart = b * bucketSize;
+                    const bEnd = Math.min((b + 1) * bucketSize, duration);
+                    const overlap = Math.max(0, Math.min(end, bEnd) - Math.max(start, bStart));
+                    if (overlap > 0)
+                        secondsPerBucket[b] += overlap;
+                }
+            }
+            prevTime = cur;
+        }
+        const maxSeconds = secondsPerBucket.reduce((m, v) => (v > m ? v : m), 0) || 1;
+        return secondsPerBucket.map((secs, idx) => {
+            const start = idx * bucketSize;
+            const end = Math.min((idx + 1) * bucketSize, duration);
+            return {
+                start,
+                end,
+                secondsWatched: Math.round(secs),
+                intensityPct: Math.round((secs / maxSeconds) * 100),
+            };
+        });
+    }
+    async getEventsInsights(videoId, duration, range, bucketSize = 5, topDropOffs = 5) {
+        const progresses = await this.getMaxProgresses(videoId, range);
+        const totalViewers = progresses.length || 1;
+        const milestones = [0.25, 0.5, 0.75, 1.0].map((p) => Math.floor(duration * p));
+        const reachCounts = milestones.map((t) => progresses.reduce((acc, p) => acc + (p >= t ? 1 : 0), 0));
+        const quartiles = {
+            q25: { time: milestones[0], reached: reachCounts[0], pct: Math.round((reachCounts[0] / totalViewers) * 100) },
+            q50: { time: milestones[1], reached: reachCounts[1], pct: Math.round((reachCounts[1] / totalViewers) * 100) },
+            q75: { time: milestones[2], reached: reachCounts[2], pct: Math.round((reachCounts[2] / totalViewers) * 100) },
+            q100: { time: milestones[3], reached: reachCounts[3], pct: Math.round((reachCounts[3] / totalViewers) * 100) },
+        };
+        const completionThreshold = Math.max(0, duration - Math.ceil(duration * 0.01));
+        const completed = progresses.reduce((acc, p) => acc + (p >= completionThreshold ? 1 : 0), 0);
+        const completionRate = { completed, pct: Math.round((completed / totalViewers) * 100) };
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
+        const playEvents = await this.prisma.videoPlaybackEvent.findMany({
+            where: { videoId, eventType: 'play', ...(dateFilter ? { createdAt: dateFilter } : {}) },
+            select: { sessionId: true },
+            orderBy: [{ sessionId: 'asc' }],
+        });
+        const replayMap = new Map();
+        for (const e of playEvents) {
+            const key = e.sessionId || 'anon';
+            replayMap.set(key, (replayMap.get(key) || 0) + 1);
+        }
+        let replayCount = 0;
+        let sessionsWithReplay = 0;
+        for (const [, count] of replayMap) {
+            if (count > 1) {
+                replayCount += count - 1;
+                sessionsWithReplay += 1;
+            }
+        }
+        const replays = {
+            count: replayCount,
+            sessionsWithReplay,
+            ratePct: Math.round((sessionsWithReplay / totalViewers) * 100),
+        };
+        const heatmap = await this.getWatchHeatmap(videoId, duration, bucketSize, range);
+        const perSecond = await this.getSecondBySecondRetention(videoId, duration, range);
+        const drops = [];
+        for (let i = 0; i < perSecond.length - 1; i++) {
+            const d = perSecond[i].pct - perSecond[i + 1].pct;
+            if (d > 0)
+                drops.push({ time: perSecond[i + 1].time, dropPct: d });
+        }
+        drops.sort((a, b) => b.dropPct - a.dropPct);
+        const dropOffPoints = drops.slice(0, topDropOffs);
+        return { quartiles, completionRate, replays, heatmap, dropOffPoints };
+    }
+    async getViewerAnalyticsFromEvents(videoId, range) {
+        const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
+        const events = await this.prisma.videoPlaybackEvent.findMany({
+            where: { videoId, eventType: { in: ['play', 'ended'] }, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+            select: { userAgent: true, ip: true, sessionId: true, userId: true, createdAt: true },
+            orderBy: [{ sessionId: 'asc' }, { userId: 'asc' }, { createdAt: 'asc' }],
+        });
+        const seenKeys = new Set();
+        const uniqueEvents = [];
+        for (const e of events) {
+            const sessionKey = e.sessionId ? `s:${e.sessionId}` : '';
+            const userKey = !sessionKey && e.userId ? `u:${e.userId}` : '';
+            const ipUaKey = !sessionKey && !userKey ? `k:${e.ip || ''}|${e.userAgent || ''}` : '';
+            const key = sessionKey || userKey || ipUaKey;
+            if (!key)
+                continue;
+            if (seenKeys.has(key))
+                continue;
+            seenKeys.add(key);
+            uniqueEvents.push({ userAgent: e.userAgent, ip: e.ip });
+        }
+        const deviceMap = new Map();
+        const browserMap = new Map();
+        const osMap = new Map();
+        const locationMap = new Map();
+        for (const e of uniqueEvents) {
+            const parsed = (0, ua_geo_util_1.parseUserAgent)(e.userAgent || undefined);
+            const deviceKey = `${parsed.device.type}|${parsed.device.manufacturer}`;
+            const browserKey = `${parsed.browser.name}|${parsed.browser.version}`;
+            const osKey = `${parsed.os.name}|${parsed.os.version}`;
+            const geo = (0, ua_geo_util_1.lookupGeoByIp)(e.ip) || (0, ua_geo_util_1.extractGeoFromHeaders)({});
+            const locKey = `${geo.countryCode}|${geo.region || ''}|${geo.city || ''}`;
+            const deviceLabel = parsed.device.type === 'desktop' ? 'Desktop' : parsed.device.type === 'tablet' ? 'Tablet' : parsed.device.type === 'phone' ? 'Phone' : 'Unknown';
+            const manufacturer = parsed.device.manufacturer || 'Unknown';
+            const deviceEntry = deviceMap.get(deviceKey) || { device: deviceLabel, category: parsed.device.type, manufacturer, views: 0 };
+            deviceEntry.views += 1;
+            deviceMap.set(deviceKey, deviceEntry);
+            const [bName, bVer] = browserKey.split('|');
+            const browserEntry = browserMap.get(browserKey) || { browser: bName, version: bVer, views: 0 };
+            browserEntry.views += 1;
+            browserMap.set(browserKey, browserEntry);
+            const [oName, oVer] = osKey.split('|');
+            const osEntry = osMap.get(osKey) || { os: oName, version: oVer, views: 0 };
+            osEntry.views += 1;
+            osMap.set(osKey, osEntry);
+            const [cc, reg, city] = locKey.split('|');
+            const locEntry = locationMap.get(locKey) || { country: geo.country, countryCode: cc || 'ZZ', region: reg || undefined, city: city || undefined, views: 0 };
+            locEntry.views += 1;
+            locationMap.set(locKey, locEntry);
+        }
+        const total = uniqueEvents.length || 1;
+        const toPct = (n) => Math.round((n / total) * 1000) / 10;
+        return {
+            devices: Array.from(deviceMap.values()).map(d => ({ ...d, percentage: toPct(d.views) })),
+            browsers: Array.from(browserMap.values()).map(b => ({ ...b, percentage: toPct(b.views) })),
+            operatingSystems: Array.from(osMap.values()).map(o => ({ ...o, percentage: toPct(o.views) })),
+            locations: Array.from(locationMap.values()).map(l => ({ ...l, percentage: toPct(l.views) })),
+            connections: [],
+            totalViews: await this.getUniqueViews(videoId, range),
+        };
     }
     formatFileSize(bytes) {
         if (bytes === 0)

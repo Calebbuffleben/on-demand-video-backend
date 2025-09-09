@@ -14,6 +14,7 @@ import { AuthGuard as AppAuthGuard } from '../auth/guards/auth.guard';
 import { OrganizationScoped } from '../common/decorators/organization-scoped.decorator';
 // Removed Mux analytics dependencies
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsTimeRangeDto } from './dto/events-time-range.dto';
 
 
 // Interface for authenticated request with organization
@@ -64,7 +65,8 @@ export class AnalyticsController {
     const clampedDuration = Math.max(0, Math.floor(Number(duration) || 0));
 
     // Persist using Prisma directly to avoid auth guard
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || undefined;
+    const xff = (req.headers['x-forwarded-for'] as string | undefined) || '';
+    const ip = xff.split(',')[0]?.trim().replace(/:\d+$/, '') || (req.ip as string | undefined);
     const userAgent = req.headers['user-agent'] || undefined;
 
     await (this.prisma as any).videoPlaybackEvent.create({
@@ -96,21 +98,45 @@ export class AnalyticsController {
     @Param('videoId') videoId: string,
     @Query('bucketSize') bucketSizeParam: string,
     @Query('perSecond') perSecondParam: string,
+    @Query() range: EventsTimeRangeDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Verify video exists and belongs to org when available
     const video = await this.prisma.video.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
-    const views = await this.analyticsService.getUniqueViews(videoId);
-    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const views = await this.analyticsService.getUniqueViews(videoId, range);
+    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
     const duration = video.duration || 0;
     const bucketSize = Math.max(1, Math.min(60, parseInt(bucketSizeParam || '10', 10) || 10));
-    const retention = await this.analyticsService.getRetentionBuckets(videoId, duration, bucketSize);
+    const retention = await this.analyticsService.getRetentionBuckets(videoId, duration, bucketSize, range);
     const perSecond = perSecondParam === 'true';
-    const retentionPerSecond = perSecond ? await this.analyticsService.getSecondBySecondRetention(videoId, duration) : undefined;
+    const retentionPerSecond = perSecond ? await this.analyticsService.getSecondBySecondRetention(videoId, duration, range) : undefined;
 
     return { success: true, data: { views, watchTime, duration, retention, retentionPerSecond, bucketSize } };
+  }
+
+  /**
+   * Insights: quartiles, completion, replays, heatmap, drop-offs
+   */
+  @Get('events/insights/:videoId')
+  @UseGuards(AppAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get analytics insights from collected events' })
+  async getEventsInsights(
+    @Param('videoId') videoId: string,
+    @Query() range: EventsTimeRangeDto,
+    @Query('bucketSize') bucketSizeParam: string,
+    @Query('topDropOffs') topDropParam: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    const duration = video.duration || 0;
+    const bucketSize = Math.max(1, Math.min(60, parseInt(bucketSizeParam || '5', 10) || 5));
+    const topDropOffs = Math.max(1, Math.min(20, parseInt(topDropParam || '5', 10) || 5));
+    const insights = await this.analyticsService.getEventsInsights(videoId, duration, range, bucketSize, topDropOffs);
+    return { success: true, data: insights };
   }
 
   /**
@@ -249,6 +275,7 @@ export class AnalyticsController {
   @ApiResponse({ status: 404, description: 'Video not found or not owned by tenant' })
   async getVideoAnalytics(
     @Param('videoId') videoId: string,
+    @Query() range: EventsTimeRangeDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -271,10 +298,10 @@ export class AnalyticsController {
     }
 
     // Fallback: build analytics from internal playback events
-    const views = await this.analyticsService.getUniqueViews(videoId);
-    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const views = await this.analyticsService.getUniqueViews(videoId, range);
+    const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
     const duration = video.duration || 0;
-    const retentionPerSecond = await this.analyticsService.getSecondBySecondRetention(videoId, duration);
+    const retentionPerSecond = await this.analyticsService.getSecondBySecondRetention(videoId, duration, range);
     const retentionData = retentionPerSecond.map(p => ({ time: p.time, retention: p.pct }));
 
     return {
@@ -329,6 +356,7 @@ export class AnalyticsController {
   @ApiResponse({ status: 404, description: 'Video not found or not owned by tenant' })
   async getVideoViews(
     @Param('videoId') videoId: string,
+    @Query() range: EventsTimeRangeDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -350,8 +378,8 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    const totalViews = await this.analyticsService.getUniqueViews(videoId);
-    const totalWatchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+    const totalViews = await this.analyticsService.getUniqueViews(videoId, range);
+    const totalWatchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
     const averageWatchTime = totalViews ? Math.round(totalWatchTime / totalViews) : 0;
     return { totalViews, totalWatchTime, averageWatchTime, viewerTimelines: [] };
   }
@@ -373,6 +401,7 @@ export class AnalyticsController {
   })
   async getViewerAnalytics(
     @Param('videoId') videoId: string,
+    @Query() range: EventsTimeRangeDto,
     @Req() req: AuthenticatedRequest,
   ) {
     // Check if organization exists in request
@@ -394,19 +423,8 @@ export class AnalyticsController {
       throw new NotFoundException('Video not found or not owned by tenant');
     }
 
-    // Internal only: empty breakdowns and totalViews from internal events
-    const totalViews = await this.analyticsService.getUniqueViews(videoId);
-    return {
-      success: true,
-      data: {
-        devices: [],
-        browsers: [],
-        locations: [],
-        operatingSystems: [],
-        connections: [],
-        totalViews,
-      }
-    };
+    const viewerAnalytics = await this.analyticsService.getViewerAnalyticsFromEvents(videoId, range);
+    return { success: true, data: viewerAnalytics };
   }
 
   /**

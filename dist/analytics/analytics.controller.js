@@ -21,6 +21,8 @@ const public_decorator_1 = require("../auth/decorators/public.decorator");
 const auth_guard_1 = require("../auth/guards/auth.guard");
 const organization_scoped_decorator_1 = require("../common/decorators/organization-scoped.decorator");
 const prisma_service_1 = require("../prisma/prisma.service");
+const events_time_range_dto_1 = require("./dto/events-time-range.dto");
+const device_context_util_1 = require("./utils/device-context.util");
 let AnalyticsController = class AnalyticsController {
     analyticsService;
     prisma;
@@ -28,15 +30,22 @@ let AnalyticsController = class AnalyticsController {
         this.analyticsService = analyticsService;
         this.prisma = prisma;
     }
+    clampNumber(value, min, max) {
+        const n = Math.floor(Number(value));
+        if (Number.isNaN(n))
+            return null;
+        return Math.max(min, Math.min(max, n));
+    }
     async ingestEvent(body, req) {
-        const { videoId, eventType, currentTime = 0, duration = 0, userId, sessionId, clientId, organizationId } = body || {};
+        const { videoId, eventType, currentTime = 0, duration = 0, userId, sessionId, clientId, organizationId, context } = body || {};
         if (!videoId || !eventType) {
             throw new common_1.BadRequestException('videoId and eventType are required');
         }
         const normalizedEventType = String(eventType).toLowerCase();
         const clampedCurrent = Math.max(0, Math.floor(Number(currentTime) || 0));
         const clampedDuration = Math.max(0, Math.floor(Number(duration) || 0));
-        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || undefined;
+        const xff = req.headers['x-forwarded-for'] || '';
+        const ip = xff.split(',')[0]?.trim().replace(/:\d+$/, '') || req.ip;
         const userAgent = req.headers['user-agent'] || undefined;
         await this.prisma.videoPlaybackEvent.create({
             data: {
@@ -52,20 +61,76 @@ let AnalyticsController = class AnalyticsController {
                 userAgent: userAgent,
             },
         });
+        if (normalizedEventType === 'play' && sessionId && context) {
+            try {
+                const orgId = organizationId || req['organization']?.id || null;
+                const ctx = (0, device_context_util_1.normalizeDeviceContext)(context);
+                const ctxHash = (0, device_context_util_1.hashDeviceContext)(ctx);
+                const dc = await this.prisma.deviceContext.upsert({
+                    where: { hash: ctxHash },
+                    update: { updatedAt: new Date() },
+                    create: {
+                        hash: ctxHash,
+                        screenWidth: ctx.screenWidth,
+                        screenHeight: ctx.screenHeight,
+                        viewportWidth: ctx.viewportWidth,
+                        viewportHeight: ctx.viewportHeight,
+                        devicePixelRatio: ctx.devicePixelRatio,
+                        orientation: ctx.orientation,
+                        language: ctx.language,
+                        timezone: ctx.timezone,
+                        hardwareConcurrency: ctx.hardwareConcurrency,
+                        deviceMemory: ctx.deviceMemory,
+                    },
+                });
+                await this.prisma.viewerSession.upsert({
+                    where: { videoId_sessionId: { videoId, sessionId } },
+                    update: {
+                        deviceContextId: dc.id,
+                        userAgent: userAgent || null,
+                        ip: ip || null,
+                        updatedAt: new Date(),
+                    },
+                    create: {
+                        videoId,
+                        organizationId: orgId,
+                        sessionId,
+                        clientId: clientId || null,
+                        userId: userId || null,
+                        deviceContextId: dc.id,
+                        userAgent: userAgent || null,
+                        ip: ip || null,
+                    },
+                });
+            }
+            catch (e) {
+                console.warn('device context upsert failed', e);
+            }
+        }
         return { success: true };
     }
-    async getEventsSummary(videoId, bucketSizeParam, perSecondParam, req) {
+    async getEventsSummary(videoId, bucketSizeParam, perSecondParam, range, req) {
         const video = await this.prisma.video.findUnique({ where: { id: videoId } });
         if (!video)
             throw new common_1.NotFoundException('Video not found');
-        const views = await this.analyticsService.getUniqueViews(videoId);
-        const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+        const views = await this.analyticsService.getUniqueViews(videoId, range);
+        const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
         const duration = video.duration || 0;
         const bucketSize = Math.max(1, Math.min(60, parseInt(bucketSizeParam || '10', 10) || 10));
-        const retention = await this.analyticsService.getRetentionBuckets(videoId, duration, bucketSize);
+        const retention = await this.analyticsService.getRetentionBuckets(videoId, duration, bucketSize, range);
         const perSecond = perSecondParam === 'true';
-        const retentionPerSecond = perSecond ? await this.analyticsService.getSecondBySecondRetention(videoId, duration) : undefined;
+        const retentionPerSecond = perSecond ? await this.analyticsService.getSecondBySecondRetention(videoId, duration, range) : undefined;
         return { success: true, data: { views, watchTime, duration, retention, retentionPerSecond, bucketSize } };
+    }
+    async getEventsInsights(videoId, range, bucketSizeParam, topDropParam, req) {
+        const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+        if (!video)
+            throw new common_1.NotFoundException('Video not found');
+        const duration = video.duration || 0;
+        const bucketSize = Math.max(1, Math.min(60, parseInt(bucketSizeParam || '5', 10) || 5));
+        const topDropOffs = Math.max(1, Math.min(20, parseInt(topDropParam || '5', 10) || 5));
+        const insights = await this.analyticsService.getEventsInsights(videoId, duration, range, bucketSize, topDropOffs);
+        return { success: true, data: insights };
     }
     async getDashboard(req) {
         if (!req['organization']) {
@@ -119,7 +184,7 @@ let AnalyticsController = class AnalyticsController {
         }
         return this.analyticsService.getPopularVideos(query.limit, organizationId);
     }
-    async getVideoAnalytics(videoId, req) {
+    async getVideoAnalytics(videoId, range, req) {
         if (!req['organization']) {
             throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
         }
@@ -133,10 +198,10 @@ let AnalyticsController = class AnalyticsController {
         if (!video) {
             throw new common_1.NotFoundException('Video not found or not owned by tenant');
         }
-        const views = await this.analyticsService.getUniqueViews(videoId);
-        const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+        const views = await this.analyticsService.getUniqueViews(videoId, range);
+        const watchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
         const duration = video.duration || 0;
-        const retentionPerSecond = await this.analyticsService.getSecondBySecondRetention(videoId, duration);
+        const retentionPerSecond = await this.analyticsService.getSecondBySecondRetention(videoId, duration, range);
         const retentionData = retentionPerSecond.map(p => ({ time: p.time, retention: p.pct }));
         return {
             success: true,
@@ -169,7 +234,7 @@ let AnalyticsController = class AnalyticsController {
         const sbs = await this.analyticsService.getSecondBySecondRetention(videoId, duration);
         return { retention: sbs.map(p => ({ time: p.time, retention: p.pct })) };
     }
-    async getVideoViews(videoId, req) {
+    async getVideoViews(videoId, range, req) {
         if (!req['organization']) {
             throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
         }
@@ -183,12 +248,12 @@ let AnalyticsController = class AnalyticsController {
         if (!video) {
             throw new common_1.NotFoundException('Video not found or not owned by tenant');
         }
-        const totalViews = await this.analyticsService.getUniqueViews(videoId);
-        const totalWatchTime = await this.analyticsService.getWatchTimeSeconds(videoId);
+        const totalViews = await this.analyticsService.getUniqueViews(videoId, range);
+        const totalWatchTime = await this.analyticsService.getWatchTimeSeconds(videoId, range);
         const averageWatchTime = totalViews ? Math.round(totalWatchTime / totalViews) : 0;
         return { totalViews, totalWatchTime, averageWatchTime, viewerTimelines: [] };
     }
-    async getViewerAnalytics(videoId, req) {
+    async getViewerAnalytics(videoId, range, req) {
         if (!req['organization']) {
             throw new common_1.BadRequestException('Organization context not found. Please ensure you are accessing this endpoint with proper organization context.');
         }
@@ -202,18 +267,8 @@ let AnalyticsController = class AnalyticsController {
         if (!video) {
             throw new common_1.NotFoundException('Video not found or not owned by tenant');
         }
-        const totalViews = await this.analyticsService.getUniqueViews(videoId);
-        return {
-            success: true,
-            data: {
-                devices: [],
-                browsers: [],
-                locations: [],
-                operatingSystems: [],
-                connections: [],
-                totalViews,
-            }
-        };
+        const viewerAnalytics = await this.analyticsService.getViewerAnalyticsFromEvents(videoId, range);
+        return { success: true, data: viewerAnalytics };
     }
     async getOrganizationRetention(req) {
         if (!req['organization']) {
@@ -322,11 +377,26 @@ __decorate([
     __param(0, (0, common_1.Param)('videoId')),
     __param(1, (0, common_1.Query)('bucketSize')),
     __param(2, (0, common_1.Query)('perSecond')),
-    __param(3, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)()),
+    __param(4, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, String, events_time_range_dto_1.EventsTimeRangeDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getEventsSummary", null);
+__decorate([
+    (0, common_1.Get)('events/insights/:videoId'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get analytics insights from collected events' }),
+    __param(0, (0, common_1.Param)('videoId')),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Query)('bucketSize')),
+    __param(3, (0, common_1.Query)('topDropOffs')),
+    __param(4, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, events_time_range_dto_1.EventsTimeRangeDto, String, String, Object]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getEventsInsights", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
     (0, swagger_1.ApiOperation)({ summary: 'Get all dashboard analytics data' }),
@@ -391,9 +461,10 @@ __decorate([
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns video analytics data' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found or not owned by tenant' }),
     __param(0, (0, common_1.Param)('videoId')),
-    __param(1, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, events_time_range_dto_1.EventsTimeRangeDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getVideoAnalytics", null);
 __decorate([
@@ -413,9 +484,10 @@ __decorate([
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns video views data' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Video not found or not owned by tenant' }),
     __param(0, (0, common_1.Param)('videoId')),
-    __param(1, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, events_time_range_dto_1.EventsTimeRangeDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getVideoViews", null);
 __decorate([
@@ -432,9 +504,10 @@ __decorate([
         type: analytics_dto_1.ViewerAnalyticsDto,
     }),
     __param(0, (0, common_1.Param)('videoId')),
-    __param(1, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, events_time_range_dto_1.EventsTimeRangeDto, Object]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getViewerAnalytics", null);
 __decorate([
