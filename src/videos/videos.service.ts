@@ -506,11 +506,20 @@ export class VideosService {
       showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
     };
 
+    // Build thumbnail URL properly
+    let thumbnailUrl = video.thumbnailUrl || '';
+    
+    // Always build full URL for relative paths
+    if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
+      const backend = this.configService.get('APP_URL');
+      thumbnailUrl = `${backend}${thumbnailUrl}`;
+    }
+
     // Format the response
     const embedVideo: EmbedVideoDto = {
       uid: video.id,
-      thumbnail: video.thumbnailUrl,
-      preview: video.thumbnailUrl,
+      thumbnail: thumbnailUrl,
+      preview: thumbnailUrl,
       readyToStream: video.status === VideoStatus.READY,
       status: {
         state: this.mapVideoStatus(video.status),
@@ -1138,6 +1147,10 @@ export class VideosService {
           
           if (video.thumbnailPath) {
             thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`; // Client will need to add ?token=JWT
+          } else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+            // Custom uploaded cover
+            const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+            thumbnailUrl = `${backend}${video.thumbnailUrl}`;
           }
         } else {
           hlsUrl = video.playbackUrl || '';
@@ -1613,18 +1626,19 @@ export class VideosService {
       const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
       hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`;
       
-      if (video.thumbnailPath) {
-        thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
-      } else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
-        // Custom uploaded cover
-        const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+      if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+        // Custom uploaded cover - prioritize over auto-generated thumbnail
+        const backend = this.configService.get('APP_URL');
         thumbnailUrl = `${backend}${video.thumbnailUrl}`;
+      } else if (video.thumbnailPath) {
+        // Auto-generated thumbnail as fallback
+        thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
       }
     } else {
       // Use MUX or custom uploaded cover URLs for external videos
       hlsUrl = video.playbackUrl || '';
       if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
-        const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+        const backend = this.configService.get('APP_URL');
         thumbnailUrl = `${backend}${thumbnailUrl}`;
       }
     }

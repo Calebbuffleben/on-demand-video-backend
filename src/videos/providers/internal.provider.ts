@@ -110,6 +110,10 @@ export class InternalProvider extends VideoProvider {
           hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`; // Client will add token
           if (video.thumbnailPath) {
             thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`; // Client will add token
+          } else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+            // Custom uploaded cover
+            const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+            thumbnailUrl = `${backend}${video.thumbnailUrl}`;
           }
         }
 

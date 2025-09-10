@@ -373,10 +373,15 @@ let VideosService = VideosService_1 = class VideosService {
             showBranding: video.showBranding === false ? false : true,
             showTechnicalInfo: video.showTechnicalInfo === true ? true : false,
         };
+        let thumbnailUrl = video.thumbnailUrl || '';
+        if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
+            const backend = this.configService.get('APP_URL');
+            thumbnailUrl = `${backend}${thumbnailUrl}`;
+        }
         const embedVideo = {
             uid: video.id,
-            thumbnail: video.thumbnailUrl,
-            preview: video.thumbnailUrl,
+            thumbnail: thumbnailUrl,
+            preview: thumbnailUrl,
             readyToStream: video.status === client_1.VideoStatus.READY,
             status: {
                 state: this.mapVideoStatus(video.status),
@@ -868,6 +873,10 @@ let VideosService = VideosService_1 = class VideosService {
                     if (video.thumbnailPath) {
                         thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
                     }
+                    else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+                        const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+                        thumbnailUrl = `${backend}${video.thumbnailUrl}`;
+                    }
                 }
                 else {
                     hlsUrl = video.playbackUrl || '';
@@ -1245,18 +1254,18 @@ let VideosService = VideosService_1 = class VideosService {
         if (video.provider === 'INTERNAL') {
             const baseUrl = `${this.configService.get('APP_URL') || 'http://localhost:4000'}/api/videos`;
             hlsUrl = `${baseUrl}/stream/${video.id}/master.m3u8`;
-            if (video.thumbnailPath) {
-                thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
-            }
-            else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
-                const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+            if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+                const backend = this.configService.get('APP_URL');
                 thumbnailUrl = `${backend}${video.thumbnailUrl}`;
+            }
+            else if (video.thumbnailPath) {
+                thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
             }
         }
         else {
             hlsUrl = video.playbackUrl || '';
             if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
-                const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+                const backend = this.configService.get('APP_URL');
                 thumbnailUrl = `${backend}${thumbnailUrl}`;
             }
         }
