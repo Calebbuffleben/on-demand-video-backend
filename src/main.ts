@@ -7,6 +7,8 @@ import { HttpExceptionFilter, AllExceptionsFilter } from './common/exceptions/ht
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import helmet from 'helmet';
 import { json } from 'express';
+import * as path from 'path';
+import * as express from 'express';
 import * as cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 
@@ -57,6 +59,13 @@ async function bootstrap() {
       res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
       res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
       console.log(`✅ CORS: Allowed streaming/embed endpoint ${req.url}`);
+    } else if (req.url.includes('/uploads/')) {
+      // For static file serving (uploads), allow all origins
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Credentials', 'false');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+      console.log(`✅ CORS: Allowed static file ${req.url}`);
     } else {
       // For other endpoints, use specific origin with credentials
       if (origin && allowedOrigins.includes(origin)) {
@@ -76,6 +85,11 @@ async function bootstrap() {
           console.log(`✅ CORS: Allowed production origin ${origin}`);
           res.header('Access-Control-Allow-Origin', origin);
           res.header('Access-Control-Allow-Credentials', 'true');
+        } else if (!origin) {
+          // Allow requests without origin (server-to-server, direct requests)
+          console.log(`✅ CORS: Allowed request without origin for ${req.url}`);
+          res.header('Access-Control-Allow-Origin', '*');
+          res.header('Access-Control-Allow-Credentials', 'false');
         } else {
           console.log('🚫 CORS: Origin not allowed in production:', origin);
           res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
@@ -120,6 +134,16 @@ async function bootstrap() {
   
   // Configure cookie parser
   app.use(cookieParser());
+
+  // Serve static uploads (covers and other assets)
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.use('/uploads', express.static(uploadsDir));
+    console.log('📁 Serving static uploads from:', uploadsDir);
+  } catch (e) {
+    console.warn('⚠️ Failed to setup static uploads serving:', (e as Error).message);
+  }
 
   // Basic rate limiting for auth endpoints
   const authLimiter = rateLimit({

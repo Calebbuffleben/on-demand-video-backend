@@ -9,6 +9,8 @@ const http_exception_filter_1 = require("./common/exceptions/http-exception.filt
 const transform_interceptor_1 = require("./common/interceptors/transform.interceptor");
 const helmet_1 = require("helmet");
 const express_1 = require("express");
+const path = require("path");
+const express = require("express");
 const cookieParser = require("cookie-parser");
 const express_rate_limit_1 = require("express-rate-limit");
 async function bootstrap() {
@@ -45,6 +47,13 @@ async function bootstrap() {
             res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
             console.log(`✅ CORS: Allowed streaming/embed endpoint ${req.url}`);
         }
+        else if (req.url.includes('/uploads/')) {
+            res.header('Access-Control-Allow-Origin', '*');
+            res.header('Access-Control-Allow-Credentials', 'false');
+            res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+            res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+            console.log(`✅ CORS: Allowed static file ${req.url}`);
+        }
         else {
             if (origin && allowedOrigins.includes(origin)) {
                 res.header('Access-Control-Allow-Origin', origin);
@@ -60,6 +69,11 @@ async function bootstrap() {
                     console.log(`✅ CORS: Allowed production origin ${origin}`);
                     res.header('Access-Control-Allow-Origin', origin);
                     res.header('Access-Control-Allow-Credentials', 'true');
+                }
+                else if (!origin) {
+                    console.log(`✅ CORS: Allowed request without origin for ${req.url}`);
+                    res.header('Access-Control-Allow-Origin', '*');
+                    res.header('Access-Control-Allow-Credentials', 'false');
                 }
                 else {
                     console.log('🚫 CORS: Origin not allowed in production:', origin);
@@ -100,6 +114,15 @@ async function bootstrap() {
         optionsSuccessStatus: 204
     });
     app.use(cookieParser());
+    try {
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        const expressApp = app.getHttpAdapter().getInstance();
+        expressApp.use('/uploads', express.static(uploadsDir));
+        console.log('📁 Serving static uploads from:', uploadsDir);
+    }
+    catch (e) {
+        console.warn('⚠️ Failed to setup static uploads serving:', e.message);
+    }
     const authLimiter = (0, express_rate_limit_1.default)({
         windowMs: 15 * 60 * 1000,
         max: 100,

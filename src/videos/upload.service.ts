@@ -46,11 +46,8 @@ export class UploadService {
       }
 
       this.logger.log(`Looking for video with ID: ${videoId} and organization ID: ${organizationId}`);
-      const video = await this.prisma.video.findUnique({
-        where: { 
-          id: videoId,
-          organizationId: organizationId 
-        }
+      const video = await this.prisma.video.findFirst({
+        where: { id: videoId, organizationId }
       });
 
       if (!video) {
@@ -82,11 +79,39 @@ export class UploadService {
 
       this.logger.log(`Cover image uploaded successfully for video ${videoId}. New thumbnail URL: ${updatedVideo.thumbnailUrl}`);
 
+      // Map to the same DTO shape used by video endpoints
+      const appUrl = this.configService.get('APP_URL') || 'http://localhost:4000';
+      const thumbnail = updatedVideo.thumbnailUrl?.startsWith('/')
+        ? `${appUrl}${updatedVideo.thumbnailUrl}`
+        : (updatedVideo.thumbnailUrl || '');
+
       return {
         success: true,
+        status: 200,
         message: 'Cover image uploaded successfully',
         data: {
-          result: [updatedVideo]
+          result: [
+            {
+              uid: updatedVideo.id,
+              thumbnail,
+              preview: thumbnail,
+              readyToStream: updatedVideo.status === 'READY',
+              status: { state: updatedVideo.status?.toString().toLowerCase() || 'unknown' },
+              meta: {
+                name: updatedVideo.name,
+                displayOptions: {},
+                embedOptions: {},
+              },
+              duration: updatedVideo.duration || 0,
+              created: updatedVideo.createdAt?.toISOString?.() || new Date().toISOString(),
+              modified: updatedVideo.updatedAt?.toISOString?.() || new Date().toISOString(),
+              size: 0,
+              playback: {
+                hls: updatedVideo.playbackUrl || '',
+                dash: (updatedVideo.playbackUrl || '').replace('.m3u8', '.mpd') || ''
+              }
+            }
+          ]
         }
       };
     } catch (error) {

@@ -1615,10 +1615,18 @@ export class VideosService {
       
       if (video.thumbnailPath) {
         thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
+      } else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+        // Custom uploaded cover
+        const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+        thumbnailUrl = `${backend}${video.thumbnailUrl}`;
       }
     } else {
-      // Use MUX URLs for external videos
+      // Use MUX or custom uploaded cover URLs for external videos
       hlsUrl = video.playbackUrl || '';
+      if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
+        const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+        thumbnailUrl = `${backend}${thumbnailUrl}`;
+      }
     }
 
     return {

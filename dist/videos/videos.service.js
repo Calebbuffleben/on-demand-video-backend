@@ -1248,9 +1248,17 @@ let VideosService = VideosService_1 = class VideosService {
             if (video.thumbnailPath) {
                 thumbnailUrl = `${baseUrl}/thumb/${video.id}/0001.jpg`;
             }
+            else if (video.thumbnailUrl && video.thumbnailUrl.startsWith('/')) {
+                const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+                thumbnailUrl = `${backend}${video.thumbnailUrl}`;
+            }
         }
         else {
             hlsUrl = video.playbackUrl || '';
+            if (thumbnailUrl && thumbnailUrl.startsWith('/')) {
+                const backend = this.configService.get('APP_URL') || 'http://localhost:4000';
+                thumbnailUrl = `${backend}${thumbnailUrl}`;
+            }
         }
         return {
             uid: video.id,
