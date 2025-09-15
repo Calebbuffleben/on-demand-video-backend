@@ -76,5 +76,51 @@ export class MailService {
     `;
     return this.send({ to, subject, text, html });
   }
+
+  async sendAccountCreationEmail(to: string, link: string) {
+    const subject = 'Crie sua conta - Pagamento confirmado';
+    const text = `Seu pagamento foi confirmado! Crie sua conta acessando: ${link}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb; margin-bottom: 10px;">🎉 Pagamento Confirmado!</h1>
+          <p style="color: #666; font-size: 16px;">Seu pagamento foi processado com sucesso</p>
+        </div>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="color: #374151; font-size: 16px; margin-bottom: 15px;">
+            Agora você pode criar sua conta e acessar a plataforma com todos os recursos do seu plano.
+          </p>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${link}" target="_blank" rel="noopener noreferrer" 
+               style="display:inline-block;padding:15px 30px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+              🚀 Criar Conta
+            </a>
+          </div>
+        </div>
+        
+        <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+          <p style="color: #92400e; font-size: 14px; margin: 0;">
+            ⏰ <strong>Importante:</strong> Este link expira em 7 dias. Crie sua conta o quanto antes para não perder o acesso.
+          </p>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">
+            Se o botão não funcionar, copie e cole este link no seu navegador:
+          </p>
+          <p style="color: #2563eb; font-size: 14px; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px;">
+            ${link}
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; color: #9ca3af; font-size: 12px;">
+          <p>Este é um email automático, não responda a esta mensagem.</p>
+        </div>
+      </div>
+    `;
+    return this.send({ to, subject, text, html });
+  }
 }
 

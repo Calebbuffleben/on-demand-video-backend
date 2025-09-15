@@ -340,3 +340,16 @@ model Invite {
   @@index([token])
   @@index([expiresAt])
 }
+
+model AccountCreationToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+  @@index([email])
+}
