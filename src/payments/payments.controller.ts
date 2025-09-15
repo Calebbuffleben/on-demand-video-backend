@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Headers, Logger } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('api/payments')
 export class PaymentsController {
@@ -10,6 +11,7 @@ export class PaymentsController {
   /**
    * Endpoint para receber webhooks da Pepper
    */
+  @Public()
   @Post('webhook')
   async webhook(
     @Body() body: any,
