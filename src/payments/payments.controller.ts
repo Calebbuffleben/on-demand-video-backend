@@ -10,14 +10,15 @@ export class PaymentsController {
 
   /**
    * Endpoint para receber webhooks da Pepper
+   * Este endpoint é público e não requer autenticação
    */
-  @Public()
   @Post('webhook')
+  @Public()
   async webhook(
     @Body() body: any,
     @Headers() headers: any
   ) {
-    this.logger.log('🔔 [CONTROLLER] Webhook da Pepper recebido');
+    this.logger.log('🔔 [CONTROLLER] Webhook da Pepper recebido - ENDPOINT PÚBLICO');
     this.logger.log(`📋 [CONTROLLER] Headers: ${JSON.stringify(headers)}`);
     this.logger.log(`📋 [CONTROLLER] Body: ${JSON.stringify(body)}`);
 
