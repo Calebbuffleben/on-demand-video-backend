@@ -78,49 +78,121 @@ export class MailService {
   }
 
   async sendAccountCreationEmail(to: string, link: string) {
-    const subject = 'Crie sua conta - Pagamento confirmado';
-    const text = `Seu pagamento foi confirmado! Crie sua conta acessando: ${link}`;
+    this.logger.log(`📧 [EMAIL] Preparando envio de email de criação de conta para: ${to}`);
+    
+    const subject = '🎉 Pagamento Confirmado - Crie sua conta agora!';
+    const text = `Seu pagamento foi confirmado! Crie sua conta acessando: ${link}\n\nEste link expira em 7 dias.`;
+    
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #2563eb; margin-bottom: 10px;">🎉 Pagamento Confirmado!</h1>
-          <p style="color: #666; font-size: 16px;">Seu pagamento foi processado com sucesso</p>
-        </div>
-        
-        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-          <p style="color: #374151; font-size: 16px; margin-bottom: 15px;">
-            Agora você pode criar sua conta e acessar a plataforma com todos os recursos do seu plano.
-          </p>
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Pagamento Confirmado</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: Arial, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
-          <div style="text-align: center; margin: 25px 0;">
-            <a href="${link}" target="_blank" rel="noopener noreferrer" 
-               style="display:inline-block;padding:15px 30px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
-              🚀 Criar Conta
-            </a>
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 40px 20px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">
+              🎉 Pagamento Confirmado!
+            </h1>
+            <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">
+              Seu pagamento foi processado com sucesso
+            </p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 15px 0; font-size: 24px;">
+                Bem-vindo à nossa plataforma!
+              </h2>
+              <p style="color: #6b7280; font-size: 16px; line-height: 1.6; margin: 0;">
+                Agora você pode criar sua conta e acessar todos os recursos do seu plano.
+              </p>
+            </div>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${link}" 
+                 style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); transition: all 0.3s ease;">
+                🚀 Criar Minha Conta
+              </a>
+            </div>
+            
+            <!-- Warning -->
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 30px 0;">
+              <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 20px; margin-right: 10px;">⏰</span>
+                <strong style="color: #92400e; font-size: 16px;">Importante</strong>
+              </div>
+              <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.5;">
+                Este link expira em <strong>7 dias</strong>. Crie sua conta o quanto antes para não perder o acesso à plataforma.
+              </p>
+            </div>
+            
+            <!-- Alternative Link -->
+            <div style="background: #f9fafb; border-radius: 8px; padding: 20px; margin: 30px 0;">
+              <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0; font-weight: 500;">
+                Se o botão não funcionar, copie e cole este link no seu navegador:
+              </p>
+              <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; word-break: break-all;">
+                <code style="color: #2563eb; font-size: 13px; font-family: 'Courier New', monospace;">
+                  ${link}
+                </code>
+              </div>
+            </div>
+            
+            <!-- Features -->
+            <div style="margin: 40px 0;">
+              <h3 style="color: #1f2937; font-size: 18px; margin: 0 0 20px 0; text-align: center;">
+                O que você terá acesso:
+              </h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center;">
+                  <span style="color: #10b981; font-size: 16px; margin-right: 12px;">✅</span>
+                  <span style="color: #374151; font-size: 14px;">Acesso completo à plataforma</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                  <span style="color: #10b981; font-size: 16px; margin-right: 12px;">✅</span>
+                  <span style="color: #374151; font-size: 14px;">Suporte prioritário</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                  <span style="color: #10b981; font-size: 16px; margin-right: 12px;">✅</span>
+                  <span style="color: #374151; font-size: 14px;">Recursos premium incluídos</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+              Este é um email automático. Não responda a esta mensagem.
+            </p>
+            <p style="color: #9ca3af; font-size: 12px; margin: 5px 0 0 0;">
+              Se você não fez este pagamento, ignore este email.
+            </p>
           </div>
         </div>
-        
-        <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
-          <p style="color: #92400e; font-size: 14px; margin: 0;">
-            ⏰ <strong>Importante:</strong> Este link expira em 7 dias. Crie sua conta o quanto antes para não perder o acesso.
-          </p>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">
-            Se o botão não funcionar, copie e cole este link no seu navegador:
-          </p>
-          <p style="color: #2563eb; font-size: 14px; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px;">
-            ${link}
-          </p>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px; color: #9ca3af; font-size: 12px;">
-          <p>Este é um email automático, não responda a esta mensagem.</p>
-        </div>
-      </div>
+      </body>
+      </html>
     `;
-    return this.send({ to, subject, text, html });
+    
+    this.logger.log(`📧 [EMAIL] Template HTML gerado com sucesso`);
+    this.logger.log(`📧 [EMAIL] Link de criação: ${link}`);
+    
+    try {
+      const result = await this.send({ to, subject, text, html });
+      this.logger.log(`✅ [EMAIL] Email de criação de conta enviado com sucesso para: ${to}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`❌ [EMAIL] Erro ao enviar email de criação de conta para ${to}: ${error.message}`);
+      throw error;
+    }
   }
 }
 
