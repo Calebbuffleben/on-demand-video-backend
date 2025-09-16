@@ -18,6 +18,8 @@ export class PaymentsService {
   async webhook(body: any, signature?: string) {
     this.logger.log('🔔 [WEBHOOK] Webhook da Pepper recebido');
     this.logger.log(`📋 [WEBHOOK] Body: ${JSON.stringify(body, null, 2)}`);
+    console.log('🚀 [DEBUG] Método webhook chamado com sucesso');
+    console.log(`🚀 [DEBUG] Event: ${body.event}, Platform: ${body.platform}`);
     
     if (signature) {
       this.logger.log(`🔐 [WEBHOOK] Signature: ${signature}`);
@@ -100,6 +102,7 @@ export class PaymentsService {
    */
   private async handleTransaction(event: any) {
     this.logger.log('💳 [TRANSACTION] Iniciando processamento de transação');
+    console.log('🚀 [DEBUG] handleTransaction chamado com sucesso');
     
     const transaction = event.transaction;
     const customer = event.customer;
@@ -154,8 +157,10 @@ export class PaymentsService {
 
     // Criar token temporário para criação de conta
     this.logger.log(`🔧 [TOKEN] Gerando novo token para email: ${customerEmail}`);
+    console.log(`🔧 [DEBUG] Gerando token para: ${customerEmail}`);
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+    console.log(`🔧 [DEBUG] Token gerado: ${token.substring(0, 8)}...`);
     
     this.logger.log(`💾 [TOKEN] Salvando token no banco de dados`);
     const tokenRecord = await this.prisma.accountCreationToken.create({
@@ -169,6 +174,7 @@ export class PaymentsService {
     this.logger.log(`✅ [TOKEN] Token criado com sucesso. ID: ${tokenRecord.id}, Expires: ${expiresAt.toISOString()}`);
     
     // Log do token no console para debugging
+    this.logger.log(`🔑 [CONSOLE_LOG] Exibindo token no console...`);
     console.log('🔑 ===========================================');
     console.log('🔑 TOKEN DE CRIAÇÃO DE CONTA GERADO:');
     console.log('🔑 ===========================================');
@@ -177,6 +183,7 @@ export class PaymentsService {
     console.log(`🔑 Expira em: ${expiresAt.toISOString()}`);
     console.log(`🔑 ID do registro: ${tokenRecord.id}`);
     console.log('🔑 ===========================================');
+    this.logger.log(`🔑 [CONSOLE_LOG] Token exibido no console com sucesso`);
 
     // Enviar email com link de criação de conta
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
