@@ -5,6 +5,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { MailService } from '../mail/mail.service';
 import { ConsumeInviteDto } from './dto/consume-invite.dto';
+import { RegisterWithTokenDto } from './dto/register-with-token.dto';
 interface JwtPayload {
     userId: string;
     organizationId: string;
@@ -29,6 +30,7 @@ export declare class AuthService {
     private prisma;
     private configService;
     private mail;
+    private readonly logger;
     constructor(prisma: PrismaService, configService: ConfigService, mail: MailService);
     getInvite(token: string): Promise<{
         email: string;
@@ -57,6 +59,7 @@ export declare class AuthService {
     private generateSlug;
     private buildFrontendUrl;
     register(registerDto: RegisterDto): Promise<AuthResponse>;
+    registerWithToken(registerWithTokenDto: RegisterWithTokenDto): Promise<AuthResponse>;
     login(loginDto: LoginDto): Promise<AuthResponse>;
     requestEmailVerification(email: string): Promise<{
         success: boolean;

@@ -167,6 +167,16 @@ export class PaymentsService {
     });
 
     this.logger.log(`✅ [TOKEN] Token criado com sucesso. ID: ${tokenRecord.id}, Expires: ${expiresAt.toISOString()}`);
+    
+    // Log do token no console para debugging
+    console.log('🔑 ===========================================');
+    console.log('🔑 TOKEN DE CRIAÇÃO DE CONTA GERADO:');
+    console.log('🔑 ===========================================');
+    console.log(`🔑 Email: ${customerEmail}`);
+    console.log(`🔑 Token: ${token}`);
+    console.log(`🔑 Expira em: ${expiresAt.toISOString()}`);
+    console.log(`🔑 ID do registro: ${tokenRecord.id}`);
+    console.log('🔑 ===========================================');
 
     // Enviar email com link de criação de conta
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';

@@ -8,6 +8,7 @@ import { Public } from './decorators/public.decorator';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { ConsumeInviteDto } from './dto/consume-invite.dto';
+import { RegisterWithTokenDto } from './dto/register-with-token.dto';
 import { ConfigService } from '@nestjs/config';
 
 @ApiTags('auth')
@@ -96,6 +97,35 @@ export class AuthController {
       organization: result.organization,
       token: result.token,
       message: 'User registered successfully'
+    });
+  }
+
+  @Public()
+  @Post('register-with-token')
+  @ApiOperation({ summary: 'Register user with account creation token' })
+  @ApiBody({ type: RegisterWithTokenDto })
+  async registerWithToken(@Body() registerWithTokenDto: RegisterWithTokenDto, @Res() res: Response) {
+    const result = await this.authService.registerWithToken(registerWithTokenDto);
+    
+    // Set httpOnly cookie
+    res.cookie('scale_token', result.token, {
+      ...this.getCookieOptions(),
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Set refresh token cookie
+    if (result.refreshToken) {
+      res.cookie('scale_refresh', result.refreshToken, {
+        ...this.getCookieOptions(),
+        maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    res.status(HttpStatus.CREATED).json({
+      user: result.user,
+      organization: result.organization,
+      token: result.token,
+      message: 'Account created successfully with payment token'
     });
   }
 

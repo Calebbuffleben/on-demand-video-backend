@@ -3,6 +3,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
 import { ConsumeInviteDto } from './dto/consume-invite.dto';
+import { RegisterWithTokenDto } from './dto/register-with-token.dto';
 import { ConfigService } from '@nestjs/config';
 export declare class AuthController {
     private readonly authService;
@@ -21,6 +22,7 @@ export declare class AuthController {
     }>;
     consumeInvite(token: string, body: ConsumeInviteDto, res: Response): Promise<Response<any, Record<string, any>>>;
     register(registerDto: RegisterDto, res: Response): Promise<void>;
+    registerWithToken(registerWithTokenDto: RegisterWithTokenDto, res: Response): Promise<void>;
     login(loginDto: LoginDto, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     logout(req: any, res: Response): Promise<void>;
     refresh(req: any, res: Response): Promise<Response<any, Record<string, any>>>;

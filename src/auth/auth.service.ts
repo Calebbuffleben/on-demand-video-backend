@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { User, Organization } from '@prisma/client';
@@ -9,6 +9,7 @@ import * as jwt from 'jsonwebtoken';
 import { MailService } from '../mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
 import { ConsumeInviteDto } from './dto/consume-invite.dto';
+import { RegisterWithTokenDto } from './dto/register-with-token.dto';
 // Updated Prisma types
 
 // Type assertion for invite model
@@ -75,6 +76,8 @@ interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
@@ -387,6 +390,150 @@ export class AuthService {
         slug: result.organization.slug,
       },
       token,
+      refreshToken
+    };
+  }
+
+  /**
+   * Register user with account creation token
+   */
+  async registerWithToken(registerWithTokenDto: RegisterWithTokenDto): Promise<AuthResponse> {
+    const { token, email, password, firstName, lastName } = registerWithTokenDto;
+
+    this.logger.log(`🔐 [REGISTER_TOKEN] Iniciando registro com token para: ${email}`);
+    this.logger.log(`🔐 [REGISTER_TOKEN] Token: ${token.substring(0, 8)}...`);
+
+    // Validate token
+    this.logger.log(`🔐 [REGISTER_TOKEN] Validando token no banco de dados`);
+    const tokenRecord = await this.prisma.accountCreationToken.findUnique({
+      where: { token }
+    });
+
+    if (!tokenRecord) {
+      this.logger.warn(`❌ [REGISTER_TOKEN] Token não encontrado: ${token.substring(0, 8)}...`);
+      throw new BadRequestException('Token inválido ou não encontrado');
+    }
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Token encontrado no banco de dados`);
+
+    // Check if token is expired
+    if (tokenRecord.expiresAt < new Date()) {
+      this.logger.warn(`❌ [REGISTER_TOKEN] Token expirado para ${email}. Expira em: ${tokenRecord.expiresAt}`);
+      throw new BadRequestException('Token expirado. Solicite um novo link de criação de conta.');
+    }
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Token não está expirado. Expira em: ${tokenRecord.expiresAt}`);
+
+    // Check if token is already used
+    if (tokenRecord.usedAt) {
+      this.logger.warn(`❌ [REGISTER_TOKEN] Token já foi usado para ${email}. Usado em: ${tokenRecord.usedAt}`);
+      throw new BadRequestException('Token já foi utilizado. Cada token só pode ser usado uma vez.');
+    }
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Token não foi usado anteriormente`);
+
+    // Verify email matches token
+    if (tokenRecord.email !== email) {
+      this.logger.warn(`❌ [REGISTER_TOKEN] Email não corresponde. Token email: ${tokenRecord.email}, Fornecido: ${email}`);
+      throw new BadRequestException('Email não corresponde ao token fornecido');
+    }
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Email corresponde ao token`);
+
+    // Check if user already exists
+    this.logger.log(`🔐 [REGISTER_TOKEN] Verificando se usuário já existe`);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      this.logger.warn(`❌ [REGISTER_TOKEN] Usuário já existe com email: ${email}`);
+      throw new ConflictException('Usuário já existe com este email');
+    }
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Usuário não existe, prosseguindo com criação`);
+
+    // Hash the password
+    this.logger.log(`🔐 [REGISTER_TOKEN] Gerando hash da senha`);
+    const hashedPassword = await this.hashPassword(password);
+
+    // Create user and organization in a transaction
+    this.logger.log(`🔐 [REGISTER_TOKEN] Iniciando transação para criar usuário e organização`);
+    const result = await this.prisma.$transaction(async (prisma) => {
+      // 1. Create user
+      this.logger.log(`🔐 [REGISTER_TOKEN] Criando usuário: ${email}`);
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          firstName: firstName || null,
+          lastName: lastName || null,
+          emailVerified: true, // User is verified via payment
+        }
+      });
+
+      this.logger.log(`✅ [REGISTER_TOKEN] Usuário criado com ID: ${user.id}`);
+
+      // 2. Create organization
+      const orgName = `${firstName || 'User'}'s Organization`;
+      this.logger.log(`🔐 [REGISTER_TOKEN] Criando organização: ${orgName}`);
+      const organization = await prisma.organization.create({
+        data: {
+          name: orgName,
+          slug: this.generateSlug(email),
+          description: `Organization created for ${firstName || 'User'} ${lastName || ''}`,
+        }
+      });
+
+      this.logger.log(`✅ [REGISTER_TOKEN] Organização criada com ID: ${organization.id}`);
+
+      // 3. Create user-organization relationship
+      this.logger.log(`🔐 [REGISTER_TOKEN] Criando relacionamento user-organization`);
+      await prisma.userOrganization.create({
+        data: {
+          userId: user.id,
+          organizationId: organization.id,
+          role: 'OWNER'
+        }
+      });
+
+      this.logger.log(`✅ [REGISTER_TOKEN] Relacionamento user-organization criado`);
+
+      // 4. Mark token as used
+      this.logger.log(`🔐 [REGISTER_TOKEN] Marcando token como usado`);
+      await prisma.accountCreationToken.update({
+        where: { id: tokenRecord.id },
+        data: { usedAt: new Date() }
+      });
+
+      this.logger.log(`✅ [REGISTER_TOKEN] Token marcado como usado`);
+
+      return { user, organization };
+    });
+
+    // 5. Generate session tokens
+    this.logger.log(`🔐 [REGISTER_TOKEN] Gerando tokens de sessão`);
+    const tokenJwt = this.generateToken(result.user.id, result.organization.id);
+    const refreshToken = await this.issueRefreshToken(result.user.id, result.organization.id);
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Tokens de sessão gerados com sucesso`);
+
+    this.logger.log(`✅ [REGISTER_TOKEN] Registro com token concluído com sucesso para: ${email}`);
+    this.logger.log(`✅ [REGISTER_TOKEN] User ID: ${result.user.id}, Organization ID: ${result.organization.id}`);
+
+    return {
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+      },
+      organization: {
+        id: result.organization.id,
+        name: result.organization.name,
+        slug: result.organization.slug,
+      },
+      token: tokenJwt,
       refreshToken
     };
   }

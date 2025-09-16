@@ -21,6 +21,7 @@ const auth_guard_1 = require("./guards/auth.guard");
 const public_decorator_1 = require("./decorators/public.decorator");
 const swagger_1 = require("@nestjs/swagger");
 const consume_invite_dto_1 = require("./dto/consume-invite.dto");
+const register_with_token_dto_1 = require("./dto/register-with-token.dto");
 const config_1 = require("@nestjs/config");
 let AuthController = class AuthController {
     authService;
@@ -85,6 +86,25 @@ let AuthController = class AuthController {
             organization: result.organization,
             token: result.token,
             message: 'User registered successfully'
+        });
+    }
+    async registerWithToken(registerWithTokenDto, res) {
+        const result = await this.authService.registerWithToken(registerWithTokenDto);
+        res.cookie('scale_token', result.token, {
+            ...this.getCookieOptions(),
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        if (result.refreshToken) {
+            res.cookie('scale_refresh', result.refreshToken, {
+                ...this.getCookieOptions(),
+                maxAge: Number(this.configService.get('REFRESH_TOKEN_DAYS') || 30) * 24 * 60 * 60 * 1000,
+            });
+        }
+        res.status(common_1.HttpStatus.CREATED).json({
+            user: result.user,
+            organization: result.organization,
+            token: result.token,
+            message: 'Account created successfully with payment token'
         });
     }
     async login(loginDto, res) {
@@ -224,6 +244,17 @@ __decorate([
     __metadata("design:paramtypes", [register_dto_1.RegisterDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "register", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('register-with-token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Register user with account creation token' }),
+    (0, swagger_1.ApiBody)({ type: register_with_token_dto_1.RegisterWithTokenDto }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [register_with_token_dto_1.RegisterWithTokenDto, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "registerWithToken", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('login'),
