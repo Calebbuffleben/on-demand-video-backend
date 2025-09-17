@@ -187,7 +187,7 @@ export class PaymentsService {
 
     // Enviar email com link de criação de conta
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const accountCreationLink = `${frontendUrl}/create-account?token=${token}`;
+    const accountCreationLink = `${frontendUrl}/sign-up?token=${token}`;
     
     this.logger.log(`📧 [EMAIL] Preparando envio de email para: ${customerEmail}`);
     this.logger.log(`🔗 [EMAIL] Link de criação de conta: ${accountCreationLink}`);
