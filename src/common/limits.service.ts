@@ -11,8 +11,8 @@ export interface PlanLimits {
 }
 
 const DEFAULT_LIMITS: Record<PlanType, PlanLimits> = {
-  FREE: { maxStorageGB: 2, maxTotalMinutes: 60, maxUniqueViews: 1000 },
-  BASIC: { maxStorageGB: 50, maxTotalMinutes: 600, maxUniqueViews: 50000 },
+  FREE: { maxStorageGB: 0, maxTotalMinutes: 0, maxUniqueViews: 0 },
+  BASIC: { maxStorageGB: 5, maxTotalMinutes: 600, maxUniqueViews: 50000 },
   PRO: { maxStorageGB: 500, maxTotalMinutes: 5000, maxUniqueViews: 1000000 },
   ENTERPRISE: { maxStorageGB: null, maxTotalMinutes: null, maxUniqueViews: null },
 };
