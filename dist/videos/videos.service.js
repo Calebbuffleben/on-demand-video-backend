@@ -22,6 +22,7 @@ const mux_node_1 = require("@mux/mux-node");
 const transcode_queue_1 = require("../queue/transcode.queue");
 const jwt_playback_service_1 = require("./jwt-playback.service");
 const video_provider_factory_1 = require("./providers/video-provider.factory");
+const limits_service_1 = require("../common/limits.service");
 let VideosService = VideosService_1 = class VideosService {
     prisma;
     configService;
@@ -30,8 +31,9 @@ let VideosService = VideosService_1 = class VideosService {
     transcodeQueue;
     jwtPlayback;
     providerFactory;
+    limits;
     logger = new common_1.Logger(VideosService_1.name);
-    constructor(prisma, configService, muxService, r2, transcodeQueue, jwtPlayback, providerFactory) {
+    constructor(prisma, configService, muxService, r2, transcodeQueue, jwtPlayback, providerFactory, limits) {
         this.prisma = prisma;
         this.configService = configService;
         this.muxService = muxService;
@@ -39,6 +41,7 @@ let VideosService = VideosService_1 = class VideosService {
         this.transcodeQueue = transcodeQueue;
         this.jwtPlayback = jwtPlayback;
         this.providerFactory = providerFactory;
+        this.limits = limits;
     }
     async testCloudflareConnection(organizationId) {
         try {
@@ -552,6 +555,9 @@ let VideosService = VideosService_1 = class VideosService {
             this.logger.log(`getUploadUrl called with organizationId: ${dto.organizationId}`);
             const provider = await this.providerFactory.getProvider(dto.organizationId);
             this.logger.log(`Using ${provider.name} provider for organization: ${dto.organizationId}`);
+            const expectedMinutes = Math.floor((dto.maxDurationSeconds || 0) / 60);
+            const expectedBytes = Number(dto['expectedSizeBytes'] || 0);
+            await this.limits.ensureCanUpload(dto.organizationId, expectedMinutes, expectedBytes);
             const result = await provider.createUploadUrl({
                 organizationId: dto.organizationId,
                 name: dto.name || 'Untitled',
@@ -586,6 +592,9 @@ let VideosService = VideosService_1 = class VideosService {
         const org = await this.prisma.organization.findUnique({ where: { id: dto.organizationId } });
         if (!org)
             throw new common_1.BadRequestException('Organization not found');
+        const expectedMinutes = Math.floor((dto.maxDurationSeconds || 0) / 60);
+        const expectedBytes = Number(dto.expectedSizeBytes || 0);
+        await this.limits.ensureCanUpload(dto.organizationId, expectedMinutes, expectedBytes);
         const id = (0, crypto_1.randomUUID)();
         const assetKey = `org/${dto.organizationId}/video/${id}`;
         const sourceKey = `${assetKey}/uploads/input.mp4`;
@@ -612,6 +621,15 @@ let VideosService = VideosService_1 = class VideosService {
     async multipartComplete(dto) {
         if (!dto.key || !dto.uploadId || !dto.parts?.length)
             throw new common_1.BadRequestException('Missing fields');
+        try {
+            const prefix = dto.key.split('/uploads/')[0];
+            const listRes = await this.r2.list(prefix);
+            const size = (listRes.Contents || [])
+                .filter(o => o.Key?.endsWith('input.mp4'))
+                .reduce((sum, o) => sum + (typeof o.Size === 'number' ? o.Size : 0), 0);
+            await this.limits.ensureCanUpload(dto.organizationId, 0, size);
+        }
+        catch { }
         const parts = dto.parts.map(p => ({ PartNumber: p.partNumber, ETag: p.eTag }));
         await this.r2.completeMultipartUpload(dto.key, dto.uploadId, parts);
         const provider = await this.providerFactory.getProvider(dto.organizationId);
@@ -1449,6 +1467,7 @@ exports.VideosService = VideosService = VideosService_1 = __decorate([
         r2_service_1.R2Service,
         transcode_queue_1.TranscodeQueue,
         jwt_playback_service_1.JwtPlaybackService,
-        video_provider_factory_1.VideoProviderFactory])
+        video_provider_factory_1.VideoProviderFactory,
+        limits_service_1.LimitsService])
 ], VideosService);
 //# sourceMappingURL=videos.service.js.map

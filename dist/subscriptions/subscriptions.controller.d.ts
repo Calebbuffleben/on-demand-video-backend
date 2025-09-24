@@ -1,5 +1,7 @@
 import { Request } from 'express';
+import { LimitsService } from '../common/limits.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { PlanType } from '@prisma/client';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CreateInviteDto } from './dto/create-invite.dto';
 interface AuthenticatedRequest extends Request {
@@ -30,7 +32,8 @@ interface AuthenticatedRequest extends Request {
 }
 export declare class SubscriptionsController {
     private readonly subscriptionsService;
-    constructor(subscriptionsService: SubscriptionsService);
+    private readonly limitsService;
+    constructor(subscriptionsService: SubscriptionsService, limitsService: LimitsService);
     createInvite(createInviteDto: CreateInviteDto, req: AuthenticatedRequest): Promise<{
         id: string;
         email: string;
@@ -45,10 +48,10 @@ export declare class SubscriptionsController {
         organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
+        planType: import(".prisma/client").$Enums.PlanType;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
@@ -59,10 +62,10 @@ export declare class SubscriptionsController {
         organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
+        planType: import(".prisma/client").$Enums.PlanType;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
@@ -73,10 +76,10 @@ export declare class SubscriptionsController {
         organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
+        planType: import(".prisma/client").$Enums.PlanType;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
@@ -87,14 +90,32 @@ export declare class SubscriptionsController {
         organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.SubscriptionStatus;
-        planType: import(".prisma/client").$Enums.PlanType;
         stripeCustomerId: string | null;
         stripeSubscriptionId: string | null;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
+        planType: import(".prisma/client").$Enums.PlanType;
         trialEndsAt: Date | null;
         currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
+    }>;
+    getCurrent(req: AuthenticatedRequest): Promise<{
+        id: string;
+        organizationId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        status: import(".prisma/client").$Enums.SubscriptionStatus;
+        planType: import(".prisma/client").$Enums.PlanType;
+        trialEndsAt: Date | null;
+        currentPeriodStart: Date | null;
+        currentPeriodEnd: Date | null;
+        cancelAtPeriodEnd: boolean;
+    }>;
+    getCurrentPlan(req: AuthenticatedRequest): Promise<{
+        userPlanType: PlanType;
+        subscription: any;
     }>;
     hasAccess(req: AuthenticatedRequest): Promise<{
         hasAccess: boolean;
@@ -104,10 +125,10 @@ export declare class SubscriptionsController {
             organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            status: import(".prisma/client").$Enums.SubscriptionStatus;
-            planType: import(".prisma/client").$Enums.PlanType;
             stripeCustomerId: string | null;
             stripeSubscriptionId: string | null;
+            status: import(".prisma/client").$Enums.SubscriptionStatus;
+            planType: import(".prisma/client").$Enums.PlanType;
             trialEndsAt: Date | null;
             currentPeriodStart: Date | null;
             currentPeriodEnd: Date | null;
@@ -115,5 +136,25 @@ export declare class SubscriptionsController {
         };
     }>;
     createCheckout(body: CreateCheckoutDto, req: AuthenticatedRequest): Promise<import("stripe").Stripe.Response<import("stripe").Stripe.Checkout.Session>>;
+    getMyOrgUsage(req: AuthenticatedRequest): Promise<{
+        organizationId: string;
+        plan: import(".prisma/client").$Enums.PlanType;
+        limits: import("../common/limits.service").PlanLimits;
+        usage: {
+            storageGB: number;
+            totalMinutes: number;
+            uniqueViews: number;
+        };
+    }>;
+    getOrgUsage(req: AuthenticatedRequest, organizationId: string): Promise<{
+        organizationId: string;
+        plan: import(".prisma/client").$Enums.PlanType;
+        limits: import("../common/limits.service").PlanLimits;
+        usage: {
+            storageGB: number;
+            totalMinutes: number;
+            uniqueViews: number;
+        };
+    }>;
 }
 export {};

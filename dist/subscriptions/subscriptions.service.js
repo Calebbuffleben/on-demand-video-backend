@@ -14,14 +14,8 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stripe_service_1 = require("./stripe.service");
 const config_1 = require("@nestjs/config");
+const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
-var PlanType;
-(function (PlanType) {
-    PlanType["FREE"] = "FREE";
-    PlanType["BASIC"] = "BASIC";
-    PlanType["PRO"] = "PRO";
-    PlanType["ENTERPRISE"] = "ENTERPRISE";
-})(PlanType || (PlanType = {}));
 var SubscriptionStatus;
 (function (SubscriptionStatus) {
     SubscriptionStatus["ACTIVE"] = "ACTIVE";
@@ -186,6 +180,21 @@ let SubscriptionsService = class SubscriptionsService {
             data: { status: SubscriptionStatus.ACTIVE },
         });
         return subscription;
+    }
+    async getCurrentPlan(req) {
+        const organizationId = req.organization?.id;
+        const userId = req.user?.id;
+        if (!organizationId) {
+            throw new common_1.NotFoundException('Organization not found');
+        }
+        if (!userId) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        const subscription = await this.prisma.subscription.findUnique({ where: { organizationId } });
+        if (!subscription)
+            throw new common_1.NotFoundException('Subscription not found');
+        const plan = subscription.planType || client_1.PlanType.FREE;
+        return { userPlanType: plan, subscription };
     }
     async createCheckoutSession(dto, req) {
         const organizationId = req.organization?.id;

@@ -21,6 +21,7 @@ import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartA
 import { TranscodeQueue } from '../queue/transcode.queue';
 import { JwtPlaybackService } from './jwt-playback.service';
 import { VideoProviderFactory } from './providers/video-provider.factory';
+import { LimitsService } from '../common/limits.service';
 
 interface CloudflareWebhookPayload {
   uid: string;
@@ -43,6 +44,7 @@ export class VideosService {
     private transcodeQueue: TranscodeQueue,
     private jwtPlayback: JwtPlaybackService,
     private providerFactory: VideoProviderFactory,
+    private limits: LimitsService,
   ) {}
 
   /**
@@ -751,6 +753,11 @@ export class VideosService {
       
       this.logger.log(`Using ${provider.name} provider for organization: ${dto.organizationId}`);
 
+      // Enforce plan limits before issuing upload URL
+      const expectedMinutes = Math.floor((dto.maxDurationSeconds || 0) / 60);
+      const expectedBytes = Number(dto['expectedSizeBytes'] || 0);
+      await this.limits.ensureCanUpload(dto.organizationId, expectedMinutes, expectedBytes);
+
       // Use provider to create upload URL
       const result = await provider.createUploadUrl({
         organizationId: dto.organizationId,
@@ -787,6 +794,11 @@ export class VideosService {
     const org = await this.prisma.organization.findUnique({ where: { id: dto.organizationId } });
     if (!org) throw new BadRequestException('Organization not found');
 
+    // Enforce plan limits (storage and minutes) before creating pending video
+    const expectedMinutes = Math.floor((dto.maxDurationSeconds || 0) / 60);
+    const expectedBytes = Number(dto.expectedSizeBytes || 0);
+    await this.limits.ensureCanUpload(dto.organizationId, expectedMinutes, expectedBytes);
+
     const id = randomUUID();
     const assetKey = `org/${dto.organizationId}/video/${id}`;
     const sourceKey = `${assetKey}/uploads/input.mp4`;
@@ -815,6 +827,15 @@ export class VideosService {
 
   async multipartComplete(dto: MultipartCompleteDto) {
     if (!dto.key || !dto.uploadId || !dto.parts?.length) throw new BadRequestException('Missing fields');
+    // Best-effort recheck storage cap using actual uploaded size from S3 list
+    try {
+      const prefix = dto.key.split('/uploads/')[0];
+      const listRes = await this.r2.list(prefix);
+      const size = (listRes.Contents || [])
+        .filter(o => o.Key?.endsWith('input.mp4'))
+        .reduce((sum, o) => sum + (typeof o.Size === 'number' ? o.Size : 0), 0);
+      await this.limits.ensureCanUpload(dto.organizationId, 0, size);
+    } catch {}
     // Normalize parts to S3 format
     const parts = dto.parts.map(p => ({ PartNumber: p.partNumber, ETag: p.eTag }));
     await this.r2.completeMultipartUpload(dto.key, dto.uploadId, parts as any);

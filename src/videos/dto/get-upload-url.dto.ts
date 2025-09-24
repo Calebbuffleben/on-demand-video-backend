@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, Max, Min, IsString, IsBoolean } from 'class-validator';
+import { IsNumber, IsOptional, Max, Min, IsString, IsBoolean, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class GetUploadUrlDto {
@@ -49,4 +49,13 @@ export class GetUploadUrlDto {
   @IsString()
   @IsOptional()
   organizationId?: string;
+
+  @ApiProperty({
+    description: 'Estimated file size in bytes for projection (optional but recommended)',
+    required: false,
+    example: 2000000000,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  expectedSizeBytes: number;
 } 

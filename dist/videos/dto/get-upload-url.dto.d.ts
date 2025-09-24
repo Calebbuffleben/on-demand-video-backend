@@ -4,4 +4,5 @@ export declare class GetUploadUrlDto {
     description?: string;
     requireSignedURLs?: boolean;
     organizationId?: string;
+    expectedSizeBytes: number;
 }

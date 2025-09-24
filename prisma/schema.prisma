@@ -11,39 +11,39 @@ model Organization {
   id             String             @id @default(uuid())
   name           String
   clerkId        String?            @unique
-  slug           String?            @unique
-  description    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   muxTokenId     String?
   muxTokenSecret String?
+  description    String?
+  slug           String?            @unique
   analyticsCache AnalyticsCache[]
+  invites        Invite[]
   pendingVideos  PendingVideo[]
+  refreshTokens  RefreshToken[]
   subscription   Subscription?
   users          UserOrganization[]
   videos         Video[]
-  refreshTokens  RefreshToken[]
-  invites        Invite[]
 
   @@index([clerkId])
   @@index([slug])
 }
 
 model User {
-  id            String             @id @default(uuid())
-  clerkId       String?            @unique
-  email         String             @unique
-  password      String?
-  firstName     String?
-  lastName      String?
-  emailVerified Boolean            @default(false)
-  lastLogin     DateTime?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  organizations UserOrganization[]
-  emailTokens   EmailVerificationToken[]
+  id             String                   @id @default(uuid())
+  clerkId        String?                  @unique
+  email          String                   @unique
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  emailVerified  Boolean                  @default(false)
+  firstName      String?
+  lastLogin      DateTime?
+  lastName       String?
+  password       String?
+  emailTokens    EmailVerificationToken[]
   passwordTokens PasswordResetToken[]
-  refreshTokens RefreshToken[]
+  refreshTokens  RefreshToken[]
+  organizations  UserOrganization[]
 }
 
 model UserOrganization {
@@ -60,60 +60,59 @@ model UserOrganization {
 }
 
 model Video {
-  id                     String          @id @default(uuid())
+  id                     String               @id @default(uuid())
   name                   String
   description            String?
   organizationId         String
-  status                 VideoStatus     @default(PROCESSING)
+  status                 VideoStatus          @default(PROCESSING)
   duration               Int?
   thumbnailUrl           String?
   playbackUrl            String?
-  // New generic provider fields (internal pipeline)
-  provider               VideoProvider   @default(INTERNAL)
-  assetKey               String?
-  jobId                  String?
-  playbackHlsPath        String?
-  thumbnailPath          String?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  isLive                 Boolean         @default(false)
-  visibility             Visibility      @default(PUBLIC)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  isLive                 Boolean              @default(false)
+  visibility             Visibility           @default(PUBLIC)
   tags                   String[]
   price                  Float?
-  currency               String?         @default("USD")
+  currency               String?              @default("USD")
   muxAssetId             String?
   muxPlaybackId          String?
   muxUploadId            String?
-  allowFullscreen        Boolean?        @default(true)
-  autoPlay               Boolean?        @default(false)
-  loop                   Boolean?        @default(false)
-  muted                  Boolean?        @default(false)
-  responsive             Boolean?        @default(true)
-  showBranding           Boolean?        @default(true)
-  showMetadata           Boolean?        @default(true)
-  showPlaybackControls   Boolean?        @default(true)
-  showProgressBar        Boolean?        @default(true)
-  showTechnicalInfo      Boolean?        @default(false)
-  showTitle              Boolean?        @default(true)
-  showUploadDate         Boolean?        @default(true)
-  showVideoTitle         Boolean?        @default(true)
-  useOriginalProgressBar Boolean?        @default(false)
-  playButtonBgColor      String?         @default("rgba(0,0,0,0.6)")
-  playButtonColor        String?         @default("#FFFFFF")
-  playButtonSize         Int?            @default(60)
-  progressBarColor       String?         @default("#171717")
-  progressEasing         Float?          @default(0.25)
+  allowFullscreen        Boolean?             @default(true)
+  autoPlay               Boolean?             @default(false)
+  loop                   Boolean?             @default(false)
+  muted                  Boolean?             @default(false)
+  responsive             Boolean?             @default(true)
+  showBranding           Boolean?             @default(true)
+  showMetadata           Boolean?             @default(true)
+  showPlaybackControls   Boolean?             @default(true)
+  showProgressBar        Boolean?             @default(true)
+  showTechnicalInfo      Boolean?             @default(false)
+  showTitle              Boolean?             @default(true)
+  showUploadDate         Boolean?             @default(true)
+  showVideoTitle         Boolean?             @default(true)
+  useOriginalProgressBar Boolean?             @default(false)
+  playButtonBgColor      String?              @default("rgba(0,0,0,0.6)")
+  playButtonColor        String?              @default("#FFFFFF")
+  playButtonSize         Int?                 @default(60)
+  progressBarColor       String?              @default("#171717")
+  progressEasing         Float?               @default(0.25)
   ctaButtonText          String?
   ctaEndTime             Int?
   ctaLink                String?
   ctaStartTime           Int?
   ctaText                String?
-  soundControlColor      String?         @default("#FFFFFF")
-  soundControlOpacity    Float?          @default(0.8)
-  soundControlSize       Int?            @default(64)
-  soundControlText       String?         @default("Sound")
-  showSoundControl       Boolean?        @default(false)
-  organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  soundControlColor      String?              @default("#FFFFFF")
+  soundControlOpacity    Float?               @default(0.8)
+  soundControlSize       Int?                 @default(64)
+  soundControlText       String?              @default("Sound")
+  showSoundControl       Boolean?             @default(false)
+  assetKey               String?
+  jobId                  String?
+  playbackHlsPath        String?
+  provider               VideoProvider        @default(INTERNAL)
+  thumbnailPath          String?
+  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   analytics              VideoAnalytics?
   playbackEvents         VideoPlaybackEvent[]
 }
@@ -237,12 +236,80 @@ model VideoPlaybackEvent {
   ip             String?
   userAgent      String?
   createdAt      DateTime @default(now())
-
   video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([videoId, createdAt])
   @@index([videoId, sessionId])
   @@index([eventType])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id             String        @id @default(uuid())
+  userId         String
+  organizationId String?
+  hashedToken    String        @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Invite {
+  id             String       @id @default(uuid())
+  email          String
+  organizationId String
+  role           Role         @default(MEMBER)
+  token          String       @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model AccountCreationToken {
+  id        String    @id @default(uuid())
+  email     String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+  @@index([email])
 }
 
 enum Role {
@@ -282,74 +349,4 @@ enum Visibility {
 enum VideoProvider {
   INTERNAL
   MUX
-}
-
-model EmailVerificationToken {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-model PasswordResetToken {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-model RefreshToken {
-  id              String        @id @default(uuid())
-  userId          String
-  organizationId  String?
-  hashedToken     String        @unique
-  expiresAt       DateTime
-  revokedAt       DateTime?
-  createdAt       DateTime      @default(now())
-
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-model Invite {
-  id             String       @id @default(uuid())
-  email          String
-  organizationId String
-  role           Role         @default(MEMBER)
-  token          String       @unique
-  expiresAt      DateTime
-  usedAt         DateTime?
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([token])
-  @@index([expiresAt])
-}
-
-model AccountCreationToken {
-  id        String   @id @default(uuid())
-  email     String
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-
-  @@index([token])
-  @@index([expiresAt])
-  @@index([email])
 }

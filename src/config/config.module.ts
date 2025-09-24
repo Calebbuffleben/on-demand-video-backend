@@ -37,6 +37,10 @@ import * as Joi from 'joi';
         SMTP_PASS: Joi.string().allow('').optional(),
         MAIL_FROM: Joi.string().allow('').optional(),
         MAIL_REPLY_TO: Joi.string().allow('').optional(),
+        // Pepper mapping (optional JSON: maps offer hash or title to PlanType)
+        PEPPER_OFFER_PLAN_MAP: Joi.string().optional(),
+        // Optional JSON to override per-plan limits
+        PLAN_LIMITS_JSON: Joi.string().optional(),
       }),
     }),
   ],

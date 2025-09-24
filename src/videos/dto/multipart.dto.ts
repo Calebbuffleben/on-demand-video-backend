@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Min, IsArray, ValidateNested } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, IsArray, ValidateNested, IsNumber, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MultipartInitDto {
@@ -21,6 +21,17 @@ export class MultipartInitDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ description: 'Estimated file size in bytes (required)', example: 2000000000 })
+  @IsNumber()
+  @IsNotEmpty()
+  expectedSizeBytes: number;
+
+  @ApiProperty({ description: 'Max expected duration (seconds) for minutes projection', required: false, default: 3600 })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxDurationSeconds?: number;
 }
 
 export class MultipartPartUrlDto {

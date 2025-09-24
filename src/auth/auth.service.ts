@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { User, Organization } from '@prisma/client';
+import { User, Organization, PlanType, SubscriptionStatus } from '@prisma/client';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcryptjs';
@@ -370,6 +370,17 @@ export class AuthService {
         }
       });
 
+      // 4. Ensure default subscription exists (FREE/ACTIVE)
+      await prisma.subscription.upsert({
+        where: { organizationId: organization.id },
+        update: {},
+        create: {
+          organizationId: organization.id,
+          planType: PlanType.FREE,
+          status: SubscriptionStatus.ACTIVE,
+        },
+      });
+
       return { user, organization };
     });
 
@@ -499,7 +510,33 @@ export class AuthService {
 
       this.logger.log(`✅ [REGISTER_TOKEN] Relacionamento user-organization criado`);
 
-      // 4. Mark token as used
+      // 4. Create subscription using plan from token (ACTIVE)
+      // Buscar o plano do token diretamente do banco para garantir tipo e coluna
+      let effectivePlan: PlanType = PlanType.FREE;
+      try {
+        const tokenRow = await prisma.$queryRaw<{ planType: PlanType | null }[]>`
+          SELECT "planType" FROM "AccountCreationToken" WHERE id = ${tokenRecord.id}
+        `;
+        const dbPlan = tokenRow?.[0]?.planType;
+        if (dbPlan) effectivePlan = dbPlan;
+      } catch {}
+      await prisma.subscription.upsert({
+        where: { organizationId: organization.id },
+        update: {
+          planType: effectivePlan,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        create: {
+          organizationId: organization.id,
+          planType: effectivePlan,
+          status: SubscriptionStatus.ACTIVE,
+        },
+      });
+
+      // 4b. User planType is now managed through the organization's subscription
+      // No need to update User table directly as planType is on Subscription model
+
+      // 5. Mark token as used
       this.logger.log(`🔐 [REGISTER_TOKEN] Marcando token como usado`);
       await prisma.accountCreationToken.update({
         where: { id: tokenRecord.id },

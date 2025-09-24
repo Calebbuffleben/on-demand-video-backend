@@ -7,9 +7,12 @@ import {
   Post,
   Body,
   NotFoundException,
+  Param,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { LimitsService } from '../common/limits.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { PlanType } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -49,6 +52,7 @@ interface AuthenticatedRequest extends Request {
 export class SubscriptionsController {
   constructor(
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly limitsService: LimitsService,
   ) {}
 
   @Post('invites')
@@ -116,6 +120,36 @@ export class SubscriptionsController {
     }
   }
 
+  // Alias endpoint for current subscription (used by frontend)
+  @Get('current')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current organization subscription (alias of status)' })
+  async getCurrent(@Req() req: AuthenticatedRequest) {
+    try {
+      return this.subscriptionsService.getSubscriptionStatus(req);
+    } catch (error) {
+      throw new NotFoundException('Subscription not found');
+    }
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user plan and org subscription' })
+  async getCurrentPlan(@Req() req: AuthenticatedRequest): Promise<{
+    userPlanType: PlanType;
+    subscription: any;
+  }> {
+    try {
+      return this.subscriptionsService.getCurrentPlan(req);
+    } catch (error) {
+      throw new NotFoundException('Subscription not found');
+    }
+  }
+
   @Get('access')
   @UseGuards(AuthGuard)
   @OrganizationScoped()
@@ -133,5 +167,35 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Create checkout session for subscription' })
   async createCheckout(@Body() body: CreateCheckoutDto, @Req() req: AuthenticatedRequest) {
     return this.subscriptionsService.createCheckoutSession(body, req);
+  }
+
+  // User-scoped: Get current org usage and limits (derived from auth)
+  @Get('usage')
+  @UseGuards(AuthGuard)
+  @OrganizationScoped()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current organization usage and limits (user scoped)' })
+  async getMyOrgUsage(@Req() req: AuthenticatedRequest) {
+    const organizationId = req.organization?.id;
+    if (!organizationId) {
+      throw new NotFoundException('Organization not found');
+    }
+    const plan = await this.limitsService.getOrganizationPlan(organizationId);
+    const limits = this.limitsService.getLimitsForPlan(plan);
+    const usage = await this.limitsService.getOrganizationUsage(organizationId);
+    return { organizationId, plan, limits, usage };
+  }
+
+  // Admin: Get org usage and limits
+  @Get('admin/usage/:organizationId')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin - Get current usage and limits for an organization' })
+  async getOrgUsage(@Req() req: AuthenticatedRequest, @Param('organizationId') organizationId: string) {
+    // In a future step, restrict to ADMIN using userRole
+    const plan = await this.limitsService.getOrganizationPlan(organizationId);
+    const limits = this.limitsService.getLimitsForPlan(plan);
+    const usage = await this.limitsService.getOrganizationUsage(organizationId);
+    return { organizationId, plan, limits, usage };
   }
 } 

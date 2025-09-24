@@ -59,6 +59,25 @@ export class R2Service {
     return this.s3.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, MaxKeys: maxKeys }));
   }
 
+  // Calculate total size in bytes for a given prefix
+  async getTotalSizeForPrefix(prefix: string): Promise<number> {
+    let continuationToken: string | undefined = undefined;
+    let total = 0;
+    do {
+      const res = await this.s3.send(new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+        MaxKeys: 1000,
+      }));
+      (res.Contents || []).forEach(obj => {
+        if (typeof obj.Size === 'number') total += obj.Size;
+      });
+      continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return total;
+  }
+
   async multipartUpload(key: string, parts: Array<{ Body: Buffer | Uint8Array | string; PartNumber: number }>, contentType?: string) {
     const create = await this.s3.send(new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }));
     const uploadId = create.UploadId!;

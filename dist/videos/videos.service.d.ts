@@ -15,6 +15,7 @@ import { MultipartInitDto, MultipartPartUrlDto, MultipartCompleteDto, MultipartA
 import { TranscodeQueue } from '../queue/transcode.queue';
 import { JwtPlaybackService } from './jwt-playback.service';
 import { VideoProviderFactory } from './providers/video-provider.factory';
+import { LimitsService } from '../common/limits.service';
 interface CloudflareWebhookPayload {
     uid: string;
     status?: string;
@@ -31,8 +32,9 @@ export declare class VideosService {
     private transcodeQueue;
     private jwtPlayback;
     private providerFactory;
+    private limits;
     private readonly logger;
-    constructor(prisma: PrismaService, configService: ConfigService, muxService: MuxService, r2: R2Service, transcodeQueue: TranscodeQueue, jwtPlayback: JwtPlaybackService, providerFactory: VideoProviderFactory);
+    constructor(prisma: PrismaService, configService: ConfigService, muxService: MuxService, r2: R2Service, transcodeQueue: TranscodeQueue, jwtPlayback: JwtPlaybackService, providerFactory: VideoProviderFactory, limits: LimitsService);
     testCloudflareConnection(organizationId?: string): Promise<any>;
     getAvailableProviders(organizationId: string): Promise<{
         default: import("./providers/video-provider.factory").ProviderType;
@@ -107,6 +109,7 @@ export declare class VideosService {
             organizationId: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.VideoStatus;
             visibility: import(".prisma/client").$Enums.Visibility;
             ctaText: string | null;
             ctaButtonText: string | null;
@@ -137,21 +140,20 @@ export declare class VideosService {
             responsive: boolean | null;
             showBranding: boolean | null;
             showTechnicalInfo: boolean | null;
-            status: import(".prisma/client").$Enums.VideoStatus;
             duration: number | null;
             muxUploadId: string | null;
             muxAssetId: string | null;
+            price: number | null;
             thumbnailUrl: string | null;
             playbackUrl: string | null;
-            provider: import(".prisma/client").$Enums.VideoProvider;
+            isLive: boolean;
+            currency: string | null;
+            muxPlaybackId: string | null;
             assetKey: string | null;
             jobId: string | null;
             playbackHlsPath: string | null;
+            provider: import(".prisma/client").$Enums.VideoProvider;
             thumbnailPath: string | null;
-            isLive: boolean;
-            price: number | null;
-            currency: string | null;
-            muxPlaybackId: string | null;
         };
     }>;
     serveHlsFile(videoId: string, filename: string, res: any): Promise<void>;

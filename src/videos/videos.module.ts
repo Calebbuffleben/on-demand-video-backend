@@ -13,6 +13,7 @@ import { JwtPlaybackService } from './jwt-playback.service';
 import { VideoProviderFactory } from './providers/video-provider.factory';
 import { InternalProvider } from './providers/internal.provider';
 import { MuxProvider } from './providers/mux.provider';
+import { LimitsService } from '../common/limits.service';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MuxProvider } from './providers/mux.provider';
     VideoProviderFactory,
     InternalProvider,
     MuxProvider,
+    LimitsService,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,

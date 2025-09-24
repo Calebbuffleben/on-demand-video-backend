@@ -18,6 +18,7 @@ class GetUploadUrlDto {
     description;
     requireSignedURLs;
     organizationId;
+    expectedSizeBytes;
 }
 exports.GetUploadUrlDto = GetUploadUrlDto;
 __decorate([
@@ -73,4 +74,14 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], GetUploadUrlDto.prototype, "organizationId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Estimated file size in bytes for projection (optional but recommended)',
+        required: false,
+        example: 2000000000,
+    }),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", Number)
+], GetUploadUrlDto.prototype, "expectedSizeBytes", void 0);
 //# sourceMappingURL=get-upload-url.dto.js.map

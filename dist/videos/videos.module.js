@@ -22,6 +22,7 @@ const jwt_playback_service_1 = require("./jwt-playback.service");
 const video_provider_factory_1 = require("./providers/video-provider.factory");
 const internal_provider_1 = require("./providers/internal.provider");
 const mux_provider_1 = require("./providers/mux.provider");
+const limits_service_1 = require("../common/limits.service");
 let VideosModule = class VideosModule {
 };
 exports.VideosModule = VideosModule;
@@ -42,6 +43,7 @@ exports.VideosModule = VideosModule = __decorate([
             video_provider_factory_1.VideoProviderFactory,
             internal_provider_1.InternalProvider,
             mux_provider_1.MuxProvider,
+            limits_service_1.LimitsService,
             {
                 provide: core_1.APP_INTERCEPTOR,
                 useClass: transform_interceptor_1.TransformInterceptor,

@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
+import { LimitsService } from '../common/limits.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
@@ -75,6 +76,7 @@ export class VideosController {
     private readonly prismaService: PrismaService,
     private readonly muxWebhookController: MuxWebhookController,
     private readonly uploadService: UploadService,
+    private readonly limitsService: LimitsService,
   ) {}
 
   // Test endpoint for JWT token generation - MUST be before :uid routes
@@ -485,6 +487,11 @@ export class VideosController {
     @Req() req: Request,
     @Res() res: any
   ): Promise<EmbedVideoResponseDto> {
+    // Enforce plan view cap before responding
+    const orgId = req['organization']?.id;
+    if (orgId) {
+      await this.limitsService.ensureCanEmbed(String(orgId));
+    }
     // Set aggressive CORS headers for cross-domain embedding
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');

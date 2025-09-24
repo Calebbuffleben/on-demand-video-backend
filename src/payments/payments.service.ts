@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PaymentsService {
@@ -10,6 +12,7 @@ export class PaymentsService {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -106,6 +109,7 @@ export class PaymentsService {
     
     const transaction = event.transaction;
     const customer = event.customer;
+    const offer = event.offer;
     
     this.logger.log(`💳 [TRANSACTION] Dados da transação: ID=${transaction.id}, Status=${transaction.status}, Amount=${transaction.amount}`);
     this.logger.log(`👤 [TRANSACTION] Dados do cliente: Email=${customer.email}, Name=${customer.name}`);
@@ -155,6 +159,9 @@ export class PaymentsService {
     }
     this.logger.log(`✅ [TOKEN] Nenhum token existente encontrado, prosseguindo com criação`);
 
+    // Mapear plano da oferta Pepper
+    const planType = this.mapOfferToPlanType(offer);
+
     // Criar token temporário para criação de conta
     this.logger.log(`🔧 [TOKEN] Gerando novo token para email: ${customerEmail}`);
     console.log(`🔧 [DEBUG] Gerando token para: ${customerEmail}`);
@@ -170,6 +177,23 @@ export class PaymentsService {
         expiresAt,
       }
     });
+
+    // Atualizar planType via SQL para evitar problemas de tipagem quando o client ainda não refletiu o schema
+    if (planType) {
+      try {
+        // Validar planType antes de usar na query
+        const validPlanTypes = ['FREE', 'BASIC', 'PRO', 'ENTERPRISE'];
+        if (!validPlanTypes.includes(planType)) {
+          throw new Error(`Invalid plan type: ${planType}`);
+        }
+        
+        await this.prisma.$executeRaw(
+          Prisma.sql`UPDATE "AccountCreationToken" SET "planType" = ${planType} WHERE "id" = ${tokenRecord.id}`
+        );
+      } catch (e) {
+        this.logger.warn(`⚠️ [TOKEN] Falha ao atualizar planType via SQL: ${(e as Error).message}`);
+      }
+    }
 
     this.logger.log(`✅ [TOKEN] Token criado com sucesso. ID: ${tokenRecord.id}, Expires: ${expiresAt.toISOString()}`);
     
@@ -217,6 +241,33 @@ export class PaymentsService {
 
     this.logger.log(`🎉 [SUCCESS] Processamento concluído com sucesso: ${JSON.stringify(result)}`);
     return result;
+  }
+
+  /**
+   * Mapeia a oferta da Pepper para um PlanType do nosso sistema
+   * Prioriza PEPPER_OFFER_PLAN_MAP (JSON) no env. Caso não definido, tenta heurísticas por title/hash.
+   */
+  private mapOfferToPlanType(offer: any): 'FREE' | 'BASIC' | 'PRO' | 'ENTERPRISE' | null {
+    try {
+      const mappingRaw = this.configService.get<string>('PEPPER_OFFER_PLAN_MAP');
+      if (mappingRaw) {
+        const mapping = JSON.parse(mappingRaw) as {
+          byHash?: Record<string, 'FREE' | 'BASIC' | 'PRO' | 'ENTERPRISE'>;
+          byTitle?: Record<string, 'FREE' | 'BASIC' | 'PRO' | 'ENTERPRISE'>;
+        };
+        if (offer?.hash && mapping.byHash?.[offer.hash]) return mapping.byHash[offer.hash];
+        if (offer?.title && mapping.byTitle?.[offer.title]) return mapping.byTitle[offer.title];
+      }
+    } catch {}
+
+    // Fallback heurísticas simples por título
+    const title = (offer?.title || '').toString().toLowerCase();
+    if (!title) return null;
+    if (title.includes('starter') || title.includes('basic')) return 'BASIC';
+    if (title.includes('pro')) return 'PRO';
+    if (title.includes('enterprise') || title.includes('vip') || title.includes('premium')) return 'ENTERPRISE';
+    if (title.includes('free') || title.includes('grat')) return 'FREE';
+    return null;
   }
 
   /**

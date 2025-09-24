@@ -17,6 +17,7 @@ exports.VideosController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const videos_service_1 = require("./videos.service");
+const limits_service_1 = require("../common/limits.service");
 const create_video_dto_1 = require("./dto/create-video.dto");
 const update_video_dto_1 = require("./dto/update-video.dto");
 const swagger_1 = require("@nestjs/swagger");
@@ -38,12 +39,14 @@ let VideosController = VideosController_1 = class VideosController {
     prismaService;
     muxWebhookController;
     uploadService;
+    limitsService;
     logger = new common_2.Logger(VideosController_1.name);
-    constructor(videosService, prismaService, muxWebhookController, uploadService) {
+    constructor(videosService, prismaService, muxWebhookController, uploadService, limitsService) {
         this.videosService = videosService;
         this.prismaService = prismaService;
         this.muxWebhookController = muxWebhookController;
         this.uploadService = uploadService;
+        this.limitsService = limitsService;
     }
     async generateTestPlaybackToken(videoId, body) {
         const testOrganizationId = '00c38d90-c35d-4598-97e0-2a243505eba6';
@@ -228,6 +231,10 @@ let VideosController = VideosController_1 = class VideosController {
         return this.videosService.getAllVideos();
     }
     async getVideoForEmbed(uid, req, res) {
+        const orgId = req['organization']?.id;
+        if (orgId) {
+            await this.limitsService.ensureCanEmbed(String(orgId));
+        }
         res.header('Access-Control-Allow-Origin', '*');
         res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
         res.header('Access-Control-Allow-Headers', '*');
@@ -914,6 +921,7 @@ exports.VideosController = VideosController = VideosController_1 = __decorate([
     __metadata("design:paramtypes", [videos_service_1.VideosService,
         prisma_service_1.PrismaService,
         mux_webhook_controller_1.MuxWebhookController,
-        upload_service_1.UploadService])
+        upload_service_1.UploadService,
+        limits_service_1.LimitsService])
 ], VideosController);
 //# sourceMappingURL=videos.controller.js.map

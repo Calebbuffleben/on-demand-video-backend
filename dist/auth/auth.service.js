@@ -14,6 +14,7 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_1 = require("@nestjs/config");
+const client_1 = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mail_service_1 = require("../mail/mail.service");
@@ -241,6 +242,15 @@ let AuthService = AuthService_1 = class AuthService {
                     role: 'OWNER'
                 }
             });
+            await prisma.subscription.upsert({
+                where: { organizationId: organization.id },
+                update: {},
+                create: {
+                    organizationId: organization.id,
+                    planType: client_1.PlanType.FREE,
+                    status: client_1.SubscriptionStatus.ACTIVE,
+                },
+            });
             return { user, organization };
         });
         const token = this.generateToken(result.user.id, result.organization.id);
@@ -332,6 +342,28 @@ let AuthService = AuthService_1 = class AuthService {
                 }
             });
             this.logger.log(`✅ [REGISTER_TOKEN] Relacionamento user-organization criado`);
+            let effectivePlan = client_1.PlanType.FREE;
+            try {
+                const tokenRow = await prisma.$queryRaw `
+          SELECT "planType" FROM "AccountCreationToken" WHERE id = ${tokenRecord.id}
+        `;
+                const dbPlan = tokenRow?.[0]?.planType;
+                if (dbPlan)
+                    effectivePlan = dbPlan;
+            }
+            catch { }
+            await prisma.subscription.upsert({
+                where: { organizationId: organization.id },
+                update: {
+                    planType: effectivePlan,
+                    status: client_1.SubscriptionStatus.ACTIVE,
+                },
+                create: {
+                    organizationId: organization.id,
+                    planType: effectivePlan,
+                    status: client_1.SubscriptionStatus.ACTIVE,
+                },
+            });
             this.logger.log(`🔐 [REGISTER_TOKEN] Marcando token como usado`);
             await prisma.accountCreationToken.update({
                 where: { id: tokenRecord.id },

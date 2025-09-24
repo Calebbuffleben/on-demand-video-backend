@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LimitsService } from '../../common/limits.service';
 import { R2Service } from '../../storage/r2.service';
 import { TranscodeQueue } from '../../queue/transcode.queue';
 import { JwtPlaybackService } from '../jwt-playback.service';
@@ -32,6 +33,7 @@ export class InternalProvider extends VideoProvider {
     private r2: R2Service,
     private transcodeQueue: TranscodeQueue,
     private jwtPlayback: JwtPlaybackService,
+    private limits: LimitsService,
   ) {
     super();
   }
@@ -51,6 +53,10 @@ export class InternalProvider extends VideoProvider {
       const videoId = randomUUID();
       const assetKey = `org/${request.organizationId}/video/${videoId}`;
       const sourceFile = `${assetKey}/uploads/input.mp4`;
+
+      // Enforce plan limits before creating the pending video
+      const expectedMinutes = Math.floor((request.maxDurationSeconds || 0) / 60);
+      await this.limits.ensureCanUpload(request.organizationId, expectedMinutes);
 
       // Create PendingVideo record
       await this.prisma.pendingVideo.create({

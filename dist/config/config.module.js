@@ -47,6 +47,8 @@ exports.AppConfigModule = AppConfigModule = __decorate([
                     SMTP_PASS: Joi.string().allow('').optional(),
                     MAIL_FROM: Joi.string().allow('').optional(),
                     MAIL_REPLY_TO: Joi.string().allow('').optional(),
+                    PEPPER_OFFER_PLAN_MAP: Joi.string().optional(),
+                    PLAN_LIMITS_JSON: Joi.string().optional(),
                 }),
             }),
         ],

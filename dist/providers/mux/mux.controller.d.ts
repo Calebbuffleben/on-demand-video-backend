@@ -65,8 +65,8 @@ export declare class MuxController {
             organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            visibility: import(".prisma/client").$Enums.Visibility;
             status: import(".prisma/client").$Enums.VideoStatus;
+            visibility: import(".prisma/client").$Enums.Visibility;
             muxUploadId: string | null;
             muxAssetId: string | null;
         };

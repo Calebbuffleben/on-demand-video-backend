@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from './stripe.service';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { Subscription } from '@prisma/client';
+import { Subscription, PlanType } from '@prisma/client';
 import { CreateInviteDto } from './dto/create-invite.dto';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { Request } from 'express';
@@ -46,13 +46,7 @@ type PrismaWithInvite = PrismaService & {
   };
 };
 
-// Define the enums separately since the generated Prisma types might not be available
-enum PlanType {
-  FREE = 'FREE',
-  BASIC = 'BASIC',
-  PRO = 'PRO',
-  ENTERPRISE = 'ENTERPRISE'
-}
+// PlanType enum is now imported from @prisma/client
 
 enum SubscriptionStatus {
   ACTIVE = 'ACTIVE',
@@ -248,6 +242,28 @@ export class SubscriptionsService {
       data: { status: SubscriptionStatus.ACTIVE },
     });
     return subscription;
+  }
+
+  // Retorna o plano atual do usuário e a assinatura da organização
+  async getCurrentPlan(req: Request): Promise<{
+    userPlanType: PlanType;
+    subscription: Subscription;
+  }> {
+    const organizationId = (req as AuthenticatedRequest).organization?.id;
+    const userId = (req as AuthenticatedRequest).user?.id;
+    if (!organizationId) {
+      throw new NotFoundException('Organization not found');
+    }
+    if (!userId) {
+      throw new NotFoundException('User not found');
+    }
+
+    const subscription = await this.prisma.subscription.findUnique({ where: { organizationId } });
+    if (!subscription) throw new NotFoundException('Subscription not found');
+
+    // Get planType from the subscription (not from User table)
+    const plan = subscription.planType || PlanType.FREE;
+    return { userPlanType: plan, subscription };
   }
 
   // Criar sessão de checkout (Stripe)

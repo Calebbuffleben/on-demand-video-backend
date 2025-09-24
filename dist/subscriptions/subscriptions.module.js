@@ -13,6 +13,8 @@ const prisma_module_1 = require("../prisma/prisma.module");
 const subscriptions_controller_1 = require("./subscriptions.controller");
 const subscriptions_service_1 = require("./subscriptions.service");
 const stripe_service_1 = require("./stripe.service");
+const limits_service_1 = require("../common/limits.service");
+const r2_service_1 = require("../storage/r2.service");
 let SubscriptionsModule = class SubscriptionsModule {
 };
 exports.SubscriptionsModule = SubscriptionsModule;
@@ -20,8 +22,8 @@ exports.SubscriptionsModule = SubscriptionsModule = __decorate([
     (0, common_1.Module)({
         imports: [auth_module_1.AuthModule, prisma_module_1.PrismaModule],
         controllers: [subscriptions_controller_1.SubscriptionsController],
-        providers: [subscriptions_service_1.SubscriptionsService, stripe_service_1.StripeService],
-        exports: [subscriptions_service_1.SubscriptionsService, stripe_service_1.StripeService],
+        providers: [subscriptions_service_1.SubscriptionsService, stripe_service_1.StripeService, limits_service_1.LimitsService, r2_service_1.R2Service],
+        exports: [subscriptions_service_1.SubscriptionsService, stripe_service_1.StripeService, limits_service_1.LimitsService],
     })
 ], SubscriptionsModule);
 //# sourceMappingURL=subscriptions.module.js.map

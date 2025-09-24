@@ -82,9 +82,9 @@ export declare class AuthService {
             createdAt: Date;
             clerkId: string | null;
             updatedAt: Date;
-            slug: string | null;
             muxTokenId: string | null;
             muxTokenSecret: string | null;
+            slug: string | null;
         };
     } & {
         id: string;
