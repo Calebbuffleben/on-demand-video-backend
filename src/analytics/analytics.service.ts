@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
@@ -20,8 +21,33 @@ export class AnalyticsService {
 
   constructor(
     private prisma: PrismaService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private configService: ConfigService,
   ) {}
+
+  /**
+   * Build an absolute thumbnail URL for a video with sensible fallbacks.
+   */
+  private buildThumbnailUrl(video: any): string {
+    try {
+      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:4000';
+      // 1) If custom cover exists
+      if (video?.thumbnailUrl) {
+        const t = String(video.thumbnailUrl);
+        if (t.startsWith('/')) return `${appUrl}${t}`;
+        return t;
+      }
+      // 2) If internal provider generated thumbnails
+      if (video?.thumbnailPath || video?.assetKey) {
+        return `${appUrl}/api/videos/thumb/${video.id}/0001.jpg`;
+      }
+      // 3) If MUX playback exists
+      if (video?.muxPlaybackId) {
+        return `https://image.mux.com/${video.muxPlaybackId}/thumbnail.jpg`;
+      }
+    } catch {}
+    return '';
+  }
 
   /**
    * Aggregate: unique views (distinct sessionId or userId) per video
@@ -458,7 +484,7 @@ export class AnalyticsService {
       const recentUploads = videos.map(video => ({
         id: video.id,
         title: video.name || 'Untitled Video',
-        thumbnailUrl: video.thumbnailUrl || '',
+        thumbnailUrl: this.buildThumbnailUrl(video),
         uploadDate: this.formatDate(video.createdAt.toISOString()),
         size: this.formatFileSize(video.analytics?.watchTime || 0),
         duration: this.formatDuration(video.duration || 0),
@@ -503,7 +529,7 @@ export class AnalyticsService {
         .map(video => ({
           id: video.id,
           title: video.name || 'Untitled Video',
-          thumbnailUrl: video.thumbnailUrl || '',
+          thumbnailUrl: this.buildThumbnailUrl(video),
           views: viewsByVideo[video.id] || 0,
           duration: this.formatDuration(video.duration || 0),
         }))

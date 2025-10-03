@@ -15,6 +15,7 @@ var AnalyticsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnalyticsService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const common_2 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
@@ -24,10 +25,31 @@ const ua_geo_util_1 = require("./utils/ua-geo.util");
 let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
     prisma;
     cacheManager;
+    configService;
     logger = new common_1.Logger(AnalyticsService_1.name);
-    constructor(prisma, cacheManager) {
+    constructor(prisma, cacheManager, configService) {
         this.prisma = prisma;
         this.cacheManager = cacheManager;
+        this.configService = configService;
+    }
+    buildThumbnailUrl(video) {
+        try {
+            const appUrl = this.configService.get('APP_URL') || 'http://localhost:4000';
+            if (video?.thumbnailUrl) {
+                const t = String(video.thumbnailUrl);
+                if (t.startsWith('/'))
+                    return `${appUrl}${t}`;
+                return t;
+            }
+            if (video?.thumbnailPath || video?.assetKey) {
+                return `${appUrl}/api/videos/thumb/${video.id}/0001.jpg`;
+            }
+            if (video?.muxPlaybackId) {
+                return `https://image.mux.com/${video.muxPlaybackId}/thumbnail.jpg`;
+            }
+        }
+        catch { }
+        return '';
     }
     async getUniqueViews(videoId, range) {
         const dateFilter = (0, time_range_util_1.buildCreatedAtFilter)((0, time_range_util_1.toUtcDateRange)(range));
@@ -365,7 +387,7 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             const recentUploads = videos.map(video => ({
                 id: video.id,
                 title: video.name || 'Untitled Video',
-                thumbnailUrl: video.thumbnailUrl || '',
+                thumbnailUrl: this.buildThumbnailUrl(video),
                 uploadDate: this.formatDate(video.createdAt.toISOString()),
                 size: this.formatFileSize(video.analytics?.watchTime || 0),
                 duration: this.formatDuration(video.duration || 0),
@@ -399,7 +421,7 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 .map(video => ({
                 id: video.id,
                 title: video.name || 'Untitled Video',
-                thumbnailUrl: video.thumbnailUrl || '',
+                thumbnailUrl: this.buildThumbnailUrl(video),
                 views: viewsByVideo[video.id] || 0,
                 duration: this.formatDuration(video.duration || 0),
             }))
@@ -487,6 +509,6 @@ exports.AnalyticsService = AnalyticsService;
 exports.AnalyticsService = AnalyticsService = AnalyticsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_2.Inject)(cache_manager_1.CACHE_MANAGER)),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object, config_1.ConfigService])
 ], AnalyticsService);
 //# sourceMappingURL=analytics.service.js.map

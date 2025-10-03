@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformStats, RecentUpload, PopularVideo, DashboardResponse } from './interfaces/analytics.interfaces';
@@ -5,8 +6,10 @@ import { EventsTimeRangeDto } from './dto/events-time-range.dto';
 export declare class AnalyticsService {
     private prisma;
     private cacheManager;
+    private configService;
     private readonly logger;
-    constructor(prisma: PrismaService, cacheManager: Cache);
+    constructor(prisma: PrismaService, cacheManager: Cache, configService: ConfigService);
+    private buildThumbnailUrl;
     getUniqueViews(videoId: string, range?: EventsTimeRangeDto): Promise<number>;
     getWatchTimeSeconds(videoId: string, range?: EventsTimeRangeDto): Promise<number>;
     getRetentionBuckets(videoId: string, duration: number, bucketSize?: number, range?: EventsTimeRangeDto): Promise<{

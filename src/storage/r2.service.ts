@@ -47,12 +47,14 @@ export class R2Service {
     await this.s3.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body as any, ContentType: contentType }));
   }
 
-  async getObjectStream(key: string): Promise<{ stream: NodeJS.ReadableStream; contentType?: string; contentLength?: number }> {
+  async getObjectStream(key: string): Promise<{ stream: NodeJS.ReadableStream; contentType?: string; contentLength?: number; eTag?: string; lastModified?: Date }> {
     const res = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
     const stream = res.Body as unknown as NodeJS.ReadableStream;
     const contentType = res.ContentType;
     const contentLength = typeof res.ContentLength === 'number' ? res.ContentLength : undefined;
-    return { stream, contentType, contentLength };
+    const eTag = typeof res.ETag === 'string' ? res.ETag : undefined;
+    const lastModified = res.LastModified instanceof Date ? res.LastModified : undefined;
+    return { stream, contentType, contentLength, eTag, lastModified };
   }
 
   async list(prefix: string, maxKeys: number = 1000) {

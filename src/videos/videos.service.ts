@@ -954,9 +954,9 @@ export class VideosService {
       this.logger.log(`Attempting to serve HLS file: ${hlsPath}`);
       
       // Get file from R2
-      const { stream } = await this.r2.getObjectStream(hlsPath);
+      const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
       
-      // Set appropriate content type
+      // Set appropriate content type and cache headers based on extension
       let contentType = 'application/octet-stream';
       if (filename.endsWith('.m3u8')) {
         contentType = 'application/vnd.apple.mpegurl';
@@ -964,11 +964,24 @@ export class VideosService {
         contentType = 'video/mp2t';
       }
       
-      res.set({
+      const headers: Record<string, string> = {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600',
-        'Access-Control-Allow-Origin': '*'
-      });
+        'Access-Control-Allow-Origin': '*',
+      };
+
+      if (filename.endsWith('.m3u8')) {
+        headers['Cache-Control'] = 'public, max-age=300, stale-while-revalidate=86400';
+      } else if (filename.endsWith('.ts')) {
+        headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+        headers['Accept-Ranges'] = 'bytes';
+      } else {
+        headers['Cache-Control'] = 'public, max-age=3600';
+      }
+
+      if (eTag) headers['ETag'] = eTag;
+      if (lastModified) headers['Last-Modified'] = lastModified.toUTCString();
+
+      res.set(headers);
       
       stream.pipe(res);
     } catch (error) {
@@ -1722,7 +1735,7 @@ export class VideosService {
 
       res.set({
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
         'Access-Control-Allow-Origin': '*',
       });
       res.send(content);
@@ -1766,7 +1779,7 @@ export class VideosService {
 
         res.set({
           'Content-Type': contentType,
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
           'Access-Control-Allow-Origin': '*',
         });
         res.send(content);
@@ -1779,13 +1792,18 @@ export class VideosService {
         throw new NotFoundException('Invalid file type');
       }
 
-      const { stream } = await this.r2.getObjectStream(hlsPath);
-      res.set({
+      const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
+      const segHeaders: Record<string, string> = {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600',
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
-      });
+        'Cache-Control': filename.endsWith('.ts')
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=300, stale-while-revalidate=86400',
+      };
+      if (eTag) segHeaders['ETag'] = eTag;
+      if (lastModified) segHeaders['Last-Modified'] = lastModified.toUTCString();
+      res.set(segHeaders);
       stream.pipe(res);
     } catch (error) {
       this.logger.error(`Error serving segment: ${error.message}`);
