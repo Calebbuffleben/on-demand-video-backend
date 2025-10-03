@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_1 = require("@nestjs/config");
 const r2_service_1 = require("../storage/r2.service");
+const content_cache_service_1 = require("../storage/content-cache.service");
 const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
 const mux_service_1 = require("../providers/mux/mux.service");
@@ -28,16 +29,18 @@ let VideosService = VideosService_1 = class VideosService {
     configService;
     muxService;
     r2;
+    contentCache;
     transcodeQueue;
     jwtPlayback;
     providerFactory;
     limits;
     logger = new common_1.Logger(VideosService_1.name);
-    constructor(prisma, configService, muxService, r2, transcodeQueue, jwtPlayback, providerFactory, limits) {
+    constructor(prisma, configService, muxService, r2, contentCache, transcodeQueue, jwtPlayback, providerFactory, limits) {
         this.prisma = prisma;
         this.configService = configService;
         this.muxService = muxService;
         this.r2 = r2;
+        this.contentCache = contentCache;
         this.transcodeQueue = transcodeQueue;
         this.jwtPlayback = jwtPlayback;
         this.providerFactory = providerFactory;
@@ -725,6 +728,16 @@ let VideosService = VideosService_1 = class VideosService {
             }
             const hlsPath = `${video.assetKey}/hls/${filename}`;
             this.logger.log(`Attempting to serve HLS file: ${hlsPath}`);
+            const isSegment = filename.endsWith('.ts');
+            const cacheKey = isSegment ? `${video.organizationId}:${videoId}:${filename}` : '';
+            if (isSegment) {
+                const hit = this.contentCache.get(cacheKey);
+                if (hit) {
+                    res.set(hit.headers);
+                    res.send(hit.data);
+                    return;
+                }
+            }
             const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
             let contentType = 'application/octet-stream';
             if (filename.endsWith('.m3u8')) {
@@ -752,7 +765,19 @@ let VideosService = VideosService_1 = class VideosService {
             if (lastModified)
                 headers['Last-Modified'] = lastModified.toUTCString();
             res.set(headers);
-            stream.pipe(res);
+            if (isSegment) {
+                const chunks = [];
+                stream.on('data', (c) => chunks.push(c));
+                stream.on('end', () => {
+                    const buf = Buffer.concat(chunks);
+                    this.contentCache.set(cacheKey, buf, headers, 31536000);
+                    res.end(buf);
+                });
+                stream.on('error', () => res.end());
+            }
+            else {
+                stream.pipe(res);
+            }
         }
         catch (error) {
             this.logger.error(`Error serving HLS file: ${error.message}`);
@@ -1394,6 +1419,16 @@ let VideosService = VideosService_1 = class VideosService {
             else {
                 throw new common_1.NotFoundException('Invalid file type');
             }
+            const isSegment = filename.endsWith('.ts');
+            const cacheKey = isSegment ? `${video.organizationId}:${videoId}:${filename}` : '';
+            if (isSegment) {
+                const hit = this.contentCache.get(cacheKey);
+                if (hit) {
+                    res.set(hit.headers);
+                    res.send(hit.data);
+                    return;
+                }
+            }
             const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
             const segHeaders = {
                 'Content-Type': contentType,
@@ -1408,7 +1443,19 @@ let VideosService = VideosService_1 = class VideosService {
             if (lastModified)
                 segHeaders['Last-Modified'] = lastModified.toUTCString();
             res.set(segHeaders);
-            stream.pipe(res);
+            if (isSegment) {
+                const chunks = [];
+                stream.on('data', (c) => chunks.push(c));
+                stream.on('end', () => {
+                    const buf = Buffer.concat(chunks);
+                    this.contentCache.set(cacheKey, buf, segHeaders, 31536000);
+                    res.end(buf);
+                });
+                stream.on('error', () => res.end());
+            }
+            else {
+                stream.pipe(res);
+            }
         }
         catch (error) {
             this.logger.error(`Error serving segment: ${error.message}`);
@@ -1486,6 +1533,7 @@ exports.VideosService = VideosService = VideosService_1 = __decorate([
         config_1.ConfigService,
         mux_service_1.MuxService,
         r2_service_1.R2Service,
+        content_cache_service_1.ContentCacheService,
         transcode_queue_1.TranscodeQueue,
         jwt_playback_service_1.JwtPlaybackService,
         video_provider_factory_1.VideoProviderFactory,

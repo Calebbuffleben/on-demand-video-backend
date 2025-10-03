@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { R2Service } from '../storage/r2.service';
+import { ContentCacheService } from '../storage/content-cache.service';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { Video, VideoStatus, Visibility } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -41,6 +42,7 @@ export class VideosService {
     private configService: ConfigService,
     private muxService: MuxService,
     private r2: R2Service,
+    private contentCache: ContentCacheService,
     private transcodeQueue: TranscodeQueue,
     private jwtPlayback: JwtPlaybackService,
     private providerFactory: VideoProviderFactory,
@@ -953,6 +955,18 @@ export class VideosService {
       const hlsPath = `${video.assetKey}/hls/${filename}`;
       this.logger.log(`Attempting to serve HLS file: ${hlsPath}`);
       
+      // Account-level content cache key (segments only). Playlists are small; keep from R2 to avoid staleness.
+      const isSegment = filename.endsWith('.ts');
+      const cacheKey = isSegment ? `${video.organizationId}:${videoId}:${filename}` : '';
+      if (isSegment) {
+        const hit = this.contentCache.get(cacheKey);
+        if (hit) {
+          res.set(hit.headers);
+          res.send(hit.data);
+          return;
+        }
+      }
+
       // Get file from R2
       const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
       
@@ -982,8 +996,20 @@ export class VideosService {
       if (lastModified) headers['Last-Modified'] = lastModified.toUTCString();
 
       res.set(headers);
-      
-      stream.pipe(res);
+
+      if (isSegment) {
+        const chunks: Buffer[] = [];
+        stream.on('data', (c) => chunks.push(c));
+        stream.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          // TTL aligns with headers for segments (1 year)
+          this.contentCache.set(cacheKey, buf, headers, 31536000);
+          res.end(buf);
+        });
+        stream.on('error', () => res.end());
+      } else {
+        stream.pipe(res);
+      }
     } catch (error) {
       this.logger.error(`Error serving HLS file: ${error.message}`);
       throw new NotFoundException('HLS file not found');
@@ -1792,6 +1818,17 @@ export class VideosService {
         throw new NotFoundException('Invalid file type');
       }
 
+      const isSegment = filename.endsWith('.ts');
+      const cacheKey = isSegment ? `${video.organizationId}:${videoId}:${filename}` : '';
+      if (isSegment) {
+        const hit = this.contentCache.get(cacheKey);
+        if (hit) {
+          res.set(hit.headers);
+          res.send(hit.data);
+          return;
+        }
+      }
+
       const { stream, eTag, lastModified } = await this.r2.getObjectStream(hlsPath);
       const segHeaders: Record<string, string> = {
         'Content-Type': contentType,
@@ -1804,7 +1841,18 @@ export class VideosService {
       if (eTag) segHeaders['ETag'] = eTag;
       if (lastModified) segHeaders['Last-Modified'] = lastModified.toUTCString();
       res.set(segHeaders);
-      stream.pipe(res);
+      if (isSegment) {
+        const chunks: Buffer[] = [];
+        stream.on('data', (c) => chunks.push(c));
+        stream.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          this.contentCache.set(cacheKey, buf, segHeaders, 31536000);
+          res.end(buf);
+        });
+        stream.on('error', () => res.end());
+      } else {
+        stream.pipe(res);
+      }
     } catch (error) {
       this.logger.error(`Error serving segment: ${error.message}`);
       throw new NotFoundException('Segment not found');

@@ -8,6 +8,7 @@ import { MuxModule } from '../providers/mux/mux.module';
 import { UploadService } from './upload.service';
 import { ConfigModule } from '@nestjs/config';
 import { R2Service } from '../storage/r2.service';
+import { ContentCacheService } from '../storage/content-cache.service';
 import { TranscodeQueue } from '../queue/transcode.queue';
 import { JwtPlaybackService } from './jwt-playback.service';
 import { VideoProviderFactory } from './providers/video-provider.factory';
@@ -26,6 +27,7 @@ import { LimitsService } from '../common/limits.service';
     VideosService,
     UploadService,
     R2Service,
+    ContentCacheService,
     TranscodeQueue,
     JwtPlaybackService,
     VideoProviderFactory,

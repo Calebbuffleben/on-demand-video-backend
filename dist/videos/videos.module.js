@@ -17,6 +17,7 @@ const mux_module_1 = require("../providers/mux/mux.module");
 const upload_service_1 = require("./upload.service");
 const config_1 = require("@nestjs/config");
 const r2_service_1 = require("../storage/r2.service");
+const content_cache_service_1 = require("../storage/content-cache.service");
 const transcode_queue_1 = require("../queue/transcode.queue");
 const jwt_playback_service_1 = require("./jwt-playback.service");
 const video_provider_factory_1 = require("./providers/video-provider.factory");
@@ -38,6 +39,7 @@ exports.VideosModule = VideosModule = __decorate([
             videos_service_1.VideosService,
             upload_service_1.UploadService,
             r2_service_1.R2Service,
+            content_cache_service_1.ContentCacheService,
             transcode_queue_1.TranscodeQueue,
             jwt_playback_service_1.JwtPlaybackService,
             video_provider_factory_1.VideoProviderFactory,

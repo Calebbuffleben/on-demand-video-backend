@@ -2,6 +2,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { R2Service } from '../storage/r2.service';
+import { ContentCacheService } from '../storage/content-cache.service';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { Video } from '@prisma/client';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
@@ -29,12 +30,13 @@ export declare class VideosService {
     private configService;
     private muxService;
     private r2;
+    private contentCache;
     private transcodeQueue;
     private jwtPlayback;
     private providerFactory;
     private limits;
     private readonly logger;
-    constructor(prisma: PrismaService, configService: ConfigService, muxService: MuxService, r2: R2Service, transcodeQueue: TranscodeQueue, jwtPlayback: JwtPlaybackService, providerFactory: VideoProviderFactory, limits: LimitsService);
+    constructor(prisma: PrismaService, configService: ConfigService, muxService: MuxService, r2: R2Service, contentCache: ContentCacheService, transcodeQueue: TranscodeQueue, jwtPlayback: JwtPlaybackService, providerFactory: VideoProviderFactory, limits: LimitsService);
     testCloudflareConnection(organizationId?: string): Promise<any>;
     getAvailableProviders(organizationId: string): Promise<{
         default: import("./providers/video-provider.factory").ProviderType;
